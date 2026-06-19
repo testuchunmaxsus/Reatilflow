@@ -31,7 +31,6 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/auth/LoginPage";
 import { AppLayout } from "@/layouts/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { CatalogListPage } from "@/features/catalog/CatalogListPage";
 import { CustomerListPage } from "@/features/customers/CustomerListPage";
 import { OrderListPage } from "@/features/orders/OrderListPage";
@@ -42,6 +41,7 @@ const StatsDashboardPage = lazy(() =>
   })),
 );
 import { UsersListPage } from "@/features/users/UsersListPage";
+import { RolePermissionsPage } from "@/features/rbac/RolePermissionsPage";
 import { ContractsListPage } from "@/features/contracts/ContractsListPage";
 import { TicketsListPage } from "@/features/tickets/TicketsListPage";
 import { PromoListPage } from "@/features/promo/PromoListPage";
@@ -121,7 +121,7 @@ function App() {
                   />
                   {/* /users — foydalanuvchilar boshqaruvi */}
                   <Route path="users" element={<UsersListPage />} />
-                  <Route path="rbac" element={<PlaceholderPage titleKey="nav.rbac" />} />
+                  <Route path="rbac" element={<RolePermissionsPage />} />
                   {/* /contracts — shartnomalar boshqaruvi */}
                   <Route path="contracts" element={<ContractsListPage />} />
                   {/* /tickets — murojaatlar boshqaruvi */}

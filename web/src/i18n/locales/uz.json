@@ -580,6 +580,41 @@
       "confirm": "\"{{name}}\" aksiyasini o'chirishni tasdiqlaysizmi?"
     }
   },
+  "dashboard": {
+    "cards": {
+      "total_stores": "Jami do'konlar",
+      "total_products": "Jami mahsulotlar",
+      "total_users": "Jami foydalanuvchilar",
+      "sales": "Buyurtmalar soni",
+      "net_balance": "Moliyaviy balans"
+    }
+  },
+  "rbac": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "page": {
+      "title": "Ruxsatlar matritsasi",
+      "description": "Rol × Modul × Amal ruxsatlari ko'rinishi. Manba: backend RBAC qoidalari (sinxron).",
+      "source_note": "Ma'lumot manbai: backend/app/modules/rbac/permissions.py (ROLE_PERMISSIONS)"
+    },
+    "matrix": {
+      "module": "Modul",
+      "action": "Amal",
+      "modules": {
+        "catalog": "Katalog",
+        "customers": "Mijozlar",
+        "orders": "Buyurtmalar",
+        "stats": "Statistika",
+        "finance": "Buxgalteriya",
+        "delivery": "Yetkazish",
+        "tickets": "Murojaatlar",
+        "contracts": "Shartnomalar",
+        "promo": "Aksiyalar",
+        "attendance": "Davomat",
+        "stock": "Ombor",
+        "rbac": "RBAC / Audit"
+      }
+    }
+  },
   "customers": {
     "actions": {
       "create": "Do'kon qo'shish",

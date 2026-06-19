@@ -580,6 +580,41 @@
       "confirm": "Вы уверены, что хотите удалить акцию «{{name}}»?"
     }
   },
+  "dashboard": {
+    "cards": {
+      "total_stores": "Всего магазинов",
+      "total_products": "Всего товаров",
+      "total_users": "Всего пользователей",
+      "sales": "Количество заказов",
+      "net_balance": "Финансовый баланс"
+    }
+  },
+  "rbac": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "page": {
+      "title": "Матрица прав доступа",
+      "description": "Отображение прав: Роль × Модуль × Действие. Источник: правила RBAC бэкенда (синхронно).",
+      "source_note": "Источник данных: backend/app/modules/rbac/permissions.py (ROLE_PERMISSIONS)"
+    },
+    "matrix": {
+      "module": "Модуль",
+      "action": "Действие",
+      "modules": {
+        "catalog": "Каталог",
+        "customers": "Клиенты",
+        "orders": "Заказы",
+        "stats": "Статистика",
+        "finance": "Бухгалтерия",
+        "delivery": "Доставка",
+        "tickets": "Обращения",
+        "contracts": "Договоры",
+        "promo": "Акции",
+        "attendance": "Посещаемость",
+        "stock": "Склад",
+        "rbac": "RBAC / Аудит"
+      }
+    }
+  },
   "customers": {
     "actions": {
       "create": "Добавить магазин",
