@@ -48,11 +48,13 @@ END;
 $$ LANGUAGE plpgsql;
 """
 
+# DIQQAT: asyncpg bitta prepared statement'da bir nechta buyruqni qabul qilmaydi
+# ("cannot insert multiple commands into a prepared statement"). Shu sabab DROP va
+# CREATE ALOHIDA bajariladi (upgrade ichida ketma-ket).
 _PG_TRIGGER_CREATE = """\
-DROP TRIGGER IF EXISTS trg_{tbl}_append_only ON {tbl};
 CREATE TRIGGER trg_{tbl}_append_only
     BEFORE UPDATE OR DELETE ON {tbl}
-    FOR EACH ROW EXECUTE FUNCTION reject_append_only_mutation();
+    FOR EACH ROW EXECUTE FUNCTION reject_append_only_mutation()
 """
 
 _PG_TRIGGER_DROP = """\
@@ -102,7 +104,9 @@ def upgrade() -> None:
         bind.execute(sa.text(_PG_FUNCTION))
 
         # 3. Har jadval uchun BEFORE UPDATE OR DELETE trigger.
+        #    DROP va CREATE alohida — asyncpg multi-command prepared statement'ni rad etadi.
         for tbl in _APPEND_ONLY_TABLES:
+            bind.execute(sa.text(f"DROP TRIGGER IF EXISTS trg_{tbl}_append_only ON {tbl}"))
             bind.execute(sa.text(_PG_TRIGGER_CREATE.format(tbl=tbl)))
 
     elif dialect == "sqlite":

@@ -1,0 +1,23 @@
+# Docker build kontekstini toza tutish — image'ga keraksiz narsa tushmasin.
+# Deps Dockerfile builder bosqichida pip orqali toza o'rnatiladi.
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.db
+*.sqlite3
+.env
+.env.*
+!.env.example
+.git/
+.gitignore
+*.md
