@@ -1,0 +1,45 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    missing_required_param: error
+    missing_return: error
+    dead_code: warning
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.drift.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # Dart qoidalari
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    avoid_empty_else: true
+    avoid_print: true
+    avoid_redundant_argument_values: true
+    avoid_returning_null_for_void: true
+    avoid_type_to_string: true
+    cancel_subscriptions: true
+    close_sinks: true
+    constant_identifier_names: true
+    directives_ordering: true
+    exhaustive_cases: true
+    file_names: true
+    no_duplicate_case_values: true
+    prefer_const_constructors: true
+    prefer_final_fields: true
+    prefer_final_locals: true
+    prefer_single_quotes: true
+    sort_constructors_first: true
+    type_annotate_public_apis: true
+    unawaited_futures: true
+    unnecessary_await_in_return: true
+    unnecessary_lambdas: true
+    unnecessary_null_checks: true
+    use_rethrow_when_possible: true
+    use_super_parameters: true

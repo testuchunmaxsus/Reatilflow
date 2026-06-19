@@ -1,0 +1,30 @@
+[package]
+name = "retail-desktop"
+version = "0.1.0"
+description = "RETAIL Desktop — Tauri qobig'i (React+TS SPA wrapper)"
+authors = ["RETAIL Team"]
+license = "Proprietary"
+repository = ""
+default-run = "retail-desktop"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.7", features = [
+    "window-all",
+    "shell-open",
+    "dialog-open",
+    "dialog-confirm",
+    "notification-all",
+    "fs-read-file",
+    "fs-write-file",
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+# Tauri custom protocol — production build uchun
+custom-protocol = ["tauri/custom-protocol"]

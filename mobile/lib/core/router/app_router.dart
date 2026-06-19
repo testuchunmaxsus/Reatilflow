@@ -1,0 +1,172 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/attendance/attendance_screen.dart';
+import '../../features/auth/auth_providers.dart';
+import '../../features/auth/auth_repository.dart';
+import '../../features/auth/login_screen.dart';
+import '../../features/catalog/catalog_screen.dart';
+import '../../features/dashboard/agent_dashboard.dart';
+import '../../features/dashboard/courier_dashboard.dart';
+import '../../features/delivery/delivery_detail_screen.dart';
+import '../../features/delivery/delivery_list_screen.dart';
+import '../../features/home/home_shell.dart';
+import '../../features/orders/create_order_screen.dart';
+import '../../features/orders/order_list_screen.dart';
+import '../../features/stores/store_detail_screen.dart';
+import '../../features/stores/store_list_screen.dart';
+
+/// Yo'llar
+const String routeLogin = '/login';
+const String routeHome = '/home';
+const String routeAgent = '/home/agent';
+const String routeCourier = '/home/courier';
+const String routeStore = '/home/store';
+
+// Agent routes
+const String routeStores = '/home/stores';
+const String routeStoreDetail = '/home/stores/:storeId';
+const String routeCatalog = '/home/catalog';
+const String routeOrders = '/home/orders';
+const String routeOrderCreate = '/home/orders/create';
+const String routeAttendance = '/home/attendance';
+
+// Courier routes
+const String routeDeliveries = '/home/deliveries';
+const String routeDeliveryDetail = '/home/deliveries/:deliveryId';
+
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authNotifierProvider);
+
+  return GoRouter(
+    initialLocation: routeLogin,
+    redirect: (context, state) {
+      final isLoading = authState is AuthStateLoading;
+      final isAuthenticated = authState is AuthStateAuthenticated;
+      final onLogin = state.matchedLocation == routeLogin;
+
+      if (isLoading) return null;
+      if (!isAuthenticated && !onLogin) return routeLogin;
+      if (isAuthenticated && onLogin) {
+        if (authState case final AuthStateAuthenticated s) {
+          return switch (s.user.role) {
+            'agent' => routeAgent,
+            'courier' => routeCourier,
+            'store' => routeStore,
+            _ => routeHome,
+          };
+        }
+      }
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: routeLogin,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      ShellRoute(
+        builder: (context, state, child) => HomeShell(child: child),
+        routes: [
+          // --- Bosh sahifalar ---
+          GoRoute(
+            path: routeHome,
+            builder: (context, state) => const Center(child: Text('Bosh sahifa')),
+          ),
+          GoRoute(
+            path: routeAgent,
+            builder: (context, state) => const AgentDashboard(),
+          ),
+          GoRoute(
+            path: routeCourier,
+            builder: (context, state) => const CourierDashboard(),
+          ),
+          GoRoute(
+            path: routeStore,
+            builder: (context, state) => const _RolePlaceholder(
+              role: "Do'kon",
+              icon: Icons.store,
+            ),
+          ),
+
+          // --- Do'konlar ---
+          GoRoute(
+            path: routeStores,
+            builder: (context, state) => const StoreListScreen(),
+            routes: [
+              GoRoute(
+                path: ':storeId',
+                builder: (context, state) => StoreDetailScreen(
+                  storeId: state.pathParameters['storeId']!,
+                ),
+              ),
+            ],
+          ),
+
+          // --- Katalog ---
+          GoRoute(
+            path: routeCatalog,
+            builder: (context, state) => const CatalogScreen(),
+          ),
+
+          // --- Buyurtmalar ---
+          GoRoute(
+            path: routeOrders,
+            builder: (context, state) => const OrderListScreen(),
+          ),
+          GoRoute(
+            path: routeOrderCreate,
+            builder: (context, state) {
+              final storeId = state.uri.queryParameters['storeId'];
+              return CreateOrderScreen(preselectedStoreId: storeId);
+            },
+          ),
+
+          // --- Davomat ---
+          GoRoute(
+            path: routeAttendance,
+            builder: (context, state) => const AttendanceScreen(),
+          ),
+
+          // --- Kuryer: Yetkazishlar ---
+          GoRoute(
+            path: routeDeliveries,
+            builder: (context, state) => const DeliveryListScreen(),
+            routes: [
+              GoRoute(
+                path: ':deliveryId',
+                builder: (context, state) => DeliveryDetailScreen(
+                  deliveryId: state.pathParameters['deliveryId']!,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+});
+
+class _RolePlaceholder extends StatelessWidget {
+  const _RolePlaceholder({required this.role, required this.icon});
+
+  final String role;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 64, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 16),
+          Text(
+            '$role kabineti',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ],
+      ),
+    );
+  }
+}

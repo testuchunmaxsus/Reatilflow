@@ -1,0 +1,251 @@
+---
+# infra/prometheus/rules/alerts.yml
+# RETAIL — Prometheus Alert qoidalari
+#
+# Qo'llanishi:
+#   infra/prometheus/prometheus.yml da rule_files bo'limiga kiritilgan.
+#   Prometheus qayta ishga tushirilganda avtomatik yuklanadi.
+#
+# Alertmanager integratsiya (ixtiyoriy):
+#   prometheus.yml da alerting.alertmanagers ga ulanish sozlang.
+#   Telegram/Slack webhook uchun alertmanager.yml konfiguratsiya qiling.
+
+groups:
+
+  # ─── API / HTTP ──────────────────────────────────────────────────────────────
+  - name: retail_api
+    rules:
+
+      # API servis butunlay ishlamayapti
+      - alert: ApiDown
+        expr: up{job="retail-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "RETAIL API servis ishlamayapti"
+          description: >
+            retail-api job'i {{ $labels.instance }} manzilida
+            1 daqiqadan ko'proq vaqt davomida javob bermayapti.
+            Tekshirish: docker compose ps api && docker compose logs api
+
+      # GPS Ingest servis ishlamayapti
+      - alert: GpsIngestDown
+        expr: up{job="retail-gps-ingest"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "GPS Ingest servis ishlamayapti"
+          description: >
+            retail-gps-ingest job'i {{ $labels.instance }} da
+            2 daqiqadan ko'proq vaqt ishlamayapti.
+            Tekshirish: docker compose logs gps-ingest
+
+      # Yuqori 5xx xato darajasi (1% dan oshiq)
+      - alert: HighErrorRate
+        expr: >
+          (
+            sum(rate(http_requests_total{job="retail-api",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="retail-api"}[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "5xx xato darajasi yuqori ({{ $value | humanizePercentage }})"
+          description: >
+            So'nggi 5 daqiqada 5xx xatolar jami so'rovlarning
+            {{ $value | humanizePercentage }} qismini tashkil qilmoqda (chegara: 1%).
+            Dashboard: Grafana → RETAIL API Overview → Error Rate
+
+      # p99 kechikish yuqori (1 sekunddan oshiq)
+      - alert: SlowP99
+        expr: >
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="retail-api"}[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API p99 latency yuqori ({{ $value | humanizeDuration }})"
+          description: >
+            So'nggi 5 daqiqada 99-persentil so'rov kechikishi
+            {{ $value | humanizeDuration }} (chegara: 1s).
+            Dashboard: Grafana → RETAIL API Overview → Latency
+
+      # 4xx xato darajasi yuqori (5% dan oshiq — auth muammolari signali)
+      - alert: HighClientErrorRate
+        expr: >
+          (
+            sum(rate(http_requests_total{job="retail-api",status=~"4.."}[10m]))
+            /
+            sum(rate(http_requests_total{job="retail-api"}[10m]))
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "4xx xato darajasi yuqori ({{ $value | humanizePercentage }})"
+          description: >
+            So'nggi 10 daqiqada 4xx xatolar jami so'rovlarning
+            {{ $value | humanizePercentage }} qismini tashkil qilmoqda (chegara: 5%).
+            Sabab: authentication muammosi yoki noto'g'ri so'rovlar.
+
+  # ─── Ma'lumotlar bazasi ───────────────────────────────────────────────────────
+  - name: retail_database
+    rules:
+
+      # DB ulanish havzasi to'lib ketishi xavfi
+      - alert: DatabaseConnectionPoolExhausted
+        expr: >
+          pg_stat_activity_count{datname="retail"}
+          / pg_settings_max_connections{} > 0.85
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "PostgreSQL ulanish havzasi 85% to'ldi"
+          description: >
+            PostgreSQL max_connections ning 85% dan ko'prog'i ishlatilmoqda.
+            Muammo: PgBouncer sozlamalari yoki unoptimal so'rovlar.
+            Tekshirish: SELECT count(*) FROM pg_stat_activity;
+
+      # Replikatsiya kechikishi (10 sekunddan oshiq)
+      - alert: ReplicationLagHigh
+        expr: >
+          pg_stat_replication_pg_wal_lsn_diff{} > 10e6
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "PostgreSQL replikatsiya kechikishi yuqori"
+          description: >
+            Primary va replica o'rtasidagi WAL kechikishi
+            {{ $value | humanize1024 }} bayt (chegara: 10MB / ~10s).
+            Tekshirish: SELECT * FROM pg_stat_replication;
+
+  # ─── Push bildirishnomalar ────────────────────────────────────────────────────
+  - name: retail_push
+    rules:
+
+      # Push xato darajasi yuqori (5% dan oshiq)
+      - alert: PushNotificationErrorRate
+        expr: >
+          (
+            sum(rate(push_notification_errors_total[10m]))
+            /
+            (sum(rate(push_notification_sent_total[10m])) + 1)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Push xato darajasi yuqori ({{ $value | humanizePercentage }})"
+          description: >
+            So'nggi 10 daqiqada push bildirishnomalar xato darajasi
+            {{ $value | humanizePercentage }} (chegara: 5%).
+            Sabab: FCM/APNs kalit muammosi yoki token eskirgan.
+            Tekshirish: docker compose logs worker | grep -i "push"
+
+      # Push worker ishlamayapti (outbox yig'ilib qolmoqda)
+      - alert: PushWorkerStalled
+        expr: >
+          increase(push_notification_sent_total[15m]) == 0
+          and outbox_pending_events_total > 50
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Push worker to'xtab qolgan, outbox to'lib boryapti"
+          description: >
+            15 daqiqa ichida hech qanday push yuborilmagan,
+            lekin outbox da {{ $value }} ta kutayotgan hodisa mavjud.
+            Tekshirish: docker compose logs worker
+
+  # ─── Disk va tizim resurslari ─────────────────────────────────────────────────
+  - name: retail_system
+    rules:
+
+      # Disk to'lib ketishi xavfi (85% dan oshiq)
+      - alert: DiskSpaceLow
+        expr: >
+          (node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"}
+          / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) < 0.15
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Disk bo'sh joy kam ({{ $value | humanizePercentage }} qoldi)"
+          description: >
+            {{ $labels.instance }} serverida disk 85% dan ko'prog'i to'ldi.
+            Bo'sh joy: {{ $value | humanizePercentage }}.
+            Tekshirish: df -h; docker system df
+
+      # Disk kritik darajada to'ldi (95% dan oshiq)
+      - alert: DiskSpaceCritical
+        expr: >
+          (node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"}
+          / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "KRITIK: Disk deyarli to'ldi ({{ $value | humanizePercentage }} qoldi)"
+          description: >
+            {{ $labels.instance }} serverida disk kritik darajada to'ldi!
+            Zudlik bilan chiqindi tozalash kerak:
+              docker system prune -f
+              journalctl --vacuum-size=500M
+
+      # GPS TimescaleDB disk (alohida)
+      - alert: TimescaleDbDiskLow
+        expr: >
+          (node_filesystem_avail_bytes{mountpoint=~".*/timescale.*",fstype!="tmpfs"}
+          / node_filesystem_size_bytes{mountpoint=~".*/timescale.*",fstype!="tmpfs"}) < 0.20
+        for: 15m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "TimescaleDB disk bo'sh joy kam ({{ $value | humanizePercentage }})"
+          description: >
+            TimescaleDB volume'da bo'sh joy 20% dan kam qoldi.
+            GPS retention policy ({{ $labels.instance }}) ishlayaptimi tekshiring.
+            Tekshirish: SELECT * FROM timescaledb_information.chunks ORDER BY range_end DESC;
+
+  # ─── GPS Ingest ───────────────────────────────────────────────────────────────
+  - name: retail_gps
+    rules:
+
+      # GPS ingest xato darajasi yuqori
+      - alert: GpsIngestErrorRate
+        expr: >
+          (
+            sum(rate(gps_ingest_errors_total[5m]))
+            / (sum(rate(gps_ingest_total[5m])) + 1)
+          ) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "GPS ingest xato darajasi yuqori ({{ $value | humanizePercentage }})"
+          description: >
+            So'nggi 5 daqiqada GPS ingest xatolar {{ $value | humanizePercentage }}
+            (chegara: 2%).
+            Sabab: TimescaleDB ulanish muammosi yoki noto'g'ri koordinatalar.

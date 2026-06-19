@@ -1,0 +1,75 @@
+name: retail_mobile
+description: >
+  RETAIL — Flutter offline-first mobil ilova (agent, kuryer, do'kon).
+  T14: Drift + transactional outbox + delta pull + auth (JWT).
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Offline baza (SQLite ORM)
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+
+  # HTTP klient
+  dio: ^5.4.0
+
+  # Token xavfsiz saqlash (Keychain/Keystore)
+  flutter_secure_storage: ^9.0.0
+
+  # Holat boshqaruvi
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.0
+
+  # Navigatsiya
+  go_router: ^14.0.0
+
+  # UUID (client_uuid idempotentlik)
+  uuid: ^4.4.0
+
+  # Tarmoq holati
+  connectivity_plus: ^6.0.0
+
+  # JSON kodlash
+  json_annotation: ^4.9.0
+
+  # Qurilma biometriyasi (Face ID / barmoq izi)
+  local_auth: ^2.3.0
+
+  # GPS / geolokatsiya
+  geolocator: ^13.0.0
+
+  # Kamera / galereya (yetkazish dalil rasmi)
+  image_picker: ^1.1.0
+
+  # Barcode / QR skaner (MXIK, katalog, buyurtma)
+  mobile_scanner: ^6.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # Drift kod generatsiyasi
+  drift_dev: ^2.18.0
+  build_runner: ^2.4.0
+
+  # Riverpod kod generatsiyasi
+  riverpod_generator: ^2.4.0
+
+  # Test mock'lari
+  mocktail: ^1.0.0
+
+  # JSON kod generatsiyasi
+  json_serializable: ^6.7.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,647 @@
+{
+  "login": {
+    "subtitle": "Savdo va distribyutsiya boshqaruv tizimi",
+    "phone_label": "Telefon raqami",
+    "password_label": "Parol",
+    "password_placeholder": "Parolni kiriting",
+    "submit": "Kirish"
+  },
+  "validation": {
+    "phone_required": "Telefon raqamini kiriting",
+    "phone_format": "+998XXXXXXXXX formatida kiriting",
+    "password_required": "Parolni kiriting",
+    "password_min": "Parol kamida 6 belgidan iborat bo'lishi kerak"
+  },
+  "errors": {
+    "unknown": "Noma'lum xato yuz berdi",
+    "network": "Tarmoq xatosi. Iltimos, qayta urinib ko'ring."
+  },
+  "api": {
+    "auth.invalid_credentials": "Telefon yoki parol noto'g'ri",
+    "auth.inactive_user": "Hisob bloklangan",
+    "auth.token_expired": "Token muddati tugagan",
+    "auth.token_invalid": "Token yaroqsiz",
+    "auth.authentication_required": "Autentifikatsiya talab qilinadi",
+    "auth.user_not_found": "Foydalanuvchi topilmadi",
+    "rbac.permission_denied": "Ruxsat yo'q",
+    "common.not_found": "So'ralgan resurs topilmadi",
+    "common.validation_error": "So'rov ma'lumotlari noto'g'ri",
+    "common.internal_error": "Ichki server xatosi",
+    "catalog.product_not_found": "Mahsulot topilmadi",
+    "catalog.duplicate_sku": "Bu SKU bilan mahsulot allaqachon mavjud",
+    "catalog.duplicate_barcode": "Bu barcode bilan mahsulot allaqachon mavjud",
+    "catalog.version_conflict": "Ma'lumot o'zgartirilgan. Sahifani yangilang",
+    "catalog.category_not_found": "Kategoriya topilmadi",
+    "catalog.segment_not_found": "Narx segmenti topilmadi"
+  },
+  "nav": {
+    "dashboard": "Bosh sahifa",
+    "catalog": "Katalog",
+    "customers": "Mijozlar",
+    "orders": "Buyurtmalar",
+    "stats": "Statistika",
+    "users": "Foydalanuvchilar",
+    "rbac": "Ruxsatlar",
+    "contracts": "Shartnomalar",
+    "tickets": "Murojaatlar",
+    "promo": "Aksiyalar"
+  },
+  "common": {
+    "loading": "Yuklanmoqda...",
+    "logout": "Chiqish",
+    "coming_soon": "Tez orada...",
+    "language": "Til",
+    "welcome": "Xush kelibsiz, {{name}}",
+    "cancel": "Bekor qilish",
+    "save": "Saqlash",
+    "create": "Yaratish",
+    "edit": "Tahrirlash",
+    "delete": "O'chirish",
+    "close": "Yopish",
+    "role": {
+      "administrator": "Administrator",
+      "agent": "Savdo agenti",
+      "courier": "Kuryer",
+      "accountant": "Buxgalter",
+      "store": "Do'kon"
+    }
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Bosh sahifa",
+      "description": "RETAIL boshqaruv paneli"
+    },
+    "catalog": {
+      "title": "Katalog",
+      "description": "Mahsulotlar va kategoriyalar"
+    },
+    "customers": {
+      "title": "Mijozlar",
+      "description": "Do'konlar va mijozlar bazasi"
+    },
+    "orders": {
+      "title": "Buyurtmalar",
+      "description": "Buyurtmalar boshqaruvi"
+    },
+    "stats": {
+      "title": "Statistika",
+      "description": "Hisobot va tahlil"
+    },
+    "users": {
+      "title": "Foydalanuvchilar",
+      "description": "Foydalanuvchilar boshqaruvi"
+    },
+    "contracts": {
+      "title": "Shartnomalar",
+      "description": "Shartnomalar boshqaruvi"
+    },
+    "tickets": {
+      "title": "Murojaatlar",
+      "description": "Murojaatlar boshqaruvi"
+    },
+    "promo": {
+      "title": "Aksiyalar",
+      "description": "Savdo aksiyalari boshqaruvi"
+    }
+  },
+  "orders": {
+    "actions": {
+      "create": "Buyurtma qo'shish",
+      "view": "Ko'rish"
+    },
+    "filter": {
+      "all_statuses": "Barcha holatlar",
+      "status": "Holat",
+      "from": "Dan",
+      "to": "Gacha",
+      "period": "Davr"
+    },
+    "table": {
+      "number": "Raqam",
+      "date": "Sana",
+      "store": "Do'kon",
+      "mode": "Tur",
+      "status": "Holat",
+      "amount": "Summa",
+      "actions": "Amallar",
+      "empty": "Buyurtmalar topilmadi"
+    },
+    "status": {
+      "draft": "Qoralama",
+      "confirmed": "Tasdiqlangan",
+      "packed": "Qadoqlangan",
+      "delivering": "Yetkazilmoqda",
+      "delivered": "Yetkazildi",
+      "canceled": "Bekor qilindi"
+    },
+    "mode": {
+      "oddiy": "Oddiy",
+      "bozor": "Bozor"
+    },
+    "detail": {
+      "title": "Buyurtma tafsiloti",
+      "not_found": "Buyurtma topilmadi",
+      "lines": "Buyurtma qatorlari",
+      "product_id": "Mahsulot",
+      "qty": "Miqdor",
+      "unit_price": "Birlik narxi",
+      "discount": "Chegirma",
+      "line_total": "Jami",
+      "total": "Jami summa",
+      "change_status": "Holatni o'zgartirish",
+      "terminal_status": "Terminal holat — o'zgartirish mumkin emas"
+    },
+    "create": {
+      "title": "Yangi buyurtma",
+      "store_id": "Do'kon ID",
+      "store_id_placeholder": "Do'kon UUID ni kiriting",
+      "store_required": "Do'kon ID majburiy",
+      "mode": "Buyurtma turi",
+      "lines": "Mahsulotlar",
+      "product_id": "Mahsulot ID",
+      "product_id_placeholder": "Mahsulot UUID",
+      "product_required": "Mahsulot ID majburiy",
+      "qty": "Miqdor",
+      "qty_positive": "Miqdor 0 dan katta bo'lishi kerak",
+      "add_line": "Qator qo'shish",
+      "price_note": "Narx va chegirma server tomonidan avtomatik hisoblanadi",
+      "submit": "Buyurtma berish"
+    },
+    "messages": {
+      "created": "Buyurtma muvaffaqiyatli yaratildi",
+      "status_updated": "Holat «{{status}}» ga o'zgartirildi"
+    }
+  },
+  "stats": {
+    "filter": {
+      "from": "Boshlanish sanasi",
+      "to": "Tugash sanasi",
+      "group_by": "Guruhlash",
+      "period": "Davr",
+      "all_time": "Barcha vaqt"
+    },
+    "group_by": {
+      "day": "Kun",
+      "week": "Hafta",
+      "month": "Oy"
+    },
+    "sections": {
+      "sales": "Savdo statistikasi",
+      "delivery": "Yetkazish statistikasi",
+      "finance": "Moliyaviy statistika"
+    },
+    "sales": {
+      "total_orders": "Jami buyurtmalar",
+      "total_amount": "Jami summa",
+      "dynamics_chart": "Savdo dinamikasi",
+      "order_count": "Buyurtmalar soni",
+      "amount": "Summa",
+      "no_dynamics": "Dinamika ma'lumotlari yo'q (group_by tanlang)"
+    },
+    "delivery": {
+      "total": "Jami yetkazishlar",
+      "delivered": "Yetkazildi",
+      "failed": "Muvaffaqiyatsiz",
+      "in_progress": "Jarayonda",
+      "avg_minutes": "O'rtacha vaqt",
+      "minutes": "daqiqa",
+      "distribution": "Taqsimot"
+    },
+    "finance": {
+      "total_debit": "Jami debit",
+      "total_credit": "Jami kredit",
+      "net_balance": "Sof balans",
+      "store_name": "Do'kon nomi",
+      "debit": "Debit",
+      "credit": "Kredit",
+      "balance": "Balans",
+      "status_label": "Holat",
+      "debtor": "Qarzdor",
+      "creditor": "Haqdor",
+      "no_stores": "Do'konlar topilmadi"
+    }
+  },
+  "catalog": {
+    "actions": {
+      "create": "Mahsulot qo'shish",
+      "price_history": "Narx tarixi",
+      "photo": "Rasm yuklash"
+    },
+    "filter": {
+      "search_placeholder": "Nom, SKU yoki barcode...",
+      "all_categories": "Barcha kategoriyalar",
+      "only_active": "Faqat faollar"
+    },
+    "table": {
+      "name": "Nom",
+      "sku": "SKU",
+      "barcode": "Barcode",
+      "unit": "O'lchov",
+      "status": "Holat",
+      "actions": "Amallar",
+      "empty": "Mahsulotlar topilmadi"
+    },
+    "status": {
+      "active": "Faol",
+      "inactive": "Nofaol"
+    },
+    "form": {
+      "create_title": "Yangi mahsulot",
+      "edit_title": "Mahsulotni tahrirlash",
+      "name_uz": "Nomi (O'zbekcha)",
+      "name_uz_placeholder": "Mahsulot nomini kiriting",
+      "name_uz_required": "O'zbekcha nom majburiy",
+      "name_ru": "Nomi (Ruscha)",
+      "name_ru_placeholder": "Введите название товара",
+      "name_ru_required": "Ruscha nom majburiy",
+      "sku": "SKU",
+      "sku_required": "SKU majburiy",
+      "barcode": "Barcode",
+      "mxik_code": "MXIK kodi",
+      "unit": "O'lchov birligi",
+      "unit_placeholder": "Tanlang...",
+      "unit_required": "O'lchov birligi majburiy",
+      "category": "Kategoriya",
+      "category_placeholder": "Kategoriyani tanlang",
+      "no_category": "Kategoriyasiz",
+      "is_active": "Faol mahsulot"
+    },
+    "units": {
+      "dona": "Dona",
+      "kg": "Kilogramm",
+      "litr": "Litr",
+      "m": "Metr",
+      "m2": "Kv. metr",
+      "m3": "Kub metr",
+      "quti": "Quti"
+    },
+    "messages": {
+      "product_created": "Mahsulot muvaffaqiyatli yaratildi",
+      "product_updated": "Mahsulot muvaffaqiyatli yangilandi",
+      "product_deleted": "Mahsulot o'chirildi"
+    },
+    "delete": {
+      "title": "Mahsulotni o'chirish",
+      "confirm": "\"{{name}}\" mahsulotini o'chirishni tasdiqlaysizmi?"
+    },
+    "price_history": {
+      "title": "Narx tarixi",
+      "empty": "Narx tarixi mavjud emas",
+      "old_price": "Eski narx",
+      "new_price": "Yangi narx",
+      "currency": "Valyuta",
+      "changed_at": "O'zgartirilgan vaqt"
+    },
+    "photo": {
+      "title": "Rasm yuklash",
+      "current": "Joriy rasm",
+      "hint": "Ruxsat etilgan formatlar: JPEG, PNG, WebP. Maksimal hajm: 5 MB.",
+      "invalid_format": "Noto'g'ri format. Faqat JPEG, PNG, WebP.",
+      "too_large": "Fayl hajmi 5 MB dan oshmasligi kerak",
+      "choose_file": "Fayl tanlash",
+      "upload": "Yuklash",
+      "upload_success": "Rasm muvaffaqiyatli yuklandi"
+    }
+  },
+  "users": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "actions": {
+      "create": "Foydalanuvchi qo'shish",
+      "assign_store": "Do'kon biriktirish",
+      "deactivate": "Bloklash",
+      "activate": "Aktivlashtirish"
+    },
+    "filter": {
+      "all_roles": "Barcha rollar",
+      "all_statuses": "Barcha holatlar",
+      "role": "Rol bo'yicha filtrlash",
+      "status": "Holat bo'yicha filtrlash",
+      "active": "Faol",
+      "inactive": "Bloklangan"
+    },
+    "table": {
+      "full_name": "Ismi",
+      "phone": "Telefon",
+      "role": "Rol",
+      "status": "Holat",
+      "branch": "Filial",
+      "actions": "Amallar",
+      "empty": "Foydalanuvchilar topilmadi"
+    },
+    "status": {
+      "active": "Faol",
+      "inactive": "Bloklangan"
+    },
+    "form": {
+      "create_title": "Yangi foydalanuvchi",
+      "edit_title": "Foydalanuvchini tahrirlash",
+      "full_name": "To'liq ismi",
+      "full_name_placeholder": "F.I.SH.",
+      "full_name_required": "Ism majburiy",
+      "phone": "Telefon raqami",
+      "phone_hint": "Login uchun ishlatiladi (PII)",
+      "phone_invalid": "Noto'g'ri telefon raqami",
+      "password": "Parol",
+      "password_placeholder": "Kamida 6 belgi",
+      "password_hint": "Yaratishda majburiy; keyinchalik o'zgartiriladi",
+      "password_min": "Parol kamida 6 belgidan iborat bo'lishi kerak",
+      "role": "Rol",
+      "role_placeholder": "Rolni tanlang",
+      "role_required": "Rol majburiy",
+      "branch_id": "Filial ID",
+      "branch_id_hint": "Bo'sh qoldirsa — barcha filiallar",
+      "locale": "Til"
+    },
+    "messages": {
+      "user_created": "Foydalanuvchi muvaffaqiyatli yaratildi",
+      "user_updated": "Foydalanuvchi muvaffaqiyatli yangilandi",
+      "user_deactivated": "Foydalanuvchi bloklandi",
+      "user_activated": "Foydalanuvchi qayta aktivlashtirildi"
+    },
+    "deactivate": {
+      "title": "Foydalanuvchini bloklash",
+      "confirm": "\"{{name}}\" foydalanuvchisini bloklashni tasdiqlaysizmi?"
+    },
+    "assign_store": {
+      "title": "Do'kon biriktirish",
+      "agent_label": "Agent",
+      "store_label": "Do'kon",
+      "store_placeholder": "Do'konni tanlang",
+      "store_required": "Do'konni tanlash majburiy",
+      "no_stores": "Do'konlar topilmadi",
+      "submit": "Biriktirish",
+      "success": "Do'kon muvaffaqiyatli biriktirildi"
+    }
+  },
+  "contracts": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "actions": {
+      "create": "Shartnoma qo'shish",
+      "upload_file": "Fayl yuklash"
+    },
+    "filter": {
+      "all_statuses": "Barcha holatlar",
+      "status": "Holat bo'yicha filtrlash",
+      "expiring_soon": "Tugayotganlar",
+      "clear": "Tozalash"
+    },
+    "table": {
+      "number": "Raqam",
+      "store_id": "Do'kon",
+      "type": "Tur",
+      "valid_from": "Boshlanishi",
+      "valid_to": "Tugashi",
+      "status": "Holat",
+      "empty": "Shartnomalar topilmadi"
+    },
+    "status": {
+      "active": "Amal qiladi",
+      "expiring": "Tugayotgan",
+      "expired": "Muddati tugagan"
+    },
+    "type": {
+      "trade": "Savdo",
+      "employment": "Mehnat",
+      "service": "Xizmat",
+      "other": "Boshqa"
+    },
+    "form": {
+      "create_title": "Yangi shartnoma",
+      "edit_title": "Shartnomani tahrirlash",
+      "store_id": "Do'kon ID",
+      "store_id_hint": "Do'konning tizim identifikatori (UUID)",
+      "store_id_required": "Do'kon ID majburiy",
+      "number": "Shartnoma raqami",
+      "number_placeholder": "Masalan: SH-2026-001",
+      "number_required": "Shartnoma raqami majburiy",
+      "valid_from": "Boshlanish sanasi",
+      "valid_from_required": "Boshlanish sanasi majburiy",
+      "valid_to": "Tugash sanasi",
+      "valid_to_required": "Tugash sanasi majburiy",
+      "valid_to_before_from": "Tugash sanasi boshlanishdan oldin bo'lishi mumkin emas",
+      "contract_type": "Shartnoma turi",
+      "type_any": "Tur tanlanmagan",
+      "branch_id": "Filial ID",
+      "branch_id_hint": "Bo'sh qoldirsa — barcha filiallar"
+    },
+    "file": {
+      "title": "Shartnoma faylini yuklash",
+      "current": "Joriy fayl",
+      "view_current": "Fayl ko'rish",
+      "selected": "Tanlangan fayl",
+      "hint": "Ruxsat etilgan formatlar: PDF, JPEG, PNG, WebP. Maksimal hajm: 20 MB.",
+      "invalid_format": "Noto'g'ri format. Faqat PDF, JPEG, PNG, WebP.",
+      "too_large": "Fayl hajmi 20 MB dan oshmasligi kerak",
+      "choose_file": "Fayl tanlash",
+      "upload": "Yuklash",
+      "upload_success": "Fayl muvaffaqiyatli yuklandi"
+    },
+    "messages": {
+      "created": "Shartnoma muvaffaqiyatli yaratildi",
+      "updated": "Shartnoma muvaffaqiyatli yangilandi",
+      "deleted": "Shartnoma o'chirildi"
+    },
+    "delete": {
+      "title": "Shartnomani o'chirish",
+      "confirm": "\"{{number}}\" shartnomani o'chirishni tasdiqlaysizmi?"
+    }
+  },
+  "tickets": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "actions": {
+      "create": "Murojaat yuborish",
+      "view": "Ko'rish"
+    },
+    "filter": {
+      "all_statuses": "Barcha holatlar",
+      "all_types": "Barcha turlar",
+      "status": "Holat bo'yicha filtrlash",
+      "type": "Tur bo'yicha filtrlash"
+    },
+    "table": {
+      "subject": "Mavzu",
+      "type": "Tur",
+      "status": "Holat",
+      "store_id": "Do'kon",
+      "created_at": "Sana",
+      "empty": "Murojaatlar topilmadi"
+    },
+    "status": {
+      "new": "Yangi",
+      "in_progress": "Ko'rilmoqda",
+      "resolved": "Hal qilindi",
+      "closed": "Yopildi"
+    },
+    "type": {
+      "taklif": "Taklif",
+      "etiroz": "Etiroz"
+    },
+    "form": {
+      "create_title": "Yangi murojaat",
+      "type": "Murojaat turi",
+      "type_placeholder": "Turni tanlang",
+      "type_required": "Murojaat turi majburiy",
+      "subject": "Mavzu",
+      "subject_placeholder": "Murojaat mavzusini kiriting",
+      "subject_required": "Mavzu majburiy",
+      "body": "Murojaat matni",
+      "body_placeholder": "Murojaat matnini yozing...",
+      "body_required": "Murojaat matni majburiy",
+      "store_id": "Do'kon ID (ixtiyoriy)",
+      "store_id_hint": "Do'kon murojaati uchun UUID kiriting"
+    },
+    "detail": {
+      "title": "Murojaat tafsiloti",
+      "not_found": "Murojaat topilmadi",
+      "messages": "Xabarlar",
+      "no_messages": "Xabarlar yo'q",
+      "attachment": "Biriktirma",
+      "add_message": "Yangi xabar",
+      "message_placeholder": "Xabarni yozing...",
+      "send": "Yuborish",
+      "change_status": "Holatni o'zgartirish",
+      "select_status": "Yangi holatni tanlang",
+      "apply_status": "Qo'llash"
+    },
+    "messages": {
+      "created": "Murojaat muvaffaqiyatli yaratildi",
+      "message_added": "Xabar qo'shildi",
+      "status_updated": "Holat «{{status}}» ga o'zgartirildi"
+    }
+  },
+  "promo": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "actions": {
+      "create": "Aksiya qo'shish"
+    },
+    "filter": {
+      "all": "Barcha aksiyalar",
+      "active_only": "Faqat faollar",
+      "inactive_only": "Faqat nofaollar",
+      "all_types": "Barcha turlar",
+      "status": "Holat bo'yicha",
+      "type": "Tur bo'yicha"
+    },
+    "table": {
+      "name": "Nomi",
+      "type": "Tur",
+      "discount": "Chegirma",
+      "valid_from": "Boshlanishi",
+      "valid_to": "Tugashi",
+      "status": "Holat",
+      "empty": "Aksiyalar topilmadi"
+    },
+    "status": {
+      "active": "Faol",
+      "inactive": "Nofaol"
+    },
+    "type": {
+      "discount": "Chegirma",
+      "bonus": "Bonus",
+      "gift": "Sovg'a"
+    },
+    "form": {
+      "create_title": "Yangi aksiya",
+      "edit_title": "Aksiyani tahrirlash",
+      "name_uz": "Nomi (O'zbekcha)",
+      "name_uz_placeholder": "Aksiya nomini kiriting",
+      "name_uz_required": "O'zbekcha nom majburiy",
+      "name_ru": "Nomi (Ruscha)",
+      "name_ru_placeholder": "Введите название акции",
+      "name_ru_required": "Ruscha nom majburiy",
+      "promo_type": "Aksiya turi",
+      "discount_mode": "Chegirma turi",
+      "discount_percent": "Foiz (%)",
+      "discount_amount": "Miqdor (UZS)",
+      "discount_percent_label": "Chegirma foizi (%)",
+      "discount_amount_label": "Chegirma miqdori (UZS)",
+      "discount_value_required": "Chegirma qiymati majburiy",
+      "discount_value_positive": "Chegirma qiymati musbat bo'lishi kerak",
+      "min_qty": "Minimal miqdor",
+      "rule_note": "Chegirma server tomonida hisoblanadi. UI faqat qoida kiritadi.",
+      "valid_from": "Boshlanish sanasi",
+      "valid_from_required": "Boshlanish sanasi majburiy",
+      "valid_to": "Tugash sanasi",
+      "valid_to_required": "Tugash sanasi majburiy",
+      "valid_to_before_from": "Tugash sanasi boshlanishdan oldin bo'lishi mumkin emas",
+      "target_segment": "Narx segmenti",
+      "no_segment": "Barcha segmentlar",
+      "target_product": "Mahsulot",
+      "no_product": "Barcha mahsulotlar",
+      "is_active": "Faol aksiya"
+    },
+    "messages": {
+      "created": "Aksiya muvaffaqiyatli yaratildi",
+      "updated": "Aksiya muvaffaqiyatli yangilandi",
+      "deleted": "Aksiya o'chirildi"
+    },
+    "delete": {
+      "title": "Aksiyani o'chirish",
+      "confirm": "\"{{name}}\" aksiyasini o'chirishni tasdiqlaysizmi?"
+    }
+  },
+  "customers": {
+    "actions": {
+      "create": "Do'kon qo'shish",
+      "assign_agent": "Agent biriktirish"
+    },
+    "filter": {
+      "search_placeholder": "Qidirish...",
+      "search_by_name": "Nom bo'yicha",
+      "search_by_inn": "INN bo'yicha",
+      "search_by_phone": "Telefon bo'yicha"
+    },
+    "table": {
+      "name": "Do'kon nomi",
+      "phone": "Telefon",
+      "inn": "INN",
+      "owner_name": "Egasi",
+      "address": "Manzil",
+      "credit_limit": "Kredit limiti",
+      "agent": "Agent",
+      "actions": "Amallar",
+      "empty": "Do'konlar topilmadi"
+    },
+    "form": {
+      "create_title": "Yangi do'kon",
+      "edit_title": "Do'konni tahrirlash",
+      "name": "Do'kon nomi",
+      "name_placeholder": "Do'kon nomini kiriting",
+      "name_required": "Do'kon nomi majburiy",
+      "inn": "INN",
+      "inn_hint": "9 ta raqam",
+      "inn_invalid": "INN 9 ta raqamdan iborat bo'lishi kerak",
+      "inps": "INPS",
+      "owner_name": "Egasining ismi",
+      "owner_name_placeholder": "F.I.O.",
+      "phone": "Telefon",
+      "phone_invalid": "Noto'g'ri telefon raqami",
+      "address": "Manzil",
+      "address_placeholder": "To'liq manzilni kiriting",
+      "gps_lat": "Kenglik (latitude)",
+      "gps_lat_invalid": "Kenglik -90 dan 90 gacha bo'lishi kerak",
+      "gps_lng": "Uzunlik (longitude)",
+      "gps_lng_invalid": "Uzunlik -180 dan 180 gacha bo'lishi kerak",
+      "credit_limit": "Kredit limiti (UZS)",
+      "credit_limit_hint": "Faqat raqam kiriting"
+    },
+    "messages": {
+      "store_created": "Do'kon muvaffaqiyatli yaratildi",
+      "store_updated": "Do'kon muvaffaqiyatli yangilandi",
+      "store_deleted": "Do'kon o'chirildi",
+      "agent_assigned": "Agent muvaffaqiyatli biriktirildi"
+    },
+    "delete": {
+      "title": "Do'konni o'chirish",
+      "confirm": "\"{{name}}\" do'konini o'chirishni tasdiqlaysizmi?"
+    },
+    "assign_agent": {
+      "title": "Agent biriktirish",
+      "store_label": "Do'kon",
+      "agent_id_label": "Agent ID (UUID)",
+      "agent_id_hint": "Agentning tizim identifikatori",
+      "agent_id_required": "Agent ID majburiy",
+      "submit": "Biriktirish"
+    }
+  }
+}

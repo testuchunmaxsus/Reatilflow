@@ -1,0 +1,13 @@
+TimescaleDB alohida Alembic muhiti.
+
+OLTP (alembic/) dan MUSTAQIL — TIMESCALE_URL ga ulanadi.
+Faqat GPS/time-series migratsiyalari bu yerga tegishli.
+
+Foydalanish:
+  cd backend
+  alembic -c alembic_timescale.ini upgrade head
+  alembic -c alembic_timescale.ini current
+  alembic -c alembic_timescale.ini history
+
+alembic_version_timescale — alohida versiya jadval nomi
+(OLTP alembic_version bilan to'qnashuv yo'q).

@@ -1,0 +1,1 @@
+"""Customers moduli testlari."""

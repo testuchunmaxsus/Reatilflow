@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- ============================================================
+         RETAIL mobil ilova — iOS ruxsat tavsifi satrlari
+         App Store Review va system prompt uchun majburiy.
+         ============================================================ -->
+
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>RETAIL</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>retail_mobile</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(FLUTTER_BUILD_NAME)</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleVersion</key>
+    <string>$(FLUTTER_BUILD_NUMBER)</string>
+
+    <!-- Kamera — image_picker (dalil rasmi) va mobile_scanner (barcode) -->
+    <key>NSCameraUsageDescription</key>
+    <string>Yetkazish dalil rasmini olish va mahsulot barcodini skanerlash uchun kamera kerak.</string>
+
+    <!-- Foto kutubxona — image_picker galereya tanlash -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Yetkazish dalil rasmi sifatida galereadan rasm tanlash uchun ruxsat kerak.</string>
+
+    <!-- Face ID — local_auth biometriya -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>Ish kunini boshlash uchun Face ID bilan shaxsingizni tasdiqlang. Biometrik ma'lumot qurilmada qoladi.</string>
+
+    <!-- GPS — geolocator (ish vaqtida kuryer/agent tracking) -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Davomat va yetkazish jarayonida joylashuvingizni qayd etish uchun GPS kerak.</string>
+
+    <!-- Opsional: Fon GPS (ADR §3.7 fon rejimda kerak bo'lsa) -->
+    <!-- <key>NSLocationAlwaysAndWhenInUseUsageDescription</key> -->
+    <!-- <string>Yetkazish jarayonida fon rejimda GPS tracking uchun joylashuv ruxsati kerak.</string> -->
+
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>CADisableMinimumFrameDurationOnPhone</key>
+    <true/>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+</dict>
+</plist>

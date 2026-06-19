@@ -1,0 +1,647 @@
+{
+  "login": {
+    "subtitle": "Система управления торговлей и дистрибуцией",
+    "phone_label": "Номер телефона",
+    "password_label": "Пароль",
+    "password_placeholder": "Введите пароль",
+    "submit": "Войти"
+  },
+  "validation": {
+    "phone_required": "Введите номер телефона",
+    "phone_format": "Введите в формате +998XXXXXXXXX",
+    "password_required": "Введите пароль",
+    "password_min": "Пароль должен содержать не менее 6 символов"
+  },
+  "errors": {
+    "unknown": "Произошла неизвестная ошибка",
+    "network": "Ошибка сети. Пожалуйста, попробуйте ещё раз."
+  },
+  "api": {
+    "auth.invalid_credentials": "Неверный номер телефона или пароль",
+    "auth.inactive_user": "Аккаунт заблокирован",
+    "auth.token_expired": "Срок действия токена истёк",
+    "auth.token_invalid": "Токен недействителен",
+    "auth.authentication_required": "Требуется аутентификация",
+    "auth.user_not_found": "Пользователь не найден",
+    "rbac.permission_denied": "Доступ запрещён",
+    "common.not_found": "Запрашиваемый ресурс не найден",
+    "common.validation_error": "Данные запроса некорректны",
+    "common.internal_error": "Внутренняя ошибка сервера",
+    "catalog.product_not_found": "Товар не найден",
+    "catalog.duplicate_sku": "Товар с таким SKU уже существует",
+    "catalog.duplicate_barcode": "Товар с таким штрихкодом уже существует",
+    "catalog.version_conflict": "Данные изменены. Обновите страницу",
+    "catalog.category_not_found": "Категория не найдена",
+    "catalog.segment_not_found": "Ценовой сегмент не найден"
+  },
+  "nav": {
+    "dashboard": "Главная",
+    "catalog": "Каталог",
+    "customers": "Клиенты",
+    "orders": "Заказы",
+    "stats": "Статистика",
+    "users": "Пользователи",
+    "rbac": "Права доступа",
+    "contracts": "Договоры",
+    "tickets": "Обращения",
+    "promo": "Акции"
+  },
+  "common": {
+    "loading": "Загрузка...",
+    "logout": "Выйти",
+    "coming_soon": "Скоро...",
+    "language": "Язык",
+    "welcome": "Добро пожаловать, {{name}}",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "create": "Создать",
+    "edit": "Редактировать",
+    "delete": "Удалить",
+    "close": "Закрыть",
+    "role": {
+      "administrator": "Администратор",
+      "agent": "Торговый агент",
+      "courier": "Курьер",
+      "accountant": "Бухгалтер",
+      "store": "Магазин"
+    }
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Главная",
+      "description": "Панель управления RETAIL"
+    },
+    "catalog": {
+      "title": "Каталог",
+      "description": "Товары и категории"
+    },
+    "customers": {
+      "title": "Клиенты",
+      "description": "Магазины и клиентская база"
+    },
+    "orders": {
+      "title": "Заказы",
+      "description": "Управление заказами"
+    },
+    "stats": {
+      "title": "Статистика",
+      "description": "Отчёты и аналитика"
+    },
+    "users": {
+      "title": "Пользователи",
+      "description": "Управление пользователями"
+    },
+    "contracts": {
+      "title": "Договоры",
+      "description": "Управление договорами"
+    },
+    "tickets": {
+      "title": "Обращения",
+      "description": "Управление обращениями"
+    },
+    "promo": {
+      "title": "Акции",
+      "description": "Управление торговыми акциями"
+    }
+  },
+  "orders": {
+    "actions": {
+      "create": "Создать заказ",
+      "view": "Просмотр"
+    },
+    "filter": {
+      "all_statuses": "Все статусы",
+      "status": "Статус",
+      "from": "С",
+      "to": "По",
+      "period": "Период"
+    },
+    "table": {
+      "number": "Номер",
+      "date": "Дата",
+      "store": "Магазин",
+      "mode": "Тип",
+      "status": "Статус",
+      "amount": "Сумма",
+      "actions": "Действия",
+      "empty": "Заказы не найдены"
+    },
+    "status": {
+      "draft": "Черновик",
+      "confirmed": "Подтверждён",
+      "packed": "Упакован",
+      "delivering": "Доставляется",
+      "delivered": "Доставлен",
+      "canceled": "Отменён"
+    },
+    "mode": {
+      "oddiy": "Обычный",
+      "bozor": "Базарный"
+    },
+    "detail": {
+      "title": "Детали заказа",
+      "not_found": "Заказ не найден",
+      "lines": "Позиции заказа",
+      "product_id": "Товар",
+      "qty": "Кол-во",
+      "unit_price": "Цена за ед.",
+      "discount": "Скидка",
+      "line_total": "Итого",
+      "total": "Общая сумма",
+      "change_status": "Изменить статус",
+      "terminal_status": "Терминальный статус — изменение невозможно"
+    },
+    "create": {
+      "title": "Новый заказ",
+      "store_id": "ID магазина",
+      "store_id_placeholder": "Введите UUID магазина",
+      "store_required": "ID магазина обязателен",
+      "mode": "Тип заказа",
+      "lines": "Товары",
+      "product_id": "ID товара",
+      "product_id_placeholder": "UUID товара",
+      "product_required": "ID товара обязателен",
+      "qty": "Количество",
+      "qty_positive": "Количество должно быть больше 0",
+      "add_line": "Добавить позицию",
+      "price_note": "Цена и скидка рассчитываются автоматически на сервере",
+      "submit": "Оформить заказ"
+    },
+    "messages": {
+      "created": "Заказ успешно создан",
+      "status_updated": "Статус изменён на «{{status}}»"
+    }
+  },
+  "stats": {
+    "filter": {
+      "from": "Начальная дата",
+      "to": "Конечная дата",
+      "group_by": "Группировка",
+      "period": "Период",
+      "all_time": "Всё время"
+    },
+    "group_by": {
+      "day": "День",
+      "week": "Неделя",
+      "month": "Месяц"
+    },
+    "sections": {
+      "sales": "Статистика продаж",
+      "delivery": "Статистика доставки",
+      "finance": "Финансовая статистика"
+    },
+    "sales": {
+      "total_orders": "Всего заказов",
+      "total_amount": "Общая сумма",
+      "dynamics_chart": "Динамика продаж",
+      "order_count": "Количество заказов",
+      "amount": "Сумма",
+      "no_dynamics": "Нет данных по динамике (выберите group_by)"
+    },
+    "delivery": {
+      "total": "Всего доставок",
+      "delivered": "Доставлено",
+      "failed": "Неудачно",
+      "in_progress": "В процессе",
+      "avg_minutes": "Среднее время",
+      "minutes": "мин",
+      "distribution": "Распределение"
+    },
+    "finance": {
+      "total_debit": "Итого дебит",
+      "total_credit": "Итого кредит",
+      "net_balance": "Чистый баланс",
+      "store_name": "Название магазина",
+      "debit": "Дебит",
+      "credit": "Кредит",
+      "balance": "Баланс",
+      "status_label": "Статус",
+      "debtor": "Должник",
+      "creditor": "Кредитор",
+      "no_stores": "Магазины не найдены"
+    }
+  },
+  "catalog": {
+    "actions": {
+      "create": "Добавить товар",
+      "price_history": "История цен",
+      "photo": "Загрузить фото"
+    },
+    "filter": {
+      "search_placeholder": "Название, SKU или штрихкод...",
+      "all_categories": "Все категории",
+      "only_active": "Только активные"
+    },
+    "table": {
+      "name": "Наименование",
+      "sku": "SKU",
+      "barcode": "Штрихкод",
+      "unit": "Ед. изм.",
+      "status": "Статус",
+      "actions": "Действия",
+      "empty": "Товары не найдены"
+    },
+    "status": {
+      "active": "Активен",
+      "inactive": "Неактивен"
+    },
+    "form": {
+      "create_title": "Новый товар",
+      "edit_title": "Редактировать товар",
+      "name_uz": "Название (узбекский)",
+      "name_uz_placeholder": "Введите название на узбекском",
+      "name_uz_required": "Название на узбекском обязательно",
+      "name_ru": "Название (русский)",
+      "name_ru_placeholder": "Введите название на русском",
+      "name_ru_required": "Название на русском обязательно",
+      "sku": "SKU",
+      "sku_required": "SKU обязателен",
+      "barcode": "Штрихкод",
+      "mxik_code": "Код МХИК",
+      "unit": "Единица измерения",
+      "unit_placeholder": "Выберите...",
+      "unit_required": "Единица измерения обязательна",
+      "category": "Категория",
+      "category_placeholder": "Выберите категорию",
+      "no_category": "Без категории",
+      "is_active": "Активный товар"
+    },
+    "units": {
+      "dona": "Штука",
+      "kg": "Килограмм",
+      "litr": "Литр",
+      "m": "Метр",
+      "m2": "Кв. метр",
+      "m3": "Куб. метр",
+      "quti": "Коробка"
+    },
+    "messages": {
+      "product_created": "Товар успешно создан",
+      "product_updated": "Товар успешно обновлён",
+      "product_deleted": "Товар удалён"
+    },
+    "delete": {
+      "title": "Удалить товар",
+      "confirm": "Вы уверены, что хотите удалить товар \"{{name}}\"?"
+    },
+    "price_history": {
+      "title": "История цен",
+      "empty": "История цен отсутствует",
+      "old_price": "Старая цена",
+      "new_price": "Новая цена",
+      "currency": "Валюта",
+      "changed_at": "Дата изменения"
+    },
+    "photo": {
+      "title": "Загрузить фото",
+      "current": "Текущее фото",
+      "hint": "Допустимые форматы: JPEG, PNG, WebP. Максимальный размер: 5 МБ.",
+      "invalid_format": "Недопустимый формат. Только JPEG, PNG, WebP.",
+      "too_large": "Размер файла не должен превышать 5 МБ",
+      "choose_file": "Выбрать файл",
+      "upload": "Загрузить",
+      "upload_success": "Фото успешно загружено"
+    }
+  },
+  "users": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "actions": {
+      "create": "Добавить пользователя",
+      "assign_store": "Привязать магазин",
+      "deactivate": "Заблокировать",
+      "activate": "Активировать"
+    },
+    "filter": {
+      "all_roles": "Все роли",
+      "all_statuses": "Все статусы",
+      "role": "Фильтр по роли",
+      "status": "Фильтр по статусу",
+      "active": "Активные",
+      "inactive": "Заблокированные"
+    },
+    "table": {
+      "full_name": "Имя",
+      "phone": "Телефон",
+      "role": "Роль",
+      "status": "Статус",
+      "branch": "Филиал",
+      "actions": "Действия",
+      "empty": "Пользователи не найдены"
+    },
+    "status": {
+      "active": "Активен",
+      "inactive": "Заблокирован"
+    },
+    "form": {
+      "create_title": "Новый пользователь",
+      "edit_title": "Редактировать пользователя",
+      "full_name": "Полное имя",
+      "full_name_placeholder": "Ф.И.О.",
+      "full_name_required": "Имя обязательно",
+      "phone": "Номер телефона",
+      "phone_hint": "Используется для входа (персональные данные)",
+      "phone_invalid": "Неверный номер телефона",
+      "password": "Пароль",
+      "password_placeholder": "Не менее 6 символов",
+      "password_hint": "Обязателен при создании; можно изменить позже",
+      "password_min": "Пароль должен содержать не менее 6 символов",
+      "role": "Роль",
+      "role_placeholder": "Выберите роль",
+      "role_required": "Роль обязательна",
+      "branch_id": "ID филиала",
+      "branch_id_hint": "Оставьте пустым для всех филиалов",
+      "locale": "Язык"
+    },
+    "messages": {
+      "user_created": "Пользователь успешно создан",
+      "user_updated": "Пользователь успешно обновлён",
+      "user_deactivated": "Пользователь заблокирован",
+      "user_activated": "Пользователь снова активирован"
+    },
+    "deactivate": {
+      "title": "Заблокировать пользователя",
+      "confirm": "Вы уверены, что хотите заблокировать пользователя «{{name}}»?"
+    },
+    "assign_store": {
+      "title": "Привязать магазин",
+      "agent_label": "Агент",
+      "store_label": "Магазин",
+      "store_placeholder": "Выберите магазин",
+      "store_required": "Необходимо выбрать магазин",
+      "no_stores": "Магазины не найдены",
+      "submit": "Привязать",
+      "success": "Магазин успешно привязан"
+    }
+  },
+  "contracts": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "actions": {
+      "create": "Добавить договор",
+      "upload_file": "Загрузить файл"
+    },
+    "filter": {
+      "all_statuses": "Все статусы",
+      "status": "Фильтр по статусу",
+      "expiring_soon": "Истекающие",
+      "clear": "Сбросить"
+    },
+    "table": {
+      "number": "Номер",
+      "store_id": "Магазин",
+      "type": "Тип",
+      "valid_from": "Начало",
+      "valid_to": "Конец",
+      "status": "Статус",
+      "empty": "Договоры не найдены"
+    },
+    "status": {
+      "active": "Действует",
+      "expiring": "Истекает",
+      "expired": "Истёк"
+    },
+    "type": {
+      "trade": "Торговый",
+      "employment": "Трудовой",
+      "service": "Сервисный",
+      "other": "Прочий"
+    },
+    "form": {
+      "create_title": "Новый договор",
+      "edit_title": "Редактировать договор",
+      "store_id": "ID магазина",
+      "store_id_hint": "Системный идентификатор магазина (UUID)",
+      "store_id_required": "ID магазина обязателен",
+      "number": "Номер договора",
+      "number_placeholder": "Например: SH-2026-001",
+      "number_required": "Номер договора обязателен",
+      "valid_from": "Дата начала",
+      "valid_from_required": "Дата начала обязательна",
+      "valid_to": "Дата окончания",
+      "valid_to_required": "Дата окончания обязательна",
+      "valid_to_before_from": "Дата окончания не может быть раньше даты начала",
+      "contract_type": "Тип договора",
+      "type_any": "Тип не выбран",
+      "branch_id": "ID филиала",
+      "branch_id_hint": "Оставьте пустым для всех филиалов"
+    },
+    "file": {
+      "title": "Загрузить файл договора",
+      "current": "Текущий файл",
+      "view_current": "Просмотр файла",
+      "selected": "Выбранный файл",
+      "hint": "Допустимые форматы: PDF, JPEG, PNG, WebP. Максимальный размер: 20 МБ.",
+      "invalid_format": "Недопустимый формат. Только PDF, JPEG, PNG, WebP.",
+      "too_large": "Размер файла не должен превышать 20 МБ",
+      "choose_file": "Выбрать файл",
+      "upload": "Загрузить",
+      "upload_success": "Файл успешно загружен"
+    },
+    "messages": {
+      "created": "Договор успешно создан",
+      "updated": "Договор успешно обновлён",
+      "deleted": "Договор удалён"
+    },
+    "delete": {
+      "title": "Удалить договор",
+      "confirm": "Вы уверены, что хотите удалить договор «{{number}}»?"
+    }
+  },
+  "tickets": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "actions": {
+      "create": "Создать обращение",
+      "view": "Просмотр"
+    },
+    "filter": {
+      "all_statuses": "Все статусы",
+      "all_types": "Все типы",
+      "status": "Фильтр по статусу",
+      "type": "Фильтр по типу"
+    },
+    "table": {
+      "subject": "Тема",
+      "type": "Тип",
+      "status": "Статус",
+      "store_id": "Магазин",
+      "created_at": "Дата",
+      "empty": "Обращения не найдены"
+    },
+    "status": {
+      "new": "Новое",
+      "in_progress": "В работе",
+      "resolved": "Решено",
+      "closed": "Закрыто"
+    },
+    "type": {
+      "taklif": "Предложение",
+      "etiroz": "Жалоба"
+    },
+    "form": {
+      "create_title": "Новое обращение",
+      "type": "Тип обращения",
+      "type_placeholder": "Выберите тип",
+      "type_required": "Тип обращения обязателен",
+      "subject": "Тема",
+      "subject_placeholder": "Введите тему обращения",
+      "subject_required": "Тема обязательна",
+      "body": "Текст обращения",
+      "body_placeholder": "Напишите текст обращения...",
+      "body_required": "Текст обращения обязателен",
+      "store_id": "ID магазина (необязательно)",
+      "store_id_hint": "Введите UUID для обращения от магазина"
+    },
+    "detail": {
+      "title": "Детали обращения",
+      "not_found": "Обращение не найдено",
+      "messages": "Сообщения",
+      "no_messages": "Сообщений нет",
+      "attachment": "Вложение",
+      "add_message": "Новое сообщение",
+      "message_placeholder": "Напишите сообщение...",
+      "send": "Отправить",
+      "change_status": "Изменить статус",
+      "select_status": "Выберите новый статус",
+      "apply_status": "Применить"
+    },
+    "messages": {
+      "created": "Обращение успешно создано",
+      "message_added": "Сообщение добавлено",
+      "status_updated": "Статус изменён на «{{status}}»"
+    }
+  },
+  "promo": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "actions": {
+      "create": "Добавить акцию"
+    },
+    "filter": {
+      "all": "Все акции",
+      "active_only": "Только активные",
+      "inactive_only": "Только неактивные",
+      "all_types": "Все типы",
+      "status": "По статусу",
+      "type": "По типу"
+    },
+    "table": {
+      "name": "Название",
+      "type": "Тип",
+      "discount": "Скидка",
+      "valid_from": "Начало",
+      "valid_to": "Конец",
+      "status": "Статус",
+      "empty": "Акции не найдены"
+    },
+    "status": {
+      "active": "Активна",
+      "inactive": "Неактивна"
+    },
+    "type": {
+      "discount": "Скидка",
+      "bonus": "Бонус",
+      "gift": "Подарок"
+    },
+    "form": {
+      "create_title": "Новая акция",
+      "edit_title": "Редактировать акцию",
+      "name_uz": "Название (узбекский)",
+      "name_uz_placeholder": "Введите название на узбекском",
+      "name_uz_required": "Название на узбекском обязательно",
+      "name_ru": "Название (русский)",
+      "name_ru_placeholder": "Введите название акции",
+      "name_ru_required": "Название на русском обязательно",
+      "promo_type": "Тип акции",
+      "discount_mode": "Тип скидки",
+      "discount_percent": "Процент (%)",
+      "discount_amount": "Сумма (UZS)",
+      "discount_percent_label": "Процент скидки (%)",
+      "discount_amount_label": "Сумма скидки (UZS)",
+      "discount_value_required": "Значение скидки обязательно",
+      "discount_value_positive": "Значение скидки должно быть положительным",
+      "min_qty": "Минимальное количество",
+      "rule_note": "Скидка рассчитывается на сервере. UI только задаёт правило.",
+      "valid_from": "Дата начала",
+      "valid_from_required": "Дата начала обязательна",
+      "valid_to": "Дата окончания",
+      "valid_to_required": "Дата окончания обязательна",
+      "valid_to_before_from": "Дата окончания не может быть раньше даты начала",
+      "target_segment": "Ценовой сегмент",
+      "no_segment": "Все сегменты",
+      "target_product": "Товар",
+      "no_product": "Все товары",
+      "is_active": "Активная акция"
+    },
+    "messages": {
+      "created": "Акция успешно создана",
+      "updated": "Акция успешно обновлена",
+      "deleted": "Акция удалена"
+    },
+    "delete": {
+      "title": "Удалить акцию",
+      "confirm": "Вы уверены, что хотите удалить акцию «{{name}}»?"
+    }
+  },
+  "customers": {
+    "actions": {
+      "create": "Добавить магазин",
+      "assign_agent": "Назначить агента"
+    },
+    "filter": {
+      "search_placeholder": "Поиск...",
+      "search_by_name": "По названию",
+      "search_by_inn": "По ИНН",
+      "search_by_phone": "По телефону"
+    },
+    "table": {
+      "name": "Название магазина",
+      "phone": "Телефон",
+      "inn": "ИНН",
+      "owner_name": "Владелец",
+      "address": "Адрес",
+      "credit_limit": "Кредитный лимит",
+      "agent": "Агент",
+      "actions": "Действия",
+      "empty": "Магазины не найдены"
+    },
+    "form": {
+      "create_title": "Новый магазин",
+      "edit_title": "Редактировать магазин",
+      "name": "Название магазина",
+      "name_placeholder": "Введите название магазина",
+      "name_required": "Название магазина обязательно",
+      "inn": "ИНН",
+      "inn_hint": "9 цифр",
+      "inn_invalid": "ИНН должен состоять из 9 цифр",
+      "inps": "ИНПС",
+      "owner_name": "Имя владельца",
+      "owner_name_placeholder": "Ф.И.О.",
+      "phone": "Телефон",
+      "phone_invalid": "Неверный номер телефона",
+      "address": "Адрес",
+      "address_placeholder": "Введите полный адрес",
+      "gps_lat": "Широта (latitude)",
+      "gps_lat_invalid": "Широта должна быть от -90 до 90",
+      "gps_lng": "Долгота (longitude)",
+      "gps_lng_invalid": "Долгота должна быть от -180 до 180",
+      "credit_limit": "Кредитный лимит (UZS)",
+      "credit_limit_hint": "Введите только цифры"
+    },
+    "messages": {
+      "store_created": "Магазин успешно создан",
+      "store_updated": "Магазин успешно обновлён",
+      "store_deleted": "Магазин удалён",
+      "agent_assigned": "Агент успешно назначен"
+    },
+    "delete": {
+      "title": "Удалить магазин",
+      "confirm": "Вы уверены, что хотите удалить магазин \"{{name}}\"?"
+    },
+    "assign_agent": {
+      "title": "Назначить агента",
+      "store_label": "Магазин",
+      "agent_id_label": "ID агента (UUID)",
+      "agent_id_hint": "Системный идентификатор агента",
+      "agent_id_required": "ID агента обязателен",
+      "submit": "Назначить"
+    }
+  }
+}

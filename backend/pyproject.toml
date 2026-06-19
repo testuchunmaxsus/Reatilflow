@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=72", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retail-backend"
+version = "0.1.0"
+description = "RETAIL — Ulgurji/Chakana Savdo va Distribyutsiya Platformasi (Backend)"
+requires-python = ">=3.12"
+dependencies = [
+    # ─── Web framework ──────────────────────────────────────────
+    "fastapi[standard]>=0.111.0,<0.200",
+    "uvicorn[standard]>=0.30.0,<1.0",
+
+    # ─── ORM / DB ───────────────────────────────────────────────
+    "sqlalchemy[asyncio]>=2.0.30,<3.0",
+    "alembic>=1.13.0,<2.0",
+    "asyncpg>=0.29.0,<1.0",
+
+    # ─── Validation / Settings ──────────────────────────────────
+    "pydantic>=2.7.0,<3.0",
+    "pydantic-settings>=2.3.0,<3.0",
+
+    # ─── Auth ───────────────────────────────────────────────────
+    # python-jose o'rniga PyJWT — CVE (algorithm confusion) oldini olish
+    "PyJWT>=2.8.0,<3.0",
+    # bcrypt to'g'ridan-to'g'ri (passlib bcrypt>=4.x bilan mos kelmaydi)
+    "bcrypt>=4.0.0,<6.0",
+
+    # ─── Cache / Queue ──────────────────────────────────────────
+    "redis[hiredis]>=5.0.0,<6.0",
+
+    # ─── Kriptografiya (PII shifrlash — T5) ────────────────────
+    # AES-GCM ilova-darajali shifrlash: SQLite (test) va PostgreSQL da ishlaydi.
+    # Aniq pinlangan — tashqi API o'zgarishlarini nazorat qilish uchun.
+    "cryptography>=43,<47",
+
+    # ─── Utils ──────────────────────────────────────────────────
+    "python-multipart>=0.0.9",   # form/file upload
+    # httpx[http2]: APNs HTTP/2 ni majburiy talab qiladi (h2 paketi) — push provider.
+    "httpx[http2]>=0.27.0",      # async HTTP (integratsiya + APNs HTTP/2)
+
+    # ─── Kuzatuvchanlik (T27) ────────────────────────────────────
+    "prometheus-client>=0.20.0",                       # Prometheus metrikalar
+    "opentelemetry-sdk>=1.20.0",                       # OTel SDK (tracing)
+    "opentelemetry-instrumentation-fastapi>=0.40b0",   # FastAPI auto-instrumentation
+    "opentelemetry-instrumentation-sqlalchemy>=0.40b0",# SQLAlchemy auto-instrumentation
+    "sentry-sdk[fastapi]>=2.0.0",                      # Sentry xato kuzatuvi
+]
+
+[project.optional-dependencies]
+dev = [
+    # ─── Test ───────────────────────────────────────────────────
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "httpx>=0.27.0",             # AsyncClient test uchun
+    "aiosqlite>=0.20.0",         # In-memory SQLite (infrasiz test DB)
+    "fakeredis[aioredis]>=2.23.0",  # Fake Redis (infrasiz test)
+    # ─── Lint / Format ──────────────────────────────────────────
+    "ruff>=0.4.7",
+    "black>=24.4.0",
+    # ─── Pre-commit ─────────────────────────────────────────────
+    "pre-commit>=3.7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+# ─── Ruff ───────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "B008",  # FastAPI Depends() chaqiruvlari funksiyada — odatiy pattern
+    "E501",  # line too long — black boshqaradi
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ─── Black ──────────────────────────────────────────────────
+[tool.black]
+target-version = ["py312"]
+line-length = 100
+
+# ─── Pytest ─────────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["app/tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

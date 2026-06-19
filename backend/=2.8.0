@@ -1,0 +1,20 @@
+Requirement already satisfied: PyJWT in C:\Python314\Lib\site-packages (2.12.1)
+Collecting aiosqlite>=0.20.0
+  Downloading aiosqlite-0.22.1-py3-none-any.whl.metadata (4.3 kB)
+Collecting fakeredis>=2.23.0 (from fakeredis[aioredis]>=2.23.0)
+  Downloading fakeredis-2.36.1-py3-none-any.whl.metadata (7.1 kB)
+Collecting passlib[bcrypt]
+  Downloading passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+Requirement already satisfied: bcrypt>=3.1.0 in C:\Python314\Lib\site-packages (from passlib[bcrypt]) (5.0.0)
+Requirement already satisfied: redis>=4.3 in C:\Python314\Lib\site-packages (from fakeredis>=2.23.0->fakeredis[aioredis]>=2.23.0) (6.4.0)
+Collecting sortedcontainers>=2 (from fakeredis>=2.23.0->fakeredis[aioredis]>=2.23.0)
+  Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl.metadata (10 kB)
+WARNING: fakeredis 2.36.1 does not provide the extra 'aioredis'
+Downloading passlib-1.7.4-py2.py3-none-any.whl (525 kB)
+   ---------------------------------------- 525.6/525.6 kB 32.7 kB/s  0:00:14
+Downloading aiosqlite-0.22.1-py3-none-any.whl (17 kB)
+Downloading fakeredis-2.36.1-py3-none-any.whl (139 kB)
+Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
+Installing collected packages: sortedcontainers, passlib, fakeredis, aiosqlite
+
+Successfully installed aiosqlite-0.22.1 fakeredis-2.36.1 passlib-1.7.4 sortedcontainers-2.4.0
