@@ -78,6 +78,26 @@ def reset_seq_counter() -> None:
 _outbox_seq = Sequence("outbox_event_seq", optional=True)
 
 
+def _seq_default(context) -> int:
+    """
+    Dialekt-aware seq default (BUG FIX).
+
+    AVVAL: `default=_next_seq` (Python counter) Sequence'ni BEKOR qilardi —
+    Postgres'da ham har-jarayon xotira counter'i ishlatilardi (0'dan boshlanadi,
+    restart/multi-worker da takrorlanadi) → `duplicate key ix_outbox_event_seq`.
+
+    ENDI:
+      - PostgreSQL: DB SEQUENCE `nextval('outbox_event_seq')` — DB-avtoritar,
+        multi-worker/multi-process xavfsiz, hech qachon takrorlanmaydi.
+      - SQLite (test): in-process monoton counter (Sequence SQLite'da yo'q).
+    """
+    if context.connection.dialect.name == "postgresql":
+        return context.connection.execute(_outbox_seq.next_value()).scalar()
+    global _sqlite_seq_counter
+    _sqlite_seq_counter += 1
+    return _sqlite_seq_counter
+
+
 class OutboxEvent(Base):
     """
     Outbox hodisasi.
@@ -122,7 +142,9 @@ class OutboxEvent(Base):
         _outbox_seq,
         nullable=False,
         unique=True,
-        default=_next_seq,
+        # Dialekt-aware: Postgres → DB SEQUENCE nextval; SQLite → counter.
+        # (Avvalgi `default=_next_seq` Postgres'da ham counter ishlatib bug berardi.)
+        default=_seq_default,
         comment=(
             "Monoton kursor (Postgres: DB SEQUENCE nextval — multi-worker xavfsiz; "
             "SQLite tests: ORM counter). "
