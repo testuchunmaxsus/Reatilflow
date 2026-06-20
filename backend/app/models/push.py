@@ -16,13 +16,17 @@ Retry: attempts ustuni — 3 urinishgacha (PUSH_MAX_RETRIES config).
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 def _now_utc() -> datetime:
@@ -78,21 +82,21 @@ class PushLog(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID v7 — vaqt-tartibli birlamchi kalit",
     )
 
     outbox_event_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("outbox_event.id", ondelete="CASCADE"),
         nullable=False,
         comment="OutboxEvent FK — qaysi hodisa uchun push",
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="CASCADE"),
         nullable=False,
         comment="AppUser FK — kimga push yuboriladi",
@@ -156,6 +160,15 @@ class PushLog(Base):
         nullable=True,
         default=None,
         comment="Muvaffaqiyatli yuborilgan vaqt (UTC) — NULL = yuborilmagan",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:

@@ -34,7 +34,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.uuid7 import uuid7
@@ -43,6 +43,7 @@ from app.models.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.order import Order
     from app.models.user import AppUser
+    from app.models.enterprise import Enterprise
 
 
 def _now_utc() -> datetime:
@@ -112,14 +113,14 @@ class Delivery(TimestampMixin, Base):
     # ─── FK ustunlar ─────────────────────────────────────────────────────────
 
     order_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("order.id", ondelete="RESTRICT"),
         nullable=False,
         comment="Buyurtma FK → order (OLTP)",
     )
 
     courier_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="RESTRICT"),
         nullable=False,
         comment="Kuryer FK → app_user (OLTP)",
@@ -213,20 +214,29 @@ class Delivery(TimestampMixin, Base):
     # ─── Qo'shimcha maydonlar ─────────────────────────────────────────────────
 
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         default=None,
         comment="Filial ID (ixtiyoriy)",
     )
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         default=None,
         comment=(
             "Klient idempotentlik UUID — UNIQUE partial index (IS NOT NULL). "
             "Takroriy tayinlashdan himoya qiladi."
         ),
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ─────────────────────────────────────────────────────────

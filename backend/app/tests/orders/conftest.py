@@ -33,10 +33,12 @@ from app.core.redis import get_redis
 from app.main import app
 from app.models.base import Base
 from app.models.catalog import Category, PriceSegment, Product, ProductPrice
+from app.models.enterprise import Enterprise, ALL_MODULE_KEYS
 from app.models.store import AgentStore, Store
 from app.models.user import AppUser
 from app.modules.stock import service as stock_service
 from app.modules.stock.schemas import StockMovementCreate
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 TEST_PASSWORD = "TestPassword123!"
 
@@ -92,16 +94,35 @@ async def fake_redis():
     await r.aclose()
 
 
+# ─── Default Enterprise ──────────────────────────────────────────────────────
+
+
+@pytest.fixture
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
 # ─── Foydalanuvchi factory ────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def make_user(db_session: AsyncSession):
+def make_user(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         role: str,
         phone: str | None = None,
         is_active: bool = True,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> AppUser:
         user_id = uuid.uuid4()
         user = AppUser(
@@ -116,6 +137,7 @@ def make_user(db_session: AsyncSession):
             locale="uz",
             device_id=None,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(user)
         await db_session.flush()
@@ -148,9 +170,15 @@ async def accountant_user(make_user) -> AppUser:
 
 
 @pytest.fixture
-def make_price_segment(db_session: AsyncSession):
-    async def _factory(name: str = "Standart") -> PriceSegment:
-        seg = PriceSegment(name=f"{name}-{uuid.uuid4().hex[:6]}")
+def make_price_segment(db_session: AsyncSession, default_enterprise: Enterprise):
+    async def _factory(
+        name: str = "Standart",
+        enterprise_id: uuid.UUID | None = None,
+    ) -> PriceSegment:
+        seg = PriceSegment(
+            name=f"{name}-{uuid.uuid4().hex[:6]}",
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
+        )
         db_session.add(seg)
         await db_session.flush()
         return seg
@@ -162,12 +190,13 @@ def make_price_segment(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_product(db_session: AsyncSession):
+def make_product(db_session: AsyncSession, default_enterprise: Enterprise):
     """
     Factory: Product va ixtiyoriy narx bilan yaratadi.
 
     price berilsa — avtomatik PriceSegment va ProductPrice yaratiladi.
     segment_id berilmasa — yangi segment yaratiladi.
+    MT1: enterprise_id avtomatik qo'shiladi.
     """
 
     async def _factory(
@@ -177,9 +206,11 @@ def make_product(db_session: AsyncSession):
         is_active: bool = True,
         price: Decimal | None = None,
         segment_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Product:
         from datetime import datetime, timezone
 
+        eid = enterprise_id if enterprise_id is not None else default_enterprise.id
         prod_id = uuid.uuid4()
         sku = sku or f"SKU-{str(prod_id)[:8]}"
         prod = Product(
@@ -190,6 +221,7 @@ def make_product(db_session: AsyncSession):
             unit="dona",
             is_active=is_active,
             version=1,
+            enterprise_id=eid,
         )
         db_session.add(prod)
         await db_session.flush()
@@ -197,7 +229,10 @@ def make_product(db_session: AsyncSession):
         if price is not None:
             # segment_id majburiy — berilmasa yangi yaratiladi
             if segment_id is None:
-                seg = PriceSegment(name=f"Seg-{uuid.uuid4().hex[:8]}")
+                seg = PriceSegment(
+                    name=f"Seg-{uuid.uuid4().hex[:8]}",
+                    enterprise_id=eid,
+                )
                 db_session.add(seg)
                 await db_session.flush()
                 segment_id = seg.id
@@ -209,6 +244,7 @@ def make_product(db_session: AsyncSession):
                 currency="UZS",
                 valid_from=datetime.now(timezone.utc),
                 valid_to=None,
+                enterprise_id=eid,
             )
             db_session.add(pp)
             await db_session.flush()
@@ -222,13 +258,14 @@ def make_product(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_store(db_session: AsyncSession):
+def make_store(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         name: str = "Test Do'kon",
         user_id: uuid.UUID | None = None,
         agent_id: uuid.UUID | None = None,
         branch_id: uuid.UUID | None = None,
         segment_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Store:
         store = Store(
             name=name,
@@ -237,6 +274,7 @@ def make_store(db_session: AsyncSession):
             branch_id=branch_id,
             segment_id=segment_id,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(store)
         await db_session.flush()

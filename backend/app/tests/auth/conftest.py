@@ -25,7 +25,9 @@ from app.core.jwt import hash_password
 from app.core.redis import get_redis
 from app.main import app
 from app.models.base import Base
+from app.models.enterprise import Enterprise, ALL_MODULE_KEYS
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 # ─── Parol konstantasi (testlarda ishlatiladi) ───────────────────────────────
 
@@ -88,15 +90,33 @@ async def fake_redis():
     await r.aclose()
 
 
+# ─── Default Enterprise ───────────────────────────────────────────────────────
+
+@pytest.fixture
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
 # ─── Test foydalanuvchi ───────────────────────────────────────────────────────
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> AppUser:
+async def test_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """
     Bcrypt parol bilan yaratilgan test foydalanuvchi.
 
     Har test uchun bir xil ID ishlatiladi (session scope emas — har test
     o'z rollback ga ega).
+    MT1: enterprise_id qo'shildi.
     """
     user = AppUser(
         id=TEST_USER_ID,
@@ -110,6 +130,7 @@ async def test_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()
@@ -117,7 +138,7 @@ async def test_user(db_session: AsyncSession) -> AppUser:
 
 
 @pytest.fixture
-async def inactive_user(db_session: AsyncSession) -> AppUser:
+async def inactive_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """is_active=False foydalanuvchi (bloklangan)."""
     user = AppUser(
         id=uuid.uuid4(),
@@ -131,6 +152,7 @@ async def inactive_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()

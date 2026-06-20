@@ -10,10 +10,18 @@ TimescaleDB (GPS time-series):
   - timescale_engine — alohida pool, settings.timescale_url ga ulanadi.
   - get_timescale_db — GPS endpointlari uchun FastAPI dependency.
   ADR §3.2: GPS trekking OLTP bilan aralashmaydi.
+
+MT1: RLS session variable mexanizmi.
+  - PostgreSQL: har session ochilganda SET LOCAL app.current_enterprise_id qilinadi.
+  - SQLite (test): no-op.
+  - RLS siyosatlari (migratsiya 0020) bu o'zgaruvchiga tayanadi.
 """
 
+import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -22,6 +30,8 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # ─── Engine sozlamalari ─────────────────────────────────────────────────────
 
@@ -94,11 +104,48 @@ AsyncSessionTimescale = async_sessionmaker(
 
 # ─── FastAPI dependency ─────────────────────────────────────────────────────
 
+async def _set_rls_var(session: AsyncSession, enterprise_id: Any) -> None:
+    """
+    PostgreSQL session'ga app.current_enterprise_id SET LOCAL qiladi.
+
+    RLS (Row-Level Security) siyosatlari bu o'zgaruvchiga tayanadi.
+    SQLite'da no-op.
+
+    Args:
+        session:       AsyncSession.
+        enterprise_id: UUID yoki None (superadmin/unknown).
+    """
+    try:
+        bind = await session.connection()
+        if bind.dialect.name != "postgresql":
+            return  # SQLite — no-op
+
+        if enterprise_id is not None:
+            val = str(enterprise_id)
+            await session.execute(
+                sa.text("SET LOCAL app.current_enterprise_id = :eid").bindparams(eid=val)
+            )
+        else:
+            # superadmin yoki token yo'q — bo'sh string
+            # RLS USING: current_setting('app.current_enterprise_id', true)
+            # true = error bermaslik (NULL qaytaradi) → NULL::uuid != har qanday UUID
+            # Shuning uchun superadmin uchun bypass BYPASSRLS rol orqali (migratsiyada).
+            await session.execute(
+                sa.text("SET LOCAL app.current_enterprise_id = ''")
+            )
+    except Exception:
+        # RLS set xatosi — log yozamiz lekin request'ni to'xtatmaymiz
+        # (test/dev muhitida session var support yo'q bo'lishi mumkin)
+        logger.debug("RLS enterprise_id set qilishda xato (no-op)", exc_info=True)
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI dependency: primary DB sessiyasi.
 
     Yozish va moliyaviy o'qishlar uchun ishlatiladi.
+    MT1: RLS session variable qo'llanilmaydi bu yerda (user ma'lumoti yo'q).
+         RLS set qilish RBAC dependency'da (MT2 ga tayinlangan).
     Uso'age:
         async def my_endpoint(db: AsyncSession = Depends(get_db)):
     """

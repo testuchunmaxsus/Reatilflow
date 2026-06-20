@@ -15,12 +15,16 @@ version     — optimistik lock.
 
 import uuid
 from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 # Muddati tugayotgan shartnoma ogohlantirish chegarasi (kunlar)
@@ -51,7 +55,7 @@ class Contract(TimestampMixin, Base):
     # ─── Asosiy maydonlar ──────────────────────────────────────────────────────
 
     store_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("store.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
@@ -96,15 +100,24 @@ class Contract(TimestampMixin, Base):
     )
 
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Filial ID (ixtiyoriy)",
     )
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Idempotentlik UUID (partial unique IS NOT NULL)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Status hisoblash ────────────────────────────────────────────────────

@@ -27,13 +27,17 @@ seq KURSOR MEXANIZMI (ADR §3.5, T13):
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, Index, Sequence, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Sequence, String, Text
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 # ─── SQLite test uchun in-process seq counter ────────────────────────────────
 # Production'da Postgres DB SEQUENCE (outbox_event_seq) ishlatiladi.
@@ -127,7 +131,7 @@ class OutboxEvent(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID birlamchi kalit",
@@ -188,6 +192,15 @@ class OutboxEvent(Base):
         nullable=True,
         default=None,
         comment="Yuborilgan vaqt (NULL = navbatda kutilmoqda)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:

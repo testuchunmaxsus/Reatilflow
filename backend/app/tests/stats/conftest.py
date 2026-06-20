@@ -36,10 +36,12 @@ from app.core.redis import get_redis
 from app.main import app
 from app.models.base import Base
 from app.models.delivery import Delivery
+from app.models.enterprise import ALL_MODULE_KEYS, Enterprise
 from app.models.finance import AccountBalance, LedgerEntry
 from app.models.order import Order
 from app.models.store import AgentStore, Store
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 TEST_PASSWORD = "TestPassword123!"
 
@@ -90,16 +92,35 @@ async def fake_redis():
     await r.aclose()
 
 
+# ─── Default Enterprise ──────────────────────────────────────────────────────
+
+
+@pytest.fixture
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
 # ─── Foydalanuvchi factory ────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def make_user(db_session: AsyncSession):
+def make_user(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         role: str,
         phone: str | None = None,
         is_active: bool = True,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> AppUser:
         user_id = uuid.uuid4()
         user = AppUser(
@@ -114,6 +135,7 @@ def make_user(db_session: AsyncSession):
             locale="uz",
             device_id=None,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(user)
         await db_session.flush()
@@ -151,12 +173,13 @@ async def store_user(make_user) -> AppUser:
 
 
 @pytest.fixture
-def make_store(db_session: AsyncSession):
+def make_store(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         name: str = "Test Do'kon",
         user_id: uuid.UUID | None = None,
         agent_id: uuid.UUID | None = None,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Store:
         store = Store(
             name=name,
@@ -164,6 +187,7 @@ def make_store(db_session: AsyncSession):
             agent_id=agent_id,
             branch_id=branch_id,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(store)
         await db_session.flush()
@@ -176,7 +200,7 @@ def make_store(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_order(db_session: AsyncSession):
+def make_order(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         store_id: uuid.UUID,
         agent_id: uuid.UUID | None = None,
@@ -184,6 +208,7 @@ def make_order(db_session: AsyncSession):
         total_amount: Decimal = Decimal("100000.00"),
         ordered_at: datetime | None = None,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Order:
         from app.core.uuid7 import uuid7
 
@@ -200,6 +225,7 @@ def make_order(db_session: AsyncSession):
             version=1,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(order)
         await db_session.flush()
@@ -212,7 +238,7 @@ def make_order(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_delivery(db_session: AsyncSession):
+def make_delivery(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         order_id: uuid.UUID,
         courier_id: uuid.UUID,
@@ -220,6 +246,7 @@ def make_delivery(db_session: AsyncSession):
         assigned_at: datetime | None = None,
         started_at: datetime | None = None,
         delivered_at: datetime | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Delivery:
         from app.core.uuid7 import uuid7
 
@@ -234,6 +261,7 @@ def make_delivery(db_session: AsyncSession):
             version=1,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(delivery)
         await db_session.flush()
@@ -246,7 +274,7 @@ def make_delivery(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_ledger(db_session: AsyncSession):
+def make_ledger(db_session: AsyncSession, default_enterprise: Enterprise):
     """
     LedgerEntry yaratadi va AccountBalance ni yangilaydi.
     """
@@ -258,8 +286,11 @@ def make_ledger(db_session: AsyncSession):
         currency: str = "UZS",
         entry_date: datetime | None = None,
         created_by: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> LedgerEntry:
         from app.core.uuid7 import uuid7
+
+        eid = enterprise_id if enterprise_id is not None else default_enterprise.id
 
         entry = LedgerEntry(
             id=uuid7(),
@@ -270,6 +301,7 @@ def make_ledger(db_session: AsyncSession):
             entry_date=entry_date or datetime.now(timezone.utc),
             created_by=created_by,
             created_at=datetime.now(timezone.utc),
+            enterprise_id=eid,
         )
         db_session.add(entry)
         await db_session.flush()
@@ -290,6 +322,7 @@ def make_ledger(db_session: AsyncSession):
                 currency=currency,
                 last_recalc_at=datetime.now(timezone.utc),
                 version=1,
+                enterprise_id=eid,
             )
             db_session.add(balance)
         else:

@@ -12,8 +12,7 @@ Har bir jadval quyidagi ustunlarga ega:
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import BigInteger, DateTime, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
@@ -39,7 +38,7 @@ class TimestampMixin:
     """
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID v7 — vaqt-tartibli birlamchi kalit",

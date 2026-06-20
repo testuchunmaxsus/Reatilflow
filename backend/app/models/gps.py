@@ -20,13 +20,17 @@ XAVFSIZLIK:
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Index, Numeric, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, UniqueConstraint
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 def _now_utc() -> datetime:
@@ -72,21 +76,21 @@ class GpsPoint(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID v7 — vaqt-tartibli birlamchi kalit",
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=False,
         index=True,
         comment="Foydalanuvchi ID — SERVER'dan olinadi (klientga ISHONMASLIK)",
     )
 
     delivery_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         index=True,
         comment=(
@@ -134,6 +138,21 @@ class GpsPoint(Base):
         nullable=False,
         default=_now_utc,
         comment="Yaratilgan vaqt (ingested_at bilan teng — server clock)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    # ADR-002: TimescaleDB gps_point — model'da enterprise_id qo'sh;
+    # uning alohida migratsiyasi (alembic_timescale) MT1 dan keyin bo'ladi.
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        # TimescaleDB alohida baza — FK yo'q (cross-DB FK taqiqlangan).
+        # enterprise_id faqat application-level reference.
+        nullable=True,
+        index=True,
+        comment=(
+            "Korxona ID — application-level reference (TimescaleDB FK yo'q). "
+            "MT1: model'da bor; alohida TimescaleDB migratsiyasi keyinroq."
+        ),
     )
 
     def __repr__(self) -> str:

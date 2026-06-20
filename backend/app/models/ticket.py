@@ -21,12 +21,16 @@ version     optimistik lock
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 # ─── Holat o'tish matritsasi ──────────────────────────────────────────────────
@@ -72,7 +76,7 @@ class Ticket(TimestampMixin, Base):
     # ─── Asosiy maydonlar ──────────────────────────────────────────────────────
 
     store_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("store.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -80,7 +84,7 @@ class Ticket(TimestampMixin, Base):
     )
 
     author_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -114,22 +118,31 @@ class Ticket(TimestampMixin, Base):
     )
 
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Mas'ul xodim FK → app_user (nullable)",
     )
 
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Filial ID (ixtiyoriy)",
     )
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Idempotentlik UUID (partial unique IS NOT NULL)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ────────────────────────────────────────────────────────
@@ -162,14 +175,14 @@ class TicketMessage(Base):
     __tablename__ = "ticket_message"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=lambda: uuid.uuid4(),
         comment="UUID v7 — birlamchi kalit",
     )
 
     ticket_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("ticket.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -177,7 +190,7 @@ class TicketMessage(Base):
     )
 
     author_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Xabar muallifi FK → app_user",
@@ -200,6 +213,15 @@ class TicketMessage(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
         comment="Yaratilgan vaqt (UTC)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ────────────────────────────────────────────────────────

@@ -25,13 +25,17 @@ Balans ishorasi kelishuvi:
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 def _now_utc() -> datetime:
@@ -60,14 +64,14 @@ class LedgerEntry(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID v7 — vaqt-tartibli birlamchi kalit",
     )
 
     store_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("store.id", ondelete="RESTRICT"),
         nullable=False,
         comment="Do'kon FK → store",
@@ -99,7 +103,7 @@ class LedgerEntry(Base):
     )
 
     ref_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Havola ID (ixtiyoriy)",
     )
@@ -112,14 +116,14 @@ class LedgerEntry(Base):
     )
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Kim yaratdi (FK → app_user)",
     )
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Klient idempotentlik UUID — UNIQUE partial index (client_uuid IS NOT NULL)",
     )
@@ -129,6 +133,15 @@ class LedgerEntry(Base):
         default=_now_utc,
         nullable=False,
         comment="Yaratilgan vaqt (UTC) — APPEND-ONLY: o'zgarmaydi",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:
@@ -159,14 +172,14 @@ class AccountBalance(Base):
     __tablename__ = "account_balance"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID v7 — birlamchi kalit",
     )
 
     store_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("store.id", ondelete="RESTRICT"),
         nullable=False,
         unique=True,
@@ -198,6 +211,15 @@ class AccountBalance(Base):
         nullable=False,
         default=1,
         comment="Optimistik lock versiyasi",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:

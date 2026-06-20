@@ -34,7 +34,9 @@ from app.core.storage import FakeStorage, get_storage
 from app.main import app
 from app.models.base import Base
 from app.models.catalog import Category, PriceSegment
+from app.models.enterprise import Enterprise, ALL_MODULE_KEYS
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 TEST_PASSWORD = "TestPassword123!"
 
@@ -98,11 +100,29 @@ def fake_storage() -> FakeStorage:
     return FakeStorage()
 
 
+# ─── Default Enterprise fixture ──────────────────────────────────────────────
+
+
+@pytest.fixture
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
 # ─── Foydalanuvchi factory ────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def make_user(db_session: AsyncSession):
+def make_user(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: berilgan rol bilan AppUser yaratadi."""
 
     async def _factory(
@@ -110,6 +130,7 @@ def make_user(db_session: AsyncSession):
         phone: str | None = None,
         is_active: bool = True,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> AppUser:
         user_id = uuid.uuid4()
         user = AppUser(
@@ -124,6 +145,7 @@ def make_user(db_session: AsyncSession):
             locale="uz",
             device_id=None,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(user)
         await db_session.flush()
@@ -163,18 +185,20 @@ async def agent_user_branch_b(make_user) -> AppUser:
 
 
 @pytest.fixture
-def make_category(db_session: AsyncSession):
+def make_category(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: Category yaratadi."""
 
     async def _factory(
         name_uz: str = "Test Kategoriya",
         name_ru: str = "Тестовая Категория",
         is_active: bool = True,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Category:
         cat = Category(
             name_uz=name_uz,
             name_ru=name_ru,
             is_active=is_active,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(cat)
         await db_session.flush()
@@ -184,11 +208,17 @@ def make_category(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_segment(db_session: AsyncSession):
+def make_segment(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: PriceSegment yaratadi."""
 
-    async def _factory(name: str = "Chakana") -> PriceSegment:
-        seg = PriceSegment(name=name)
+    async def _factory(
+        name: str = "Chakana",
+        enterprise_id: uuid.UUID | None = None,
+    ) -> PriceSegment:
+        seg = PriceSegment(
+            name=f"{name}-{uuid.uuid4().hex[:4]}",
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
+        )
         db_session.add(seg)
         await db_session.flush()
         return seg

@@ -7,9 +7,14 @@ Xavfsizlik qarorlari:
   - jti (JWT ID) har token uchun unikal UUID — denylist va rotatsiyada ishlatiladi.
   - Parol: bcrypt to'g'ridan-to'g'ri (passlib bcrypt>=4 bilan mos kelmaydi), rounds=12.
 
-Token tuzilishi:
-  access  : sub, role, branch_id, type="access",   jti, exp, iat
-  refresh : sub,                  type="refresh",   jti, exp, iat
+Token tuzilishi (MT1 yangilandi):
+  access  : sub, role, branch_id, enterprise_id, type="access",   jti, exp, iat
+  refresh : sub,                                 type="refresh",   jti, exp, iat
+
+enterprise_id:
+  - Tenant-scoped foydalanuvchi uchun: UUID string
+  - superadmin uchun: null
+  - Server-avtoritar: token'dan olinadi, query param'dan EMAS
 """
 
 from __future__ import annotations
@@ -93,16 +98,19 @@ def create_access_token(
     sub: str,
     role: str,
     branch_id: str | None,
+    enterprise_id: str | None = None,
 ) -> str:
     """
     Access token yaratadi (15 daqiqa amal qiladi).
 
-    Claims: sub, role, branch_id, type="access", jti, exp, iat.
+    Claims: sub, role, branch_id, enterprise_id, type="access", jti, exp, iat.
 
     Args:
         sub: Foydalanuvchi ID (UUID string).
-        role: Foydalanuvchi roli (administrator | agent | courier | accountant | store).
+        role: Foydalanuvchi roli (administrator | agent | courier | accountant | store | superadmin).
         branch_id: Filial ID yoki None (administrator uchun).
+        enterprise_id: Korxona ID (UUID string) yoki None (superadmin uchun).
+            MT1: Server-avtoritar — faqat user.enterprise_id dan olinadi.
 
     Returns:
         Imzolangan JWT access token.
@@ -112,6 +120,7 @@ def create_access_token(
             "sub": sub,
             "role": role,
             "branch_id": str(branch_id) if branch_id is not None else None,
+            "enterprise_id": str(enterprise_id) if enterprise_id is not None else None,
             "type": "access",
         },
         expire_delta=timedelta(minutes=settings.jwt_access_token_expire_minutes),
@@ -184,3 +193,15 @@ def decode_token(token: str) -> dict[str, Any]:
         raise TokenError(f"Token yaroqsiz: {exc}") from exc
 
     return payload
+
+
+# ─── enterprise_id olish yordamchisi ─────────────────────────────────────────
+
+def get_enterprise_id_from_payload(payload: dict[str, Any]) -> Any:
+    """
+    Token payload'dan enterprise_id ni qaytaradi.
+
+    Returns:
+        UUID string yoki None (superadmin uchun).
+    """
+    return payload.get("enterprise_id")

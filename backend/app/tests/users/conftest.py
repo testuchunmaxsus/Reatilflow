@@ -30,7 +30,9 @@ from app.core.jwt import create_access_token, hash_password
 from app.core.redis import get_redis
 from app.main import app
 from app.models.base import Base
+from app.models.enterprise import ALL_MODULE_KEYS, Enterprise
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 # ─── Test konstantalari ───────────────────────────────────────────────────────
 
@@ -48,6 +50,7 @@ ACCOUNTANT_PHONE = "+998905555555"
 
 
 # ─── aiosqlite in-memory engine ─────────────────────────────────────────────
+
 
 @pytest.fixture
 async def engine():
@@ -92,10 +95,29 @@ async def fake_redis():
     await r.aclose()
 
 
-# ─── Test foydalanuvchilar ────────────────────────────────────────────────────
+# ─── Default Enterprise ──────────────────────────────────────────────────────
+
 
 @pytest.fixture
-async def admin_user(db_session: AsyncSession) -> AppUser:
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
+# ─── Test foydalanuvchilar ────────────────────────────────────────────────────
+
+
+@pytest.fixture
+async def admin_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """Administrator roli bilan test foydalanuvchi."""
     user = AppUser(
         id=ADMIN_USER_ID,
@@ -109,6 +131,7 @@ async def admin_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()
@@ -116,7 +139,7 @@ async def admin_user(db_session: AsyncSession) -> AppUser:
 
 
 @pytest.fixture
-async def agent_user(db_session: AsyncSession) -> AppUser:
+async def agent_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """Agent roli bilan test foydalanuvchi."""
     user = AppUser(
         id=AGENT_USER_ID,
@@ -130,6 +153,7 @@ async def agent_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()
@@ -137,7 +161,7 @@ async def agent_user(db_session: AsyncSession) -> AppUser:
 
 
 @pytest.fixture
-async def store_user(db_session: AsyncSession) -> AppUser:
+async def store_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """Store roli bilan test foydalanuvchi."""
     user = AppUser(
         id=uuid.uuid4(),
@@ -151,6 +175,7 @@ async def store_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()
@@ -158,7 +183,7 @@ async def store_user(db_session: AsyncSession) -> AppUser:
 
 
 @pytest.fixture
-async def courier_user(db_session: AsyncSession) -> AppUser:
+async def courier_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """Courier roli bilan test foydalanuvchi."""
     user = AppUser(
         id=uuid.uuid4(),
@@ -172,6 +197,7 @@ async def courier_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()
@@ -179,7 +205,7 @@ async def courier_user(db_session: AsyncSession) -> AppUser:
 
 
 @pytest.fixture
-async def accountant_user(db_session: AsyncSession) -> AppUser:
+async def accountant_user(db_session: AsyncSession, default_enterprise: Enterprise) -> AppUser:
     """Accountant roli bilan test foydalanuvchi."""
     user = AppUser(
         id=uuid.uuid4(),
@@ -193,6 +219,7 @@ async def accountant_user(db_session: AsyncSession) -> AppUser:
         locale="uz",
         device_id=None,
         version=1,
+        enterprise_id=default_enterprise.id,
     )
     db_session.add(user)
     await db_session.flush()

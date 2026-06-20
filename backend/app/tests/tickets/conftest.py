@@ -32,9 +32,11 @@ from app.core.redis import get_redis
 from app.core.storage import FakeStorage, get_storage
 from app.main import app
 from app.models.base import Base
+from app.models.enterprise import ALL_MODULE_KEYS, Enterprise
 from app.models.store import AgentStore, Store
 from app.models.ticket import Ticket
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 TEST_PASSWORD = "TestPassword123!"
 
@@ -95,11 +97,29 @@ def fake_storage():
     return FakeStorage()
 
 
+# ─── Default Enterprise ──────────────────────────────────────────────────────
+
+
+@pytest.fixture
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
 # ─── Foydalanuvchi factory ────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def make_user(db_session: AsyncSession):
+def make_user(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: berilgan rol bilan AppUser yaratadi."""
 
     async def _factory(
@@ -107,6 +127,7 @@ def make_user(db_session: AsyncSession):
         phone: str | None = None,
         is_active: bool = True,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> AppUser:
         user_id = uuid.uuid4()
         user = AppUser(
@@ -121,6 +142,7 @@ def make_user(db_session: AsyncSession):
             locale="uz",
             device_id=None,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(user)
         await db_session.flush()
@@ -158,7 +180,7 @@ async def courier_user(make_user) -> AppUser:
 
 
 @pytest.fixture
-def make_store(db_session: AsyncSession):
+def make_store(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: Store yaratadi."""
 
     async def _factory(
@@ -166,6 +188,7 @@ def make_store(db_session: AsyncSession):
         agent_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Store:
         store = Store(
             name=name,
@@ -173,6 +196,7 @@ def make_store(db_session: AsyncSession):
             branch_id=branch_id,
             user_id=user_id,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(store)
         await db_session.flush()
@@ -201,7 +225,7 @@ def make_agent_store(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_ticket(db_session: AsyncSession):
+def make_ticket(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: Ticket yaratadi."""
 
     async def _factory(
@@ -214,6 +238,7 @@ def make_ticket(db_session: AsyncSession):
         client_uuid: uuid.UUID | None = None,
         branch_id: uuid.UUID | None = None,
         version: int = 1,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Ticket:
         ticket = Ticket(
             author_id=author_id,
@@ -225,6 +250,7 @@ def make_ticket(db_session: AsyncSession):
             client_uuid=client_uuid,
             branch_id=branch_id,
             version=version,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(ticket)
         await db_session.flush()

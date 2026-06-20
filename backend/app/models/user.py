@@ -14,8 +14,8 @@ T6 o'zgarishlari:
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String, Text, event
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, ForeignKey, String, Text, event
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.crypto import EncryptedString, blind_index
@@ -23,6 +23,7 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.store import AgentStore
+    from app.models.enterprise import Enterprise
 
 
 class AppUser(TimestampMixin, Base):
@@ -69,7 +70,7 @@ class AppUser(TimestampMixin, Base):
     )
 
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Filial ID (NULL = barcha filiallar, administrator uchun)",
     )
@@ -107,6 +108,22 @@ class AppUser(TimestampMixin, Base):
         comment="Hisobni bloklash uchun (False = bloklangan)",
     )
 
+    # ─── MT1: enterprise_id (NULLABLE — superadmin uchun NULL) ──────────────────
+    # app_user boshqa jadvallardan farqli: superadmin enterprise_id=NULL bo'lishi mumkin.
+    # Mavjud foydalanuvchilar migratsiya (0020) da default korxonaga backfill qilinadi.
+
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,  # superadmin uchun NULL ruxsat
+        index=True,
+        comment=(
+            "Korxona FK → enterprise. "
+            "NULL = superadmin (korxonaga tegishli emas). "
+            "MT1: mavjud foydalanuvchilar default korxonaga backfill qilinadi."
+        ),
+    )
+
     # ─── Relationships ───────────────────────────────────────
     agent_stores: Mapped[list["AgentStore"]] = relationship(
         "AgentStore",
@@ -114,8 +131,14 @@ class AppUser(TimestampMixin, Base):
         lazy="select",
     )
 
+    enterprise: Mapped["Enterprise | None"] = relationship(
+        "Enterprise",
+        foreign_keys="[AppUser.enterprise_id]",
+        lazy="select",
+    )
+
     def __repr__(self) -> str:
-        return f"<AppUser id={self.id} role={self.role}>"
+        return f"<AppUser id={self.id} role={self.role} enterprise={self.enterprise_id}>"
 
 
 # ─── SQLAlchemy event listener: phone → phone_bi avtomatik ────────────────────

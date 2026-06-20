@@ -10,13 +10,17 @@ Moliyaviy va RBAC o'zgarishlari majburiy audit.
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 class AuditLog(Base):
@@ -39,14 +43,14 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID birlamchi kalit",
     )
 
     actor_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Kim amalga oshirdi (NULL = tizim/cron)",
     )
@@ -92,6 +96,15 @@ class AuditLog(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
         comment="Yozuv vaqti (UTC)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:

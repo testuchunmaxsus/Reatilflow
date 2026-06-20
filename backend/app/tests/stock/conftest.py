@@ -31,8 +31,10 @@ from app.core.redis import get_redis
 from app.main import app
 from app.models.base import Base
 from app.models.catalog import Category, Product
+from app.models.enterprise import Enterprise, ALL_MODULE_KEYS
 from app.models.store import Store
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 TEST_PASSWORD = "TestPassword123!"
 
@@ -91,7 +93,22 @@ async def fake_redis():
 
 
 @pytest.fixture
-def make_user(db_session: AsyncSession):
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
+@pytest.fixture
+def make_user(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: berilgan rol bilan AppUser yaratadi."""
 
     async def _factory(
@@ -99,6 +116,7 @@ def make_user(db_session: AsyncSession):
         phone: str | None = None,
         is_active: bool = True,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> AppUser:
         user_id = uuid.uuid4()
         user = AppUser(
@@ -113,6 +131,7 @@ def make_user(db_session: AsyncSession):
             locale="uz",
             device_id=None,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(user)
         await db_session.flush()
@@ -150,7 +169,7 @@ async def accountant_user(make_user) -> AppUser:
 
 
 @pytest.fixture
-def make_product(db_session: AsyncSession):
+def make_product(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: Product yaratadi."""
 
     async def _factory(
@@ -158,6 +177,7 @@ def make_product(db_session: AsyncSession):
         name_ru: str = "Test tovar",
         sku: str | None = None,
         is_active: bool = True,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Product:
         prod_id = uuid.uuid4()
         sku = sku or f"SKU-{str(prod_id)[:8]}"
@@ -169,6 +189,7 @@ def make_product(db_session: AsyncSession):
             unit="dona",
             is_active=is_active,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(prod)
         await db_session.flush()
@@ -181,19 +202,21 @@ def make_product(db_session: AsyncSession):
 
 
 @pytest.fixture
-def make_store(db_session: AsyncSession):
+def make_store(db_session: AsyncSession, default_enterprise: Enterprise):
     """Factory: Store yaratadi."""
 
     async def _factory(
         name: str = "Test Do'kon",
         user_id: uuid.UUID | None = None,
         agent_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> Store:
         store = Store(
             name=name,
             user_id=user_id,
             agent_id=agent_id,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(store)
         await db_session.flush()

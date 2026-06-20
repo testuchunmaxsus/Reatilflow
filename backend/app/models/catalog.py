@@ -24,14 +24,14 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
-    pass
+    from app.models.enterprise import Enterprise
 
 
 class Category(TimestampMixin, Base):
@@ -43,13 +43,22 @@ class Category(TimestampMixin, Base):
     name_ru: Mapped[str] = mapped_column(String(255), nullable=False, comment="Nomi (RU)")
 
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("category.id", ondelete="SET NULL"),
         nullable=True,
         comment="Yuqori kategoriya (NULL = ildiz)",
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
+    )
 
     # ─── Relationships ───────────────────────────────────────
     children: Mapped[list["Category"]] = relationship(
@@ -81,8 +90,16 @@ class PriceSegment(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
-        unique=True,
         comment="Segment nomi",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:
@@ -131,7 +148,7 @@ class Product(TimestampMixin, Base):
     )
 
     category_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("category.id", ondelete="SET NULL"),
         nullable=True,
         comment="Kategoriya FK",
@@ -149,6 +166,15 @@ class Product(TimestampMixin, Base):
         Text,
         nullable=True,
         comment="JSON: filiallar ro'yxati (NULL = barcha filiallar)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ───────────────────────────────────────
@@ -194,13 +220,13 @@ class ProductPrice(TimestampMixin, Base):
     )
 
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("product.id", ondelete="CASCADE"),
         nullable=False,
     )
 
     segment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("price_segment.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -230,6 +256,15 @@ class ProductPrice(TimestampMixin, Base):
         comment="Narx tugash vaqti (NULL = ochiq)",
     )
 
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
+    )
+
     # ─── Relationships ───────────────────────────────────────
     product: Mapped["Product"] = relationship(
         "Product",
@@ -250,20 +285,20 @@ class PriceHistory(Base):
     __tablename__ = "price_history"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID birlamchi kalit",
     )
 
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("product.id", ondelete="CASCADE"),
         nullable=False,
     )
 
     segment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("price_segment.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -273,7 +308,7 @@ class PriceHistory(Base):
     currency: Mapped[str] = mapped_column(String(3), default="UZS", nullable=False)
 
     changed_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Kim o'zgartirdi (FK → app_user)",
@@ -283,6 +318,15 @@ class PriceHistory(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ───────────────────────────────────────
@@ -309,20 +353,20 @@ class ProductNote(Base):
     __tablename__ = "product_note"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid7,
         comment="UUID birlamchi kalit",
     )
 
     product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("product.id", ondelete="CASCADE"),
         nullable=False,
     )
 
     author_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Muallif (FK → app_user)",
@@ -343,6 +387,15 @@ class ProductNote(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ───────────────────────────────────────

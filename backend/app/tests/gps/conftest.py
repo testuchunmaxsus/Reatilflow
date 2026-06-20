@@ -36,8 +36,10 @@ from app.core.uuid7 import uuid7
 from app.main import app
 from app.models.attendance import Attendance  # noqa: F401 — meta import (create_all uchun)
 from app.models.base import Base
+from app.models.enterprise import ALL_MODULE_KEYS, Enterprise
 from app.models.gps import GpsPoint  # noqa: F401 — meta import (create_all uchun)
 from app.models.user import AppUser
+from app.tests.conftest import TEST_ENTERPRISE_UUID
 
 TEST_PASSWORD = "TestPassword123!"
 
@@ -88,16 +90,35 @@ async def fake_redis():
     await r.aclose()
 
 
+# ─── Default Enterprise ──────────────────────────────────────────────────────
+
+
+@pytest.fixture
+async def default_enterprise(db_session: AsyncSession) -> Enterprise:
+    """MT1: Default test korxonasi."""
+    ent = Enterprise(
+        id=TEST_ENTERPRISE_UUID,
+        name="Test Korxona",
+        status="active",
+        enabled_modules=list(ALL_MODULE_KEYS),
+        version=1,
+    )
+    db_session.add(ent)
+    await db_session.flush()
+    return ent
+
+
 # ─── Foydalanuvchi factory ────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def make_user(db_session: AsyncSession):
+def make_user(db_session: AsyncSession, default_enterprise: Enterprise):
     async def _factory(
         role: str,
         phone: str | None = None,
         is_active: bool = True,
         branch_id: uuid.UUID | None = None,
+        enterprise_id: uuid.UUID | None = None,
     ) -> AppUser:
         user_id = uuid.uuid4()
         user = AppUser(
@@ -112,6 +133,7 @@ def make_user(db_session: AsyncSession):
             locale="uz",
             device_id=None,
             version=1,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
         )
         db_session.add(user)
         await db_session.flush()

@@ -21,6 +21,7 @@ ADR §3.4:
 
 import uuid
 from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -32,14 +33,15 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base, TimestampMixin
 
-if False:  # TYPE_CHECKING
+if TYPE_CHECKING:
     from app.models.catalog import PriceSegment, Product
+    from app.models.enterprise import Enterprise
 
 
 class Promo(TimestampMixin, Base):
@@ -124,14 +126,14 @@ class Promo(TimestampMixin, Base):
     )
 
     target_segment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("price_segment.id", ondelete="SET NULL"),
         nullable=True,
         comment="Narx segmenti FK → price_segment (NULL = barchasi)",
     )
 
     target_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("product.id", ondelete="SET NULL"),
         nullable=True,
         comment="Mahsulot FK → product (NULL = barchasi)",
@@ -145,15 +147,24 @@ class Promo(TimestampMixin, Base):
     )
 
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Filial ID (NULL = global)",
     )
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Idempotentlik UUID (partial unique IS NOT NULL)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ────────────────────────────────────────────────────────

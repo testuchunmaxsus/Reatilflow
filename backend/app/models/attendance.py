@@ -22,13 +22,17 @@ client_uuid idempotentlik:
 import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.uuid7 import uuid7
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.enterprise import Enterprise
 
 
 class Attendance(TimestampMixin, Base):
@@ -49,7 +53,7 @@ class Attendance(TimestampMixin, Base):
 
     # user_id FK → app_user
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=False,
         index=True,
         comment="Foydalanuvchi FK → app_user",
@@ -121,11 +125,20 @@ class Attendance(TimestampMixin, Base):
 
     # Idempotentlik UUID — klientdan keladi (ixtiyoriy)
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         unique=False,  # Partial unique — migratsiyada belgilanadi
         index=True,
         comment="Klient idempotentlik UUID (ixtiyoriy; partial unique WHERE IS NOT NULL)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     def __repr__(self) -> str:

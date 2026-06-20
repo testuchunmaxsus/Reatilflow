@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.crypto import EncryptedString
@@ -24,6 +24,7 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.user import AppUser
+    from app.models.enterprise import Enterprise
 
 
 class Store(TimestampMixin, Base):
@@ -112,27 +113,27 @@ class Store(TimestampMixin, Base):
     # ─── FK maydonlar ─────────────────────────────────────────────────────────
 
     segment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("price_segment.id", ondelete="SET NULL"),
         nullable=True,
         comment="Narx segmenti (FK → price_segment)",
     )
 
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Asosiy agent (FK → app_user)",
     )
 
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         nullable=True,
         comment="Filial ID",
     )
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="SET NULL"),
         nullable=True,
         comment="Do'kon egasi/foydalanuvchisi (FK → app_user) — store roli scope (T5)",
@@ -144,6 +145,15 @@ class Store(TimestampMixin, Base):
         Numeric(18, 2),
         nullable=True,
         comment="Kredit limiti (moliyaviy — faqat primary dan o'qing)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,  # Migratsiyadan oldin NULL; 0020 NOT NULL qiladi
+        index=True,
+        comment="Korxona FK → enterprise (MT1: backfill dan keyin NOT NULL)",
     )
 
     # ─── Relationships ───────────────────────────────────────────────────────
@@ -160,8 +170,14 @@ class Store(TimestampMixin, Base):
         lazy="select",
     )
 
+    enterprise: Mapped["Enterprise | None"] = relationship(
+        "Enterprise",
+        foreign_keys="[Store.enterprise_id]",
+        lazy="select",
+    )
+
     def __repr__(self) -> str:
-        return f"<Store id={self.id} name={self.name!r}>"
+        return f"<Store id={self.id} name={self.name!r} enterprise={self.enterprise_id}>"
 
 
 class AgentStore(Base):
@@ -170,6 +186,7 @@ class AgentStore(Base):
 
     Qo'shimcha ustunlar yo'q (TimestampMixin emas — minimal join table).
     Qator-darajali himoya: agent faqat o'z do'konlarini ko'radi (T2/T5 da).
+    MT1: enterprise_id qo'shildi — tenant izolyatsiyasi uchun.
     """
 
     __tablename__ = "agent_store"
@@ -178,14 +195,14 @@ class AgentStore(Base):
     )
 
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("app_user.id", ondelete="CASCADE"),
         primary_key=True,
         comment="Agent FK → app_user",
     )
 
     store_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("store.id", ondelete="CASCADE"),
         primary_key=True,
         comment="Do'kon FK → store",
@@ -196,6 +213,15 @@ class AgentStore(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
         comment="Biriktirilgan vaqt",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
     )
 
     # ─── Relationships ───────────────────────────────────────────────────────

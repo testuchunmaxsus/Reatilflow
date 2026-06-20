@@ -260,11 +260,18 @@ async def logout(
 # ─── Yordamchi ───────────────────────────────────────────────────────────────
 
 def _generate_token_pair(user: AppUser) -> TokenPair:
-    """Foydalanuvchi uchun yangi token juft yaratadi."""
+    """
+    Foydalanuvchi uchun yangi token juft yaratadi.
+
+    MT1: enterprise_id token'ga qo'shildi.
+      - Tenant foydalanuvchi: user.enterprise_id (UUID string)
+      - superadmin: None (enterprise_id=NULL)
+    """
     access = create_access_token(
         sub=str(user.id),
         role=user.role,
         branch_id=str(user.branch_id) if user.branch_id is not None else None,
+        enterprise_id=str(user.enterprise_id) if user.enterprise_id is not None else None,
     )
     refresh = create_refresh_token(sub=str(user.id))
     return TokenPair(access_token=access, refresh_token=refresh, token_type="bearer")

@@ -216,9 +216,24 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # T11: do'kon o'z buyurtmalarini ko'ra oladi (faqat view)
         | _p(Module.ORDERS,   Action.VIEW)
     ),
+
+    # ─── Superadmin (platforma egasi) ─────────────────────────────────────────
+    # enterprise_id = NULL. Korxona boshqaruviga kiradi, TENANT MA'LUMOTIGA KIRMAYDI.
+    # MT1: enterprise CRUD, suspend, modul toggle ruxsatlari.
+    # MT4 da to'liq implementatsiya qilinadi.
+    "superadmin": (
+        # Korxona boshqaruvi (MT1 poydevori)
+        _p("enterprise", Action.VIEW, Action.CREATE, Action.EDIT, Action.DELETE)
+        | _p("enterprise", "suspend", "activate", "module_toggle")
+        # RBAC va audit — platforma darajasida
+        | _p(Module.RBAC, Action.VIEW, Action.CREATE, Action.EDIT, Action.DELETE)
+        # Barcha modul ko'rinishi (statistika uchun) — LEKIN tenant ma'lumoti emas
+        # MT4 da to'liq aniqlanadi; hozir minimal set
+    ),
 }
 
 # ─── Qulaylik uchun hamma ruxsatlar to'plami ─────────────────────────────────
-ALL_VALID_ROLES: frozenset[str] = frozenset(ROLE_PERMISSIONS.keys())
+# ALL_VALID_ROLES: tenant rollari (superadmin — platform role, shu ro'yxatda yo'q)
+ALL_VALID_ROLES: frozenset[str] = frozenset(ROLE_PERMISSIONS.keys()) - {"superadmin"}
 ALL_VALID_MODULES: frozenset[str] = frozenset(m.value for m in Module)
 ALL_VALID_ACTIONS: frozenset[str] = frozenset(a.value for a in Action)
