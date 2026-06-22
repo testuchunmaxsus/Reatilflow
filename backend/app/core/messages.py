@@ -57,6 +57,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Доступ запрещён: действие '{action}' в модуле '{module}' недоступно для роли '{role}'",
     },
 
+    # ── Enterprise / Module gating (MT3) ─────────────────────────────────────
+    "enterprise.module_disabled": {
+        "uz": "'{module}' moduli bu korxonada yoqilmagan",
+        "ru": "Модуль '{module}' не включён для данного предприятия",
+    },
+
     # ── Katalog ─────────────────────────────────────────────────────────────
     "catalog.product_not_found": {
         "uz": "Mahsulot topilmadi",

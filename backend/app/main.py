@@ -42,9 +42,11 @@ from app.modules.push.router import router as push_router
 from app.modules.auth.router import router as auth_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.customers.router import router as customers_router
+from app.modules.enterprise.router import router as enterprise_router
 from app.modules.finance.router import router as finance_router
 from app.modules.orders.router import router as orders_router
 from app.modules.rbac.router import router as rbac_router
+from app.modules.rbac.module_gate import require_module
 from app.modules.stock.router import router as stock_router
 from app.modules.sync.router import router as sync_router
 from app.modules.users.router import router as users_router
@@ -325,54 +327,129 @@ async def metrics_endpoint():
 
 
 # ─── B1 routerlari ───────────────────────────────────────────────────────────
+#
+# CORE modullar (gate QILINMAYDI): auth, rbac, users, sync, enterprise
+#   — har doim ishlaydi, gate qo'yilsa admin/login bloklanadi.
+#
+# Biznes modullar (MT3 module gating bilan):
+#   catalog, customers, orders, stock, finance, delivery,
+#   attendance, gps, contracts, tickets, promo, stats, push
 
-# T1: Auth
+# T1: Auth — CORE (gate yo'q)
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
-# T2: RBAC
+# T2: RBAC — CORE (gate yo'q)
 app.include_router(rbac_router, prefix="/rbac", tags=["rbac"])
 
-# T4: Catalog
-app.include_router(catalog_router, prefix="/catalog", tags=["catalog"])
+# MT3: Enterprise — CORE (gate yo'q; /enterprise/me UI gating uchun)
+app.include_router(enterprise_router, prefix="/enterprise", tags=["enterprise"])
 
-# T5: Customers (do'konlar) — PII shifrlash bilan
-app.include_router(customers_router, prefix="/customers", tags=["customers"])
-
-# T6: Users (foydalanuvchilar boshqaruvi) — faqat administrator
+# T6: Users — CORE (gate yo'q)
 app.include_router(users_router, prefix="/users", tags=["users"])
 
-# T9: Ombor (stock) — APPEND-ONLY event-sourced ledger
-app.include_router(stock_router, prefix="/stock", tags=["stock"])
-
-# T10: Buxgalteriya (finance) — APPEND-ONLY event-sourced ledger
-app.include_router(finance_router, prefix="/finance", tags=["finance"])
-
-# T11: Buyurtma yadrosi — atomik tranzaksiya (order + stock + ledger)
-app.include_router(orders_router, prefix="/orders", tags=["orders"])
-
-# T13: Outbox Sync API — push/pull (offline-first sinxronlash)
+# T13: Sync — CORE (gate yo'q)
 app.include_router(sync_router, prefix="/sync", tags=["sync"])
 
-# T16: Davomat (Face ID lokal biometrik + GPS)
-app.include_router(attendance_router, prefix="/attendance", tags=["attendance"])
+# T4: Catalog — gated
+app.include_router(
+    catalog_router,
+    prefix="/catalog",
+    tags=["catalog"],
+    dependencies=[require_module("catalog")],
+)
 
-# T17: GPS Ingest — yuqori chastotali GPS trekking (alohida servis moduli)
-app.include_router(gps_router, prefix="/gps", tags=["gps"])
+# T5: Customers (do'konlar) — gated
+app.include_router(
+    customers_router,
+    prefix="/customers",
+    tags=["customers"],
+    dependencies=[require_module("customers")],
+)
 
-# T18: Yetkazib berish — holat mashinasi + GPS trek
-app.include_router(delivery_router, prefix="/delivery", tags=["delivery"])
+# T9: Ombor (stock) — gated
+app.include_router(
+    stock_router,
+    prefix="/stock",
+    tags=["stock"],
+    dependencies=[require_module("stock")],
+)
 
-# T19: Push bildirishnomalar — device token ro'yxatdan o'tkazish
-app.include_router(push_router, prefix="/push", tags=["push"])
+# T10: Buxgalteriya (finance) — gated
+app.include_router(
+    finance_router,
+    prefix="/finance",
+    tags=["finance"],
+    dependencies=[require_module("finance")],
+)
 
-# T23: Shartnoma — CRUD + PDF yuklash
-app.include_router(contracts_router, prefix="/contracts", tags=["contracts"])
+# T11: Buyurtma yadrosi — gated
+app.include_router(
+    orders_router,
+    prefix="/orders",
+    tags=["orders"],
+    dependencies=[require_module("orders")],
+)
 
-# T24: Murojaat — CRUD + holat mashinasi
-app.include_router(tickets_router, prefix="/tickets", tags=["tickets"])
+# T16: Davomat — gated
+app.include_router(
+    attendance_router,
+    prefix="/attendance",
+    tags=["attendance"],
+    dependencies=[require_module("attendance")],
+)
 
-# T25: Aksiya (Promo) — CRUD + banner + server-avtoritar chegirma
-app.include_router(promo_router, prefix="/promos", tags=["promo"])
+# T17: GPS Ingest — gated
+app.include_router(
+    gps_router,
+    prefix="/gps",
+    tags=["gps"],
+    dependencies=[require_module("gps")],
+)
 
-# T22: Statistika/Hisobot — read-only reporting (replica + primary)
-app.include_router(stats_router, prefix="/stats", tags=["stats"])
+# T18: Yetkazib berish — gated
+app.include_router(
+    delivery_router,
+    prefix="/delivery",
+    tags=["delivery"],
+    dependencies=[require_module("delivery")],
+)
+
+# T19: Push bildirishnomalar — gated
+app.include_router(
+    push_router,
+    prefix="/push",
+    tags=["push"],
+    dependencies=[require_module("push")],
+)
+
+# T23: Shartnoma — gated
+app.include_router(
+    contracts_router,
+    prefix="/contracts",
+    tags=["contracts"],
+    dependencies=[require_module("contracts")],
+)
+
+# T24: Murojaat — gated
+app.include_router(
+    tickets_router,
+    prefix="/tickets",
+    tags=["tickets"],
+    dependencies=[require_module("tickets")],
+)
+
+# T25: Aksiya (Promo) — gated
+app.include_router(
+    promo_router,
+    prefix="/promos",
+    tags=["promo"],
+    dependencies=[require_module("promo")],
+)
+
+# T22: Statistika/Hisobot — gated
+app.include_router(
+    stats_router,
+    prefix="/stats",
+    tags=["stats"],
+    dependencies=[require_module("stats")],
+)
