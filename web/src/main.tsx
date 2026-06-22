@@ -30,6 +30,7 @@ import { AuthProvider } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/auth/LoginPage";
 import { AppLayout } from "@/layouts/AppLayout";
+import { EnterpriseProvider } from "@/enterprise/EnterpriseContext";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { CatalogListPage } from "@/features/catalog/CatalogListPage";
 import { CustomerListPage } from "@/features/customers/CustomerListPage";
@@ -45,6 +46,19 @@ import { RolePermissionsPage } from "@/features/rbac/RolePermissionsPage";
 import { ContractsListPage } from "@/features/contracts/ContractsListPage";
 import { TicketsListPage } from "@/features/tickets/TicketsListPage";
 import { PromoListPage } from "@/features/promo/PromoListPage";
+// Superadmin panel — code-split
+const SuperadminLayout = lazy(() =>
+  import("@/features/superadmin/SuperadminLayout").then((m) => ({
+    default: m.SuperadminLayout,
+  })),
+);
+const SuperadminEnterprisesPage = lazy(() =>
+  import("@/features/superadmin/SuperadminEnterprisesPage").then((m) => ({
+    default: m.SuperadminEnterprisesPage,
+  })),
+);
+// Enterprise settings
+import { EnterpriseSettingsPage } from "@/features/enterprise-settings/EnterpriseSettingsPage";
 
 // ─── TanStack Query ───────────────────────────────────────────────────────
 
@@ -93,50 +107,76 @@ function App() {
       <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Ochiq sahifalar */}
-              <Route path="/login" element={<LoginPage />} />
+          <EnterpriseProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Ochiq sahifalar */}
+                <Route path="/login" element={<LoginPage />} />
 
-              {/* Himoyalangan sahifalar — ProtectedRoute tekshiradi */}
-              <Route element={<ProtectedRoute />}>
-                <Route element={<AppLayout />}>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="catalog" element={<CatalogListPage />} />
-                  <Route path="customers" element={<CustomerListPage />} />
-                  <Route path="orders" element={<OrderListPage />} />
+                {/* Superadmin panel — alohida layout */}
+                <Route element={<ProtectedRoute requiredRole="superadmin" />}>
                   <Route
-                    path="stats"
+                    path="/superadmin"
                     element={
-                      <Suspense
-                        fallback={
-                          <Center py="xl">
-                            <Loader size="md" />
-                          </Center>
-                        }
-                      >
-                        <StatsDashboardPage />
+                      <Suspense fallback={<Center h="100vh"><Loader size="lg" /></Center>}>
+                        <SuperadminLayout />
                       </Suspense>
                     }
-                  />
-                  {/* /users — foydalanuvchilar boshqaruvi */}
-                  <Route path="users" element={<UsersListPage />} />
-                  <Route path="rbac" element={<RolePermissionsPage />} />
-                  {/* /contracts — shartnomalar boshqaruvi */}
-                  <Route path="contracts" element={<ContractsListPage />} />
-                  {/* /tickets — murojaatlar boshqaruvi */}
-                  <Route path="tickets" element={<TicketsListPage />} />
-                  {/* /promo — aksiyalar boshqaruvi */}
-                  <Route path="promo" element={<PromoListPage />} />
-                  {/* Noma'lum yo'l — bosh sahifaga */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  >
+                    <Route
+                      index
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminEnterprisesPage />
+                        </Suspense>
+                      }
+                    />
+                    <Route path="*" element={<Navigate to="/superadmin" replace />} />
+                  </Route>
                 </Route>
-              </Route>
 
-              {/* Login sahifasiga fallback */}
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </BrowserRouter>
+                {/* Himoyalangan sahifalar — tenant foydalanuvchilar */}
+                <Route element={<ProtectedRoute />}>
+                  <Route element={<AppLayout />}>
+                    <Route index element={<DashboardPage />} />
+                    <Route path="catalog" element={<CatalogListPage />} />
+                    <Route path="customers" element={<CustomerListPage />} />
+                    <Route path="orders" element={<OrderListPage />} />
+                    <Route
+                      path="stats"
+                      element={
+                        <Suspense
+                          fallback={
+                            <Center py="xl">
+                              <Loader size="md" />
+                            </Center>
+                          }
+                        >
+                          <StatsDashboardPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /users — foydalanuvchilar boshqaruvi */}
+                    <Route path="users" element={<UsersListPage />} />
+                    <Route path="rbac" element={<RolePermissionsPage />} />
+                    {/* /contracts — shartnomalar boshqaruvi */}
+                    <Route path="contracts" element={<ContractsListPage />} />
+                    {/* /tickets — murojaatlar boshqaruvi */}
+                    <Route path="tickets" element={<TicketsListPage />} />
+                    {/* /promo — aksiyalar boshqaruvi */}
+                    <Route path="promo" element={<PromoListPage />} />
+                    {/* /settings — korxona modullari sozlamalari */}
+                    <Route path="settings" element={<EnterpriseSettingsPage />} />
+                    {/* Noma'lum yo'l — bosh sahifaga */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Route>
+                </Route>
+
+                {/* Login sahifasiga fallback */}
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </EnterpriseProvider>
         </AuthProvider>
         {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
       </QueryClientProvider>

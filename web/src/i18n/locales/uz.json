@@ -22,6 +22,7 @@
     "auth.token_expired": "Token muddati tugagan",
     "auth.token_invalid": "Token yaroqsiz",
     "auth.authentication_required": "Autentifikatsiya talab qilinadi",
+    "enterprise.suspended": "Korxona to'xtatilgan. Superadmin bilan bog'laning.",
     "auth.user_not_found": "Foydalanuvchi topilmadi",
     "rbac.permission_denied": "Ruxsat yo'q",
     "common.not_found": "So'ralgan resurs topilmadi",
@@ -44,7 +45,10 @@
     "rbac": "Ruxsatlar",
     "contracts": "Shartnomalar",
     "tickets": "Murojaatlar",
-    "promo": "Aksiyalar"
+    "promo": "Aksiyalar",
+    "settings": "Sozlamalar",
+    "superadmin": "Superadmin panel",
+    "enterprises": "Korxonalar"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -578,6 +582,69 @@
     "delete": {
       "title": "Aksiyani o'chirish",
       "confirm": "\"{{name}}\" aksiyasini o'chirishni tasdiqlaysizmi?"
+    }
+  },
+  "enterprise_settings": {
+    "description": "Administrator o'z korxonasida yoqilgan modullarni boshqaradi",
+    "modules_label": "Yoqilgan modullar",
+    "no_enterprise": "Korxona ma'lumotlari topilmadi",
+    "messages": {
+      "saved": "Modul sozlamalari saqlandi"
+    }
+  },
+  "superadmin": {
+    "actions": {
+      "create": "Korxona qo'shish",
+      "suspend": "To'xtatib qo'yish",
+      "activate": "Faollashtirish"
+    },
+    "table": {
+      "name": "Nomi",
+      "inn": "INN",
+      "status": "Holat",
+      "modules_count": "Modullar",
+      "created_at": "Yaratilgan",
+      "empty": "Korxonalar topilmadi"
+    },
+    "status": {
+      "active": "Faol",
+      "suspended": "To'xtatilgan"
+    },
+    "form": {
+      "create_title": "Yangi korxona",
+      "edit_title": "Korxonani tahrirlash",
+      "name": "Korxona nomi",
+      "name_placeholder": "Nomini kiriting",
+      "name_required": "Korxona nomi majburiy",
+      "inn": "INN (soliq raqami)",
+      "inn_placeholder": "9 ta raqam",
+      "modules": "Yoqilgan modullar",
+      "first_admin_section": "Birinchi administrator"
+    },
+    "suspend": {
+      "title": "Korxonani to'xtatish",
+      "confirm": "\"{{name}}\" korxonasini to'xtatib qo'yishni tasdiqlaysizmi? Foydalanuvchilar tizimga kira olmaydi."
+    },
+    "messages": {
+      "enterprise_created": "\"{{name}}\" korxonasi muvaffaqiyatli yaratildi",
+      "enterprise_updated": "Korxona muvaffaqiyatli yangilandi",
+      "enterprise_suspended": "\"{{name}}\" korxonasi to'xtatildi",
+      "enterprise_activated": "\"{{name}}\" korxonasi faollashtirildi"
+    },
+    "modules": {
+      "catalog": "Katalog",
+      "customers": "Mijozlar",
+      "orders": "Buyurtmalar",
+      "stock": "Ombor",
+      "finance": "Moliya",
+      "delivery": "Yetkazish",
+      "attendance": "Davomat",
+      "gps": "GPS kuzatuv",
+      "contracts": "Shartnomalar",
+      "tickets": "Murojaatlar",
+      "promo": "Aksiyalar",
+      "stats": "Statistika",
+      "push": "Push xabarnomalar"
     }
   },
   "dashboard": {

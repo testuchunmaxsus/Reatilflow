@@ -9,6 +9,21 @@
  * ishlaydi — timezone siljishisiz.
  */
 
+/**
+ * ISO sana satrini qisqacha ko'rsatish uchun formatlaydi.
+ * Masalan: "2026-06-01T10:00:00Z" → "01.06.2026"
+ */
+export function formatDate(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 /** Date obyektini mahalliy "YYYY-MM-DD" satriga aylantiradi (UTC emas). */
 export function toLocalYMD(d: Date): string {
   const y = d.getFullYear();

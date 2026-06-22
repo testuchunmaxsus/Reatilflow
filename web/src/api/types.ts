@@ -30,8 +30,10 @@ export interface LogoutRequest {
 
 /**
  * Rol qiymatlari — ADR-001 §3.6, RBAC.md
+ * MT5: "superadmin" roli qo'shildi.
  */
 export type UserRole =
+  | "superadmin"
   | "administrator"
   | "agent"
   | "courier"

@@ -37,11 +37,13 @@ import {
   IconFileText,
   IconMessage,
   IconTag,
+  IconSettings,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { usePermissions } from "@/rbac/usePermissions";
+import { useEnterprise } from "@/enterprise/EnterpriseContext";
 import type { UserRole } from "@/api/types";
 
 // ─── Nav elementlari ─────────────────────────────────────────────────────
@@ -52,6 +54,8 @@ interface NavItem {
   icon: React.ComponentType<{ size?: number | string }>;
   /** Agar undefined bo'lsa — barcha foydalanuvchilar ko'radi */
   requiredPermission?: string;
+  /** Modul kaliti — yoqilmagan bo'lsa nav elementini yashiradi */
+  requiredModule?: string;
 }
 
 function useNavItems(): NavItem[] {
@@ -68,24 +72,28 @@ function useNavItems(): NavItem[] {
       path: "/catalog",
       icon: IconPackage,
       requiredPermission: "catalog:view",
+      requiredModule: "catalog",
     },
     {
       label: t("nav.customers"),
       path: "/customers",
       icon: IconBuildingStore,
       requiredPermission: "customers:view",
+      requiredModule: "customers",
     },
     {
       label: t("nav.orders"),
       path: "/orders",
       icon: IconShoppingCart,
-      requiredPermission: "catalog:view", // buyurtmalar T11 da, hozircha catalog:view
+      requiredPermission: "catalog:view",
+      requiredModule: "orders",
     },
     {
       label: t("nav.stats"),
       path: "/stats",
       icon: IconChartBar,
       requiredPermission: "stats:view",
+      requiredModule: "stats",
     },
     {
       label: t("nav.users"),
@@ -104,18 +112,27 @@ function useNavItems(): NavItem[] {
       path: "/contracts",
       icon: IconFileText,
       requiredPermission: "contracts:view",
+      requiredModule: "contracts",
     },
     {
       label: t("nav.tickets"),
       path: "/tickets",
       icon: IconMessage,
       requiredPermission: "tickets:view",
+      requiredModule: "tickets",
     },
     {
       label: t("nav.promo"),
       path: "/promo",
       icon: IconTag,
       requiredPermission: "promo:view",
+      requiredModule: "promo",
+    },
+    {
+      label: t("nav.settings"),
+      path: "/settings",
+      icon: IconSettings,
+      requiredPermission: "rbac:view",
     },
   ];
 }
@@ -190,11 +207,16 @@ export function AppLayout() {
   const [mobileNavOpened, { toggle: toggleMobileNav }] = useDisclosure(false);
   const { user } = useAuth();
   const { can } = usePermissions();
+  const { hasModule } = useEnterprise();
   const navItems = useNavItems();
 
-  const visibleItems = navItems.filter(
-    (item) => !item.requiredPermission || can(item.requiredPermission),
-  );
+  const visibleItems = navItems.filter((item) => {
+    // RBAC ruxsat tekshiruvi
+    if (item.requiredPermission && !can(item.requiredPermission)) return false;
+    // Modul gating tekshiruvi
+    if (item.requiredModule && !hasModule(item.requiredModule)) return false;
+    return true;
+  });
 
   return (
     <AppShell

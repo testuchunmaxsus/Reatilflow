@@ -10,6 +10,7 @@
  */
 
 export type UserRole =
+  | "superadmin"
   | "administrator"
   | "agent"
   | "courier"

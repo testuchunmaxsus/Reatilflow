@@ -22,6 +22,7 @@
     "auth.token_expired": "Срок действия токена истёк",
     "auth.token_invalid": "Токен недействителен",
     "auth.authentication_required": "Требуется аутентификация",
+    "enterprise.suspended": "Организация приостановлена. Обратитесь к суперадмину.",
     "auth.user_not_found": "Пользователь не найден",
     "rbac.permission_denied": "Доступ запрещён",
     "common.not_found": "Запрашиваемый ресурс не найден",
@@ -44,7 +45,10 @@
     "rbac": "Права доступа",
     "contracts": "Договоры",
     "tickets": "Обращения",
-    "promo": "Акции"
+    "promo": "Акции",
+    "settings": "Настройки",
+    "superadmin": "Панель суперадмина",
+    "enterprises": "Организации"
   },
   "common": {
     "loading": "Загрузка...",
@@ -578,6 +582,69 @@
     "delete": {
       "title": "Удалить акцию",
       "confirm": "Вы уверены, что хотите удалить акцию «{{name}}»?"
+    }
+  },
+  "enterprise_settings": {
+    "description": "Администратор управляет включёнными модулями своей организации",
+    "modules_label": "Включённые модули",
+    "no_enterprise": "Данные организации не найдены",
+    "messages": {
+      "saved": "Настройки модулей сохранены"
+    }
+  },
+  "superadmin": {
+    "actions": {
+      "create": "Добавить организацию",
+      "suspend": "Приостановить",
+      "activate": "Активировать"
+    },
+    "table": {
+      "name": "Название",
+      "inn": "ИНН",
+      "status": "Статус",
+      "modules_count": "Модули",
+      "created_at": "Создана",
+      "empty": "Организации не найдены"
+    },
+    "status": {
+      "active": "Активна",
+      "suspended": "Приостановлена"
+    },
+    "form": {
+      "create_title": "Новая организация",
+      "edit_title": "Редактировать организацию",
+      "name": "Название организации",
+      "name_placeholder": "Введите название",
+      "name_required": "Название организации обязательно",
+      "inn": "ИНН (налоговый номер)",
+      "inn_placeholder": "9 цифр",
+      "modules": "Включённые модули",
+      "first_admin_section": "Первый администратор"
+    },
+    "suspend": {
+      "title": "Приостановить организацию",
+      "confirm": "Вы уверены, что хотите приостановить организацию «{{name}}»? Пользователи не смогут войти в систему."
+    },
+    "messages": {
+      "enterprise_created": "Организация «{{name}}» успешно создана",
+      "enterprise_updated": "Организация успешно обновлена",
+      "enterprise_suspended": "Организация «{{name}}» приостановлена",
+      "enterprise_activated": "Организация «{{name}}» активирована"
+    },
+    "modules": {
+      "catalog": "Каталог",
+      "customers": "Клиенты",
+      "orders": "Заказы",
+      "stock": "Склад",
+      "finance": "Финансы",
+      "delivery": "Доставка",
+      "attendance": "Посещаемость",
+      "gps": "GPS-мониторинг",
+      "contracts": "Договоры",
+      "tickets": "Обращения",
+      "promo": "Акции",
+      "stats": "Статистика",
+      "push": "Push-уведомления"
     }
   },
   "dashboard": {

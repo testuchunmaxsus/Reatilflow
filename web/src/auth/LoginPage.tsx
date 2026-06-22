@@ -7,7 +7,7 @@
  * - login muvaffaqiyatli bo'lsa avvalgi sahifaga yoki / ga qaytadi
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -32,7 +32,7 @@ interface LoginFormValues {
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -40,6 +40,17 @@ export function LoginPage() {
 
   // Login muvaffaqiyatli bo'lganda qaytish sahifasi
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/";
+
+  // User o'zgarganda (login muvaffaqiyatli) yo'naltirish
+  useEffect(() => {
+    if (!user) return;
+    // superadmin → /superadmin panelga
+    if (user.role === "superadmin") {
+      navigate("/superadmin", { replace: true });
+    } else {
+      navigate(from, { replace: true });
+    }
+  }, [user, from, navigate]);
 
   const form = useForm<LoginFormValues>({
     initialValues: {
@@ -65,7 +76,7 @@ export function LoginPage() {
     setIsLoading(true);
     try {
       await login({ phone: values.phone.trim(), password: values.password });
-      navigate(from, { replace: true });
+      // Muvaffaqiyatli — useEffect user o'zgarishini kuzatib yo'naltiradi
     } catch (err) {
       if (err instanceof ApiError) {
         // message_key bo'yicha i18n tarjima; yo'q bo'lsa server matni
