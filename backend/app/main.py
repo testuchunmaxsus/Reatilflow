@@ -49,6 +49,7 @@ from app.modules.rbac.router import router as rbac_router
 from app.modules.rbac.module_gate import require_module
 from app.modules.stock.router import router as stock_router
 from app.modules.sync.router import router as sync_router
+from app.modules.superadmin.router import router as superadmin_router
 from app.modules.users.router import router as users_router
 
 logger = logging.getLogger(__name__)
@@ -343,6 +344,9 @@ app.include_router(rbac_router, prefix="/rbac", tags=["rbac"])
 
 # MT3: Enterprise — CORE (gate yo'q; /enterprise/me UI gating uchun)
 app.include_router(enterprise_router, prefix="/enterprise", tags=["enterprise"])
+
+# MT4: Superadmin — CORE (gate yo'q; faqat superadmin roli)
+app.include_router(superadmin_router, prefix="/superadmin", tags=["superadmin"])
 
 # T6: Users — CORE (gate yo'q)
 app.include_router(users_router, prefix="/users", tags=["users"])

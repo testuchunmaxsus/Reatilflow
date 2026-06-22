@@ -62,6 +62,28 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "'{module}' moduli bu korxonada yoqilmagan",
         "ru": "Модуль '{module}' не включён для данного предприятия",
     },
+    "enterprise.suspended": {
+        "uz": "Korxona faoliyati to'xtatilgan. Administrator bilan bog'laning",
+        "ru": "Деятельность предприятия приостановлена. Обратитесь к администратору",
+    },
+
+    # ── Superadmin (MT4) ──────────────────────────────────────────────────────
+    "superadmin.forbidden": {
+        "uz": "Bu amal faqat superadmin uchun",
+        "ru": "Это действие доступно только суперадминистратору",
+    },
+    "superadmin.enterprise_not_found": {
+        "uz": "Korxona topilmadi",
+        "ru": "Предприятие не найдено",
+    },
+    "superadmin.version_conflict": {
+        "uz": "Versiya konflikti: boshqa foydalanuvchi korxonani o'zgartirgan",
+        "ru": "Конфликт версий: другой пользователь изменил предприятие",
+    },
+    "superadmin.invalid_status": {
+        "uz": "Noto'g'ri status: faqat 'active' yoki 'suspended' qabul qilinadi",
+        "ru": "Неверный статус: допустимы только 'active' или 'suspended'",
+    },
 
     # ── Katalog ─────────────────────────────────────────────────────────────
     "catalog.product_not_found": {

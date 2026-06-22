@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.crypto import blind_index
-from app.core.errors import AuthAppError
+from app.core.errors import AppError, AuthAppError
 from app.core.jwt import (
     TokenError,
     TokenExpiredError,
@@ -37,6 +37,7 @@ from app.core.jwt import (
     decode_token,
     verify_password,
 )
+from app.models.enterprise import Enterprise
 from app.models.user import AppUser
 from app.modules.auth.schemas import TokenPair
 
@@ -140,6 +141,21 @@ async def login(
     if not password_ok:
         logger.info("login.failed phone=%s reason=wrong_password", _mask_phone(phone))
         raise AuthAppError("auth.invalid_credentials", status_code=401)
+
+    # MT4: suspended korxona foydalanuvchilari login qila olmaydi.
+    # superadmin enterprise_id=None → tekshirilmaydi.
+    if user.enterprise_id is not None:
+        from sqlalchemy import select as _select
+        ent_stmt = _select(Enterprise).where(Enterprise.id == user.enterprise_id)
+        ent_result = await db.execute(ent_stmt)
+        enterprise = ent_result.scalar_one_or_none()
+        if enterprise is not None and enterprise.status == "suspended":
+            logger.info(
+                "login.failed phone=%s reason=enterprise_suspended enterprise_id=%s",
+                _mask_phone(phone),
+                str(user.enterprise_id),
+            )
+            raise AppError("enterprise.suspended", status_code=403)
 
     logger.info("login.success phone=%s user_id=%s", _mask_phone(phone), user.id)
     return _generate_token_pair(user)

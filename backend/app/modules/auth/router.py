@@ -26,9 +26,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.core.errors import AuthAppError
+from app.core.errors import AppError, AuthAppError
 from app.core.jwt import TokenError, TokenExpiredError, decode_token
 from app.core.redis import get_redis
+from app.models.enterprise import Enterprise
 from app.models.user import AppUser
 from app.modules.auth.schemas import (
     LoginRequest,
@@ -102,6 +103,15 @@ async def get_current_user(
 
     if not user.is_active:
         raise AuthAppError("auth.inactive_user", status_code=status.HTTP_403_FORBIDDEN)
+
+    # MT4: suspended korxona foydalanuvchilari so'rov qila olmaydi.
+    # superadmin enterprise_id=None → tekshirilmaydi.
+    if user.enterprise_id is not None:
+        ent_stmt = select(Enterprise).where(Enterprise.id == user.enterprise_id)
+        ent_result = await db.execute(ent_stmt)
+        enterprise = ent_result.scalar_one_or_none()
+        if enterprise is not None and enterprise.status == "suspended":
+            raise AppError("enterprise.suspended", status_code=status.HTTP_403_FORBIDDEN)
 
     return user
 
