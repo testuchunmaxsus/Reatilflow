@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
@@ -5,6 +6,7 @@ import '../../data/remote/api_client.dart';
 import '../../data/remote/auth_interceptor.dart';
 import '../../data/remote/models/auth_models.dart';
 import '../../data/remote/token_storage.dart';
+import '../enterprise/enterprise_providers.dart';
 import 'auth_repository.dart';
 
 /// Token saqlash provider
@@ -47,16 +49,21 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 /// Auth holat notifier
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repository) : super(const AuthStateLoading()) {
+  AuthNotifier(this._repository, this._ref) : super(const AuthStateLoading()) {
     _init();
   }
 
   final AuthRepository _repository;
+  final Ref _ref;
 
   Future<void> _init() async {
     final user = await _repository.tryAutoLogin();
     if (user != null) {
       state = AuthStateAuthenticated(user: user);
+      // Korxona ma'lumotlarini yuklash (background)
+      unawaited(
+        _ref.read(enterpriseNotifierProvider.notifier).refresh(),
+      );
     } else {
       state = const AuthStateUnauthenticated();
     }
@@ -70,6 +77,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _repository.login(phone: phone, password: password);
       state = AuthStateAuthenticated(user: user);
+      // Login muvaffaqiyatli — enterprise modullarni yuklash
+      unawaited(
+        _ref.read(enterpriseNotifierProvider.notifier).refresh(),
+      );
+    } on DioException catch (e) {
+      // Suspended korxona → 403 + message_key: enterprise.suspended
+      final isSuspended = _isSuspendedError(e);
+      if (isSuspended) {
+        state = const AuthStateError(
+          message:
+              "Korxona faollashtirilmagan yoki to'xtatilgan. "
+              'Iltimos, administrator bilan bog\'laning.',
+        );
+      } else {
+        state = AuthStateError(message: _parseErrorMessage(e));
+      }
     } on Exception catch (e) {
       state = AuthStateError(message: e.toString());
     }
@@ -77,12 +100,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _repository.logout();
+    // Enterprise keshni tozalash
+    await _ref.read(enterpriseNotifierProvider.notifier).clear();
     state = const AuthStateUnauthenticated();
   }
 
   void handleForcedLogout() {
     // Token interceptor tomonidan chaqiriladi (token eskirgan)
     unawaited(_repository.logout());
+    unawaited(_ref.read(enterpriseNotifierProvider.notifier).clear());
     state = const AuthStateUnauthenticated();
   }
 
@@ -90,6 +116,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final s = state;
     if (s is AuthStateAuthenticated) return s.user;
     return null;
+  }
+
+  /// Backend envelope: { "detail": { "message_key": "enterprise.suspended" } }
+  /// yoki { "message_key": "enterprise.suspended" }
+  bool _isSuspendedError(DioException e) {
+    if (e.response?.statusCode != 403) return false;
+    final data = e.response?.data;
+    if (data == null) return false;
+    final key = _extractMessageKey(data);
+    return key == 'enterprise.suspended';
+  }
+
+  String? _extractMessageKey(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final direct = data['message_key'];
+      if (direct is String) return direct;
+      final detail = data['detail'];
+      if (detail is Map<String, dynamic>) {
+        return detail['message_key'] as String?;
+      }
+    }
+    return null;
+  }
+
+  String _parseErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      final msg = data['detail'] ?? data['message'] ?? data['error'];
+      if (msg is String) return msg;
+    }
+    return e.message ?? e.toString();
   }
 }
 
@@ -99,5 +156,5 @@ void unawaited(Future<void> future) => future.ignore();
 final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final repository = ref.watch(authRepositoryProvider);
-  return AuthNotifier(repository);
+  return AuthNotifier(repository, ref);
 });

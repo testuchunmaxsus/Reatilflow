@@ -6,6 +6,7 @@ import '../../data/sync/sync_notifier.dart';
 import '../attendance/attendance_providers.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
+import '../enterprise/enterprise_providers.dart';
 import '../home/sync_providers.dart';
 import '../orders/orders_providers.dart';
 
@@ -71,41 +72,8 @@ class AgentDashboard extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // Tezkor harakatlar grid
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.4,
-            children: [
-              _QuickAction(
-                icon: Icons.add_shopping_cart,
-                label: 'Buyurtma',
-                color: Colors.blue,
-                onTap: () => context.push('/home/orders/create'),
-              ),
-              _QuickAction(
-                icon: Icons.store_outlined,
-                label: "Do'konlar",
-                color: Colors.green,
-                onTap: () => context.push('/home/stores'),
-              ),
-              _QuickAction(
-                icon: Icons.inventory_2_outlined,
-                label: 'Katalog',
-                color: Colors.orange,
-                onTap: () => context.push('/home/catalog'),
-              ),
-              _QuickAction(
-                icon: Icons.fingerprint,
-                label: 'Davomat',
-                color: Colors.purple,
-                onTap: () => context.push('/home/attendance'),
-              ),
-            ],
-          ),
+          // Tezkor harakatlar grid (modul-gating)
+          _AgentQuickActions(),
 
           const SizedBox(height: 20),
 
@@ -236,6 +204,60 @@ class _SyncCard extends StatelessWidget {
         ),
         dense: true,
       ),
+    );
+  }
+}
+
+/// Tezkor harakatlar grid — enabled_modules ga qarab ko'rsatiladi.
+class _AgentQuickActions extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasCatalog = ref.watch(moduleEnabledProvider('catalog'));
+    final hasOrders = ref.watch(moduleEnabledProvider('orders'));
+    final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+
+    final actions = <Widget>[
+      if (hasOrders)
+        _QuickAction(
+          icon: Icons.add_shopping_cart,
+          label: 'Buyurtma',
+          color: Colors.blue,
+          onTap: () => context.push('/home/orders/create'),
+        ),
+      _QuickAction(
+        icon: Icons.store_outlined,
+        label: "Do'konlar",
+        color: Colors.green,
+        onTap: () => context.push('/home/stores'),
+      ),
+      if (hasCatalog)
+        _QuickAction(
+          icon: Icons.inventory_2_outlined,
+          label: 'Katalog',
+          color: Colors.orange,
+          onTap: () => context.push('/home/catalog'),
+        ),
+      if (hasAttendance)
+        _QuickAction(
+          icon: Icons.fingerprint,
+          label: 'Davomat',
+          color: Colors.purple,
+          onTap: () => context.push('/home/attendance'),
+        ),
+    ];
+
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.4,
+      children: actions,
     );
   }
 }

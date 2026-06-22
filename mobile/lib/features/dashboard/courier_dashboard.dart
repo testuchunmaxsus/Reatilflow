@@ -7,6 +7,7 @@ import '../attendance/attendance_providers.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
 import '../delivery/delivery_providers.dart';
+import '../enterprise/enterprise_providers.dart';
 import '../home/sync_providers.dart';
 
 /// Kuryer uchun bosh ekran — dashboard.
@@ -31,6 +32,8 @@ class CourierDashboard extends ConsumerWidget {
     final syncState = ref.watch(syncNotifierProvider);
     final attendanceState = ref.watch(attendanceNotifierProvider);
     final activeCountAsync = ref.watch(activeDeliveriesCountProvider);
+    final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
+    final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -57,19 +60,21 @@ class CourierDashboard extends ConsumerWidget {
 
           const SizedBox(height: 20),
 
-          // Yetkazishlar holat kartasi
-          activeCountAsync.when(
-            data: (count) => _DeliveriesCard(activeCount: count),
-            loading: () => const _DeliveriesCard(activeCount: 0),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
+          // Yetkazishlar holat kartasi (delivery moduli yoqilganda)
+          if (hasDelivery) ...[
+            activeCountAsync.when(
+              data: (count) => _DeliveriesCard(activeCount: count),
+              loading: () => const _DeliveriesCard(activeCount: 0),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 12),
+          ],
 
-          const SizedBox(height: 12),
-
-          // Davomat kartasi
-          _AttendanceCard(attendanceState: attendanceState),
-
-          const SizedBox(height: 12),
+          // Davomat kartasi (attendance moduli yoqilganda)
+          if (hasAttendance) ...[
+            _AttendanceCard(attendanceState: attendanceState),
+            const SizedBox(height: 12),
+          ],
 
           // Sync holat
           _SyncCard(syncState: syncState, ref: ref),
@@ -85,7 +90,7 @@ class CourierDashboard extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // Tezkor harakatlar grid
+          // Tezkor harakatlar grid (modul-gating)
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
@@ -94,18 +99,20 @@ class CourierDashboard extends ConsumerWidget {
             crossAxisSpacing: 12,
             childAspectRatio: 1.4,
             children: [
-              _QuickAction(
-                icon: Icons.local_shipping,
-                label: 'Yetkazishlar',
-                color: Colors.blue,
-                onTap: () => context.go('/home/deliveries'),
-              ),
-              _QuickAction(
-                icon: Icons.fingerprint,
-                label: 'Davomat',
-                color: Colors.purple,
-                onTap: () => context.go('/home/attendance'),
-              ),
+              if (hasDelivery)
+                _QuickAction(
+                  icon: Icons.local_shipping,
+                  label: 'Yetkazishlar',
+                  color: Colors.blue,
+                  onTap: () => context.go('/home/deliveries'),
+                ),
+              if (hasAttendance)
+                _QuickAction(
+                  icon: Icons.fingerprint,
+                  label: 'Davomat',
+                  color: Colors.purple,
+                  onTap: () => context.go('/home/attendance'),
+                ),
             ],
           ),
         ],

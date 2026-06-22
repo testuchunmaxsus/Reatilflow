@@ -38,6 +38,9 @@ dependencies:
   # Tarmoq holati
   connectivity_plus: ^6.0.0
 
+  # Enterprise modules keshi (oddiy key-value)
+  shared_preferences: ^2.3.0
+
   # JSON kodlash
   json_annotation: ^4.9.0
 

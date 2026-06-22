@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../features/enterprise/enterprise_model.dart';
 import 'auth_interceptor.dart';
 import 'models/auth_models.dart';
 import 'models/sync_models.dart';
@@ -62,6 +63,15 @@ class ApiClient {
   Future<MeResponse> getMe() async {
     final response = await _dio.get<Map<String, dynamic>>('/auth/me');
     return MeResponse.fromJson(response.data!);
+  }
+
+  // ---- Enterprise ----
+
+  /// GET /enterprise/me — korxona ma'lumotlari (enabled_modules).
+  Future<EnterpriseInfo> getEnterpriseInfo() async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/enterprise/me');
+    return EnterpriseInfo.fromJson(response.data!);
   }
 
   // ---- Sync Push ----

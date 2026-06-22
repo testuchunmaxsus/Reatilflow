@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/sync/sync_notifier.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
+import '../enterprise/enterprise_providers.dart';
 import 'connectivity_banner.dart';
 import 'sync_providers.dart';
 
@@ -83,83 +84,140 @@ class _SyncStatusIcon extends StatelessWidget {
   }
 }
 
-/// Agent pastki navigatsiya paneli
-class _AgentNavBar extends StatelessWidget {
+/// Agent pastki navigatsiya paneli — enabled_modules'ga qarab tab'lar.
+class _AgentNavBar extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
 
-    int currentIndex = 0;
-    if (location.startsWith('/home/stores')) currentIndex = 1;
-    if (location.startsWith('/home/catalog')) currentIndex = 2;
-    if (location.startsWith('/home/orders')) currentIndex = 3;
-    if (location.startsWith('/home/attendance')) currentIndex = 4;
+    final hasCatalog = ref.watch(moduleEnabledProvider('catalog'));
+    final hasOrders = ref.watch(moduleEnabledProvider('orders'));
+    final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+
+    // Tab ro'yxatini dinamik yasash
+    final tabs = <_NavTab>[
+      const _NavTab(
+        route: '/home/agent',
+        matchPrefix: '/home/agent',
+        icon: Icons.home,
+        label: 'Bosh',
+      ),
+      const _NavTab(
+        route: '/home/stores',
+        matchPrefix: '/home/stores',
+        icon: Icons.store,
+        label: "Do'konlar",
+      ),
+      if (hasCatalog)
+        const _NavTab(
+          route: '/home/catalog',
+          matchPrefix: '/home/catalog',
+          icon: Icons.inventory_2,
+          label: 'Katalog',
+        ),
+      if (hasOrders)
+        const _NavTab(
+          route: '/home/orders',
+          matchPrefix: '/home/orders',
+          icon: Icons.receipt_long,
+          label: 'Buyurtmalar',
+        ),
+      if (hasAttendance)
+        const _NavTab(
+          route: '/home/attendance',
+          matchPrefix: '/home/attendance',
+          icon: Icons.fingerprint,
+          label: 'Davomat',
+        ),
+    ];
+
+    final currentIndex = _resolveIndex(tabs, location);
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
       type: BottomNavigationBarType.fixed,
       selectedFontSize: 11,
       unselectedFontSize: 10,
-      onTap: (index) {
-        switch (index) {
-          case 0:
-            context.go('/home/agent');
-          case 1:
-            context.go('/home/stores');
-          case 2:
-            context.go('/home/catalog');
-          case 3:
-            context.go('/home/orders');
-          case 4:
-            context.go('/home/attendance');
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Bosh'),
-        BottomNavigationBarItem(icon: Icon(Icons.store), label: "Do'konlar"),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2), label: 'Katalog'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long), label: 'Buyurtmalar'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.fingerprint), label: 'Davomat'),
-      ],
+      onTap: (index) => context.go(tabs[index].route),
+      items: tabs
+          .map((t) => BottomNavigationBarItem(
+                icon: Icon(t.icon),
+                label: t.label,
+              ))
+          .toList(),
     );
   }
 }
 
-/// Kuryer pastki navigatsiya paneli (T20)
-class _CourierNavBar extends StatelessWidget {
+/// Kuryer pastki navigatsiya paneli — enabled_modules'ga qarab tab'lar.
+class _CourierNavBar extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
 
-    int currentIndex = 0;
-    if (location.startsWith('/home/deliveries')) currentIndex = 1;
-    if (location.startsWith('/home/attendance')) currentIndex = 2;
+    final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
+    final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+
+    final tabs = <_NavTab>[
+      const _NavTab(
+        route: '/home/courier',
+        matchPrefix: '/home/courier',
+        icon: Icons.home,
+        label: 'Bosh',
+      ),
+      if (hasDelivery)
+        const _NavTab(
+          route: '/home/deliveries',
+          matchPrefix: '/home/deliveries',
+          icon: Icons.local_shipping,
+          label: 'Yetkazishlar',
+        ),
+      if (hasAttendance)
+        const _NavTab(
+          route: '/home/attendance',
+          matchPrefix: '/home/attendance',
+          icon: Icons.fingerprint,
+          label: 'Davomat',
+        ),
+    ];
+
+    final currentIndex = _resolveIndex(tabs, location);
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
       type: BottomNavigationBarType.fixed,
       selectedFontSize: 11,
       unselectedFontSize: 10,
-      onTap: (index) {
-        switch (index) {
-          case 0:
-            context.go('/home/courier');
-          case 1:
-            context.go('/home/deliveries');
-          case 2:
-            context.go('/home/attendance');
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Bosh'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.local_shipping), label: 'Yetkazishlar'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.fingerprint), label: 'Davomat'),
-      ],
+      onTap: (index) => context.go(tabs[index].route),
+      items: tabs
+          .map((t) => BottomNavigationBarItem(
+                icon: Icon(t.icon),
+                label: t.label,
+              ))
+          .toList(),
     );
   }
+}
+
+// ---- Yordamchi ----
+
+class _NavTab {
+  const _NavTab({
+    required this.route,
+    required this.matchPrefix,
+    required this.icon,
+    required this.label,
+  });
+
+  final String route;
+  final String matchPrefix;
+  final IconData icon;
+  final String label;
+}
+
+int _resolveIndex(List<_NavTab> tabs, String location) {
+  for (int i = 0; i < tabs.length; i++) {
+    if (location.startsWith(tabs[i].matchPrefix)) return i;
+  }
+  return 0;
 }
