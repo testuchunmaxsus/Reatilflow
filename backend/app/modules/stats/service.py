@@ -29,6 +29,7 @@ SQL agregatsiya (T22 hardening):
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -42,6 +43,7 @@ from app.models.finance import AccountBalance, LedgerEntry
 from app.models.order import Order
 from app.models.store import AgentStore, Store
 from app.models.user import AppUser
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.stats.schemas import (
     DeliveryStatsOut,
     FinanceStoreItem,
@@ -155,6 +157,7 @@ async def sales_stats(
     to_dt: datetime | None = None,
     branch_id: str | None = None,
     group_by: str | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> SalesStatsOut:
     """
     Buyurtmalar bo'yicha savdo statistikasi.
@@ -203,6 +206,8 @@ async def sales_stats(
         func.count().label("total_orders"),
         func.coalesce(func.sum(Order.total_amount), Decimal("0")).label("total_amount"),
     ).where(Order.deleted_at.is_(None))
+    # MT2: korxona filtr
+    total_stmt = apply_enterprise_filter(total_stmt, enterprise_id, Order.enterprise_id)
 
     # RBAC scope filtri
     if role == "administrator" or role == "accountant":
@@ -275,6 +280,8 @@ async def sales_stats(
             .group_by(period_expr)
             .order_by(period_expr)
         )
+        # MT2: korxona filtr (dinamika ham)
+        dynamics_stmt = apply_enterprise_filter(dynamics_stmt, enterprise_id, Order.enterprise_id)
 
         # Xuddi o'sha scope filtrlarini qo'shish
         if role == "administrator" or role == "accountant":
@@ -335,6 +342,7 @@ async def delivery_stats(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     courier_id: str | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> DeliveryStatsOut:
     """
     Yetkazishlar bo'yicha statistika.
@@ -373,6 +381,9 @@ async def delivery_stats(
     # Base filtrlar (scope + vaqt) uchun where sharti ro'yxati
     # Ular STATUS COUNT va AVG uchun qayta ishlatiladi
     base_where = [Delivery.deleted_at.is_(None)]
+    # MT2: korxona filtr
+    if enterprise_id is not None:
+        base_where.append(Delivery.enterprise_id == enterprise_id)
 
     # RBAC scope
     _needs_order_join = False
@@ -529,6 +540,7 @@ async def finance_stats(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     branch_id: str | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> FinanceStatsOut:
     """
     Do'kon bo'yicha qarz/haqdorlik va jami debit/credit statistikasi.
@@ -563,6 +575,8 @@ async def finance_stats(
     # Store ro'yxatini aniqlash (scope bo'yicha)
     if role in ("administrator", "accountant"):
         stmt = select(Store.id, Store.name)
+        # MT2: korxona filtr — admin faqat o'z korxonasi do'konlarini ko'radi
+        stmt = apply_enterprise_filter(stmt, enterprise_id, Store.enterprise_id)
         if branch_id is not None:
             import uuid as _uuid
             try:
@@ -638,6 +652,8 @@ async def finance_stats(
         .where(LedgerEntry.store_id.in_(store_id_list))
         .group_by(LedgerEntry.store_id, LedgerEntry.type)
     )
+    # MT2: korxona filtr (do'kon ro'yxati allaqachon scoped — defense-in-depth)
+    ledger_agg_stmt = apply_enterprise_filter(ledger_agg_stmt, enterprise_id, LedgerEntry.enterprise_id)
     if from_dt:
         ledger_agg_stmt = ledger_agg_stmt.where(LedgerEntry.entry_date >= from_dt)
     if to_dt:

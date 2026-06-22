@@ -41,6 +41,7 @@ from app.models.outbox import OutboxEvent
 from app.models.store import AgentStore, Store
 from app.models.user import AppUser
 from app.modules.customers.schemas import StoreCreate, StoreUpdate
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.rbac.scope import apply_store_scope
 
 logger = logging.getLogger(__name__)
@@ -110,8 +111,9 @@ async def _check_inn_unique(
     db: AsyncSession,
     inn: str | None,
     exclude_id: uuid.UUID | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
-    """INN unikalligi blind-index orqali tekshiradi. Dublikat → AppError 409."""
+    """INN unikalligi blind-index orqali tekshiradi. MT2: enterprise bo'yicha. Dublikat → AppError 409."""
     if not inn:
         return
     bi = blind_index(inn)
@@ -119,6 +121,7 @@ async def _check_inn_unique(
         Store.inn_bi == bi,
         Store.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Store.enterprise_id)
     if exclude_id is not None:
         stmt = stmt.where(Store.id != exclude_id)
     result = await db.execute(stmt)
@@ -133,10 +136,12 @@ async def get_store(
     db: AsyncSession,
     store_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Store:
     """
     ID bo'yicha do'kon oladi.
 
+    MT2: enterprise_id filtr — boshqa korxona do'koni 404 qaytaradi.
     Branch/scope filtri qo'llaniladi (user berilsa).
     Mavjudlikni oshkor qilmaslik: doiradan tashqari do'kon → 404.
 
@@ -147,6 +152,7 @@ async def get_store(
         Store.id == store_id,
         Store.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Store.enterprise_id)
     if user is not None:
         stmt = _apply_branch_filter(stmt, user)
 
@@ -164,6 +170,7 @@ async def list_stores(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
     branch_id: uuid.UUID | None = None,
@@ -199,14 +206,15 @@ async def list_stores(
         pattern = f"%{search_name}%"
         base_where.append(Store.name.ilike(pattern))
 
-    # Count
+    # MT2: enterprise filtr
     count_stmt = select(func.count()).select_from(Store).where(*base_where)
+    count_stmt = apply_enterprise_filter(count_stmt, enterprise_id, Store.enterprise_id)
     if user is not None:
         count_stmt = _apply_branch_filter(count_stmt, user)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar_one()
 
-    # List
+    # List (enterprise + branch/scope filtri bilan)
     stmt = (
         select(Store)
         .where(*base_where)
@@ -214,6 +222,7 @@ async def list_stores(
         .limit(limit)
         .offset(offset)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Store.enterprise_id)
     if user is not None:
         stmt = _apply_branch_filter(stmt, user)
 
@@ -231,6 +240,7 @@ async def create_store(
     data: StoreCreate,
     actor_id: uuid.UUID | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Store:
     """
     Yangi do'kon yaratadi.
@@ -266,11 +276,12 @@ async def create_store(
             )
             idem_key = None
 
-    # ── INN unikalligi ──────────────────────────────────────────────────────
-    await _check_inn_unique(db, data.inn)
+    # ── INN unikalligi (enterprise bo'yicha) ──────────────────────────────────
+    await _check_inn_unique(db, data.inn, enterprise_id=enterprise_id)
 
     # ── Do'kon yaratish ──────────────────────────────────────────────────────
     # PII maydonlar EncryptedString TypeDecorator orqali shifrlangan saqlanadi.
+    # enterprise_id SERVER tomonidan o'rnatiladi (klient bera olmaydi)
     store = Store(
         name=data.name,
         inn=data.inn,           # EncryptedString → shifrlangan bytes
@@ -288,6 +299,7 @@ async def create_store(
         # Blind-index: None bo'lmagan qiymatlar uchun
         inn_bi=blind_index(data.inn) if data.inn else None,
         phone_bi=blind_index(data.phone) if data.phone else None,
+        enterprise_id=enterprise_id,
     )
 
     db.add(store)
@@ -339,6 +351,7 @@ async def update_store(
     data: StoreUpdate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Store:
     """
     Do'konni yangilaydi (PATCH — faqat berilgan maydonlar).
@@ -350,7 +363,7 @@ async def update_store(
       - user_id, agent_id, branch_id — faqat administrator o'zgartira oladi.
       - Non-admin bu maydonlarni yuborsa → 403.
     """
-    store = await get_store(db, store_id, user=user)
+    store = await get_store(db, store_id, user=user, enterprise_id=enterprise_id)
 
     if store.version != data.version:
         raise AppError("customers.version_conflict", status_code=409)
@@ -367,9 +380,9 @@ async def update_store(
         "version": store.version,
     }
 
-    # INN o'zgarganda unikalligi tekshirish
+    # INN o'zgarganda unikalligi tekshirish (enterprise bo'yicha)
     if data.inn is not None and data.inn != store.inn:
-        await _check_inn_unique(db, data.inn, exclude_id=store_id)
+        await _check_inn_unique(db, data.inn, exclude_id=store_id, enterprise_id=enterprise_id)
 
     # Maydonlarni yangilash
     if data.name is not None:
@@ -447,14 +460,17 @@ async def delete_store(
     store_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
     """
     Do'konni soft-delete qiladi (deleted_at o'rnatadi).
 
+    MT2: enterprise_id filtr — boshqa korxona do'konini o'chirib bo'lmaydi.
+
     Raises:
         AppError("customers.store_not_found"): topilmasa yoki doiradan tashqari.
     """
-    store = await get_store(db, store_id, user=user)
+    store = await get_store(db, store_id, user=user, enterprise_id=enterprise_id)
     store.deleted_at = _now()
     store.updated_at = _now()
     await db.flush()
@@ -472,10 +488,12 @@ async def assign_agent(
     agent_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AgentStore:
     """
     Do'konga agent biriktiradi (AgentStore yozadi).
 
+    MT2: enterprise_id filtr — boshqa korxona do'koniga agent biriktirib bo'lmaydi.
     Agent mavjudligi va roli tekshiriladi.
     Allaqachon biriktirilgan bo'lsa — mavjud yozuvni qaytaradi (idempotent).
 
@@ -483,14 +501,15 @@ async def assign_agent(
         AppError("customers.store_not_found"): do'kon topilmasa.
         AppError("customers.agent_not_found"): agent topilmasa yoki noto'g'ri rol.
     """
-    store = await get_store(db, store_id, user=user)
+    store = await get_store(db, store_id, user=user, enterprise_id=enterprise_id)
 
-    # Agent tekshiruvi
+    # Agent tekshiruvi (enterprise bo'yicha — boshqa korxona agentini biriktirish imkonsiz)
     agent_stmt = select(AppUser).where(
         AppUser.id == agent_id,
         AppUser.role == "agent",
         AppUser.is_active.is_(True),
     )
+    agent_stmt = apply_enterprise_filter(agent_stmt, enterprise_id, AppUser.enterprise_id)
     agent_result = await db.execute(agent_stmt)
     agent = agent_result.scalar_one_or_none()
     if agent is None:

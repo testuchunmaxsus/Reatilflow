@@ -41,6 +41,7 @@ from app.modules.attendance.schemas import (
     PaginatedAttendance,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 logger = logging.getLogger(__name__)
@@ -157,9 +158,11 @@ async def list_attendance(
     RBAC: attendance:view (agent, courier, administrator, accountant).
     IDOR: agent/courier boshqa user_id so'rasa → 403.
     """
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_attendance(
         db=db,
         user=current_user,
+        enterprise_id=enterprise_id,
         filter_user_id=user_id,
         filter_date=filter_date,
         limit=limit,

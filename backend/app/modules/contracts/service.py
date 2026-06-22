@@ -36,6 +36,7 @@ from app.models.contract import Contract
 from app.models.outbox import OutboxEvent
 from app.models.user import AppUser
 from app.modules.contracts.schemas import ContractCreate, ContractUpdate
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.rbac.scope import get_user_store_ids
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,7 @@ async def get_contract(
     db: AsyncSession,
     contract_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Contract:
     """
     ID bo'yicha shartnoma oladi.
@@ -154,6 +156,7 @@ async def get_contract(
         Contract.id == contract_id,
         Contract.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Contract.enterprise_id)
 
     if user is not None:
         allowed_store_ids = await _get_allowed_store_ids(db, user)
@@ -176,6 +179,7 @@ async def list_contracts(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
     store_id: uuid.UUID | None = None,
@@ -201,6 +205,10 @@ async def list_contracts(
     expiring_threshold = today + timedelta(days=DEFAULT_EXPIRING_DAYS)
 
     base_where = [Contract.deleted_at.is_(None)]
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        base_where.append(Contract.enterprise_id == enterprise_id)
 
     # Scope/IDOR filtri
     if user is not None:
@@ -255,6 +263,7 @@ async def create_contract(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Contract:
     """
     Yangi shartnoma yaratadi.
@@ -312,6 +321,7 @@ async def create_contract(
         contract_type=data.contract_type,
         branch_id=data.branch_id,
         client_uuid=data.client_uuid,
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
 
     db.add(contract)
@@ -362,13 +372,14 @@ async def update_contract(
     data: ContractUpdate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Contract:
     """
     Shartnomani yangilaydi (PATCH — faqat berilgan maydonlar).
 
     Optimistik lock: data.version mos kelmasa → version_conflict.
     """
-    contract = await get_contract(db, contract_id, user=user)
+    contract = await get_contract(db, contract_id, user=user, enterprise_id=enterprise_id)
 
     if contract.version != data.version:
         raise AppError("contracts.version_conflict", status_code=409)
@@ -441,6 +452,7 @@ async def delete_contract(
     contract_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
     """
     Shartnomani soft-delete qiladi (deleted_at o'rnatadi).
@@ -448,7 +460,7 @@ async def delete_contract(
     Raises:
         AppError("contracts.not_found"): topilmasa yoki doiradan tashqari.
     """
-    contract = await get_contract(db, contract_id, user=user)
+    contract = await get_contract(db, contract_id, user=user, enterprise_id=enterprise_id)
     contract.deleted_at = _now()
     contract.updated_at = _now()
     await db.flush()
@@ -466,6 +478,7 @@ async def update_contract_file(
     file_url: str,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Contract:
     """
     Shartnoma faylini (PDF/rasm URL) yangilaydi.
@@ -473,7 +486,7 @@ async def update_contract_file(
     Haqiqiy fayl validatsiyasi va storage upload router da bajariladi.
     Bu funksiya faqat file_url ni saqlaydi.
     """
-    contract = await get_contract(db, contract_id, user=user)
+    contract = await get_contract(db, contract_id, user=user, enterprise_id=enterprise_id)
 
     before = {"file_url": contract.file_url}
     contract.file_url = file_url
@@ -499,6 +512,7 @@ async def list_expiring(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     days: int = DEFAULT_EXPIRING_DAYS,
 ) -> list[Contract]:
     """
@@ -519,6 +533,10 @@ async def list_expiring(
         Contract.valid_to >= today,
         Contract.valid_to <= threshold,
     ]
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        where.append(Contract.enterprise_id == enterprise_id)
 
     # Scope
     if user is not None:

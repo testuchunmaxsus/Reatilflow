@@ -39,6 +39,7 @@ from app.models.outbox import OutboxEvent
 from app.models.store import Store
 from app.models.user import AppUser
 from app.modules.finance.schemas import LedgerEntryCreate
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.rbac.scope import get_user_store_ids
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,7 @@ async def record_entry(
     data: LedgerEntryCreate,
     actor_id: uuid.UUID | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> LedgerEntry:
     """
     Yangi buxgalteriya yozuvi qayd etadi — APPEND-ONLY INSERT.
@@ -160,11 +162,12 @@ async def record_entry(
             )
             idem_key = None
 
-    # ── 2. Do'kon mavjudligi tekshiruvi ─────────────────────────────────────
+    # ── 2. Do'kon mavjudligi tekshiruvi (enterprise filtr bilan) ────────────
     store_stmt = select(Store.id).where(
         Store.id == data.store_id,
         Store.deleted_at.is_(None),
     )
+    store_stmt = apply_enterprise_filter(store_stmt, enterprise_id, Store.enterprise_id)
     store_result = await db.execute(store_stmt)
     if store_result.scalar_one_or_none() is None:
         raise AppError("finance.store_not_found", status_code=404)
@@ -181,6 +184,7 @@ async def record_entry(
         created_by=actor_id,
         client_uuid=data.client_uuid,
         created_at=_now(),
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
     db.add(entry)
     await db.flush()
@@ -284,6 +288,7 @@ async def get_balance(
     db: AsyncSession,
     store_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AccountBalance:
     """
     Do'kon balansini qaytaradi.
@@ -306,11 +311,12 @@ async def get_balance(
     if user is not None:
         await _check_store_access(db, store_id, user)
 
-    # Do'kon mavjudligi
+    # Do'kon mavjudligi (enterprise filtr bilan)
     store_stmt = select(Store.id).where(
         Store.id == store_id,
         Store.deleted_at.is_(None),
     )
+    store_stmt = apply_enterprise_filter(store_stmt, enterprise_id, Store.enterprise_id)
     store_result = await db.execute(store_stmt)
     if store_result.scalar_one_or_none() is None:
         raise AppError("finance.store_not_found", status_code=404)
@@ -394,6 +400,7 @@ async def list_entries(
     *,
     store_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     entry_type: str | None = None,
     limit: int = 20,
     offset: int = 0,
@@ -410,6 +417,10 @@ async def list_entries(
       - entry_type: yozuv turi bo'yicha (debit | credit)
     """
     conditions = []
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        conditions.append(LedgerEntry.enterprise_id == enterprise_id)
 
     # Scope: foydalanuvchi faqat o'z do'konlarini ko'radi
     if user is not None and store_id is not None:

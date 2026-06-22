@@ -442,6 +442,8 @@ async def _process_one_push(
             body=body,
             status="pending",
             attempts=0,
+            # MT2: korxona izchilligi — push_log target user korxonasiga tegishli
+            enterprise_id=getattr(user, "enterprise_id", None),
         )
         db.add(push_log)
         try:

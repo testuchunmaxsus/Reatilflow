@@ -34,6 +34,7 @@ from app.core.errors import AppError
 from app.core.redis import get_redis
 from app.models.user import AppUser
 from app.modules.auth.router import get_current_user
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.sync import service
 from app.modules.sync.schemas import PullResponse, PushRequest, PushResponse
 
@@ -118,12 +119,14 @@ async def push_sync(
         _PUSH_RATE_WINDOW,
     )
 
+    enterprise_id = get_current_enterprise_id(current_user)
     results = await service.push(
         ops=body.ops,
         actor_id=current_user.id,
         user=current_user,
         db=db,
         redis=redis,
+        enterprise_id=enterprise_id,
     )
 
     return PushResponse(results=results)
@@ -178,11 +181,13 @@ async def pull_sync(
         _PULL_RATE_WINDOW,
     )
 
+    enterprise_id = get_current_enterprise_id(current_user)
     changes, next_cursor, has_more = await service.pull(
         since_seq=since,
         limit=limit,
         user=current_user,
         db=db,
+        enterprise_id=enterprise_id,
     )
 
     return PullResponse(

@@ -51,6 +51,7 @@ from app.modules.catalog.schemas import (
     ProductUpdate,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["catalog"])
@@ -89,7 +90,8 @@ async def list_categories(
     current_user: AppUser = require_permission(Module.CATALOG, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> list[CategoryOut]:
-    cats = await service.list_categories(db)
+    enterprise_id = get_current_enterprise_id(current_user)
+    cats = await service.list_categories(db, enterprise_id=enterprise_id)
     return [_category_out(c, lang) for c in cats]
 
 
@@ -106,7 +108,8 @@ async def create_category(
     current_user: AppUser = require_permission(Module.CATALOG, Action.CREATE),
     db: AsyncSession = Depends(get_db),
 ) -> CategoryOut:
-    cat = await service.create_category(db, body)
+    enterprise_id = get_current_enterprise_id(current_user)
+    cat = await service.create_category(db, body, enterprise_id=enterprise_id)
     await db.commit()
     await db.refresh(cat)
     return _category_out(cat, lang)
@@ -124,7 +127,8 @@ async def list_segments(
     current_user: AppUser = require_permission(Module.CATALOG, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> list[PriceSegmentOut]:
-    segs = await service.list_segments(db)
+    enterprise_id = get_current_enterprise_id(current_user)
+    segs = await service.list_segments(db, enterprise_id=enterprise_id)
     return [PriceSegmentOut.model_validate(s) for s in segs]
 
 
@@ -139,7 +143,8 @@ async def create_segment(
     current_user: AppUser = require_permission(Module.CATALOG, Action.CREATE),
     db: AsyncSession = Depends(get_db),
 ) -> PriceSegmentOut:
-    seg = await service.create_segment(db, body)
+    enterprise_id = get_current_enterprise_id(current_user)
+    seg = await service.create_segment(db, body, enterprise_id=enterprise_id)
     await db.commit()
     await db.refresh(seg)
     return PriceSegmentOut.model_validate(seg)
@@ -170,9 +175,11 @@ async def list_products(
     current_user: AppUser = require_permission(Module.CATALOG, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedProducts:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_products(
         db,
         user=current_user,
+        enterprise_id=enterprise_id,
         limit=limit,
         offset=offset,
         category_id=category_id,
@@ -205,8 +212,9 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> ProductOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     product = await service.create_product(
-        db, body, actor_id=current_user.id, redis=redis
+        db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(product)
@@ -227,7 +235,8 @@ async def get_product(
     current_user: AppUser = require_permission(Module.CATALOG, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> ProductOut:
-    product = await service.get_product(db, product_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    product = await service.get_product(db, product_id, user=current_user, enterprise_id=enterprise_id)
     return _product_out(product, lang)
 
 
@@ -248,8 +257,9 @@ async def update_product(
     current_user: AppUser = require_permission(Module.CATALOG, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> ProductOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     product = await service.update_product(
-        db, product_id, body, actor_id=current_user.id, user=current_user
+        db, product_id, body, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(product)
@@ -270,8 +280,9 @@ async def delete_product(
     current_user: AppUser = require_permission(Module.CATALOG, Action.DELETE),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    enterprise_id = get_current_enterprise_id(current_user)
     await service.delete_product(
-        db, product_id, actor_id=current_user.id, user=current_user
+        db, product_id, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id
     )
     await db.commit()
 
@@ -299,8 +310,9 @@ async def set_price(
     current_user: AppUser = require_permission(Module.CATALOG, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> PriceOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     price = await service.set_price(
-        db, product_id, body, actor_id=current_user.id, user=current_user
+        db, product_id, body, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(price)
@@ -321,7 +333,8 @@ async def get_price_history(
     current_user: AppUser = require_permission(Module.CATALOG, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> list[PriceHistoryOut]:
-    history = await service.get_price_history(db, product_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    history = await service.get_price_history(db, product_id, user=current_user, enterprise_id=enterprise_id)
     return [PriceHistoryOut.model_validate(h) for h in history]
 
 
@@ -350,9 +363,10 @@ async def upload_photo(
     db: AsyncSession = Depends(get_db),
     storage: StorageBackend = Depends(get_storage),
 ) -> ProductOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     photo_url = await storage.upload_product_photo(file)
     product = await service.update_photo_url(
-        db, product_id, photo_url, actor_id=current_user.id, user=current_user
+        db, product_id, photo_url, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(product)

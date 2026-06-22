@@ -107,6 +107,23 @@ async def default_enterprise(db_session: AsyncSession) -> Enterprise:
     return ent
 
 
+@pytest.fixture(autouse=True)
+def _tenant_context(default_enterprise: Enterprise):
+    """
+    MT2: so'rov kontekstini default korxonaga o'rnatadi.
+
+    Sync testlari outbox hodisalarini to'g'ridan-to'g'ri (OutboxEvent(...)) yaratadi.
+    Prod'da bu hodisalar so'rov kontekstida (ContextVar o'rnatilgan) yaratiladi va
+    enterprise_id'ni avtomatik oladi. Bu fixture shu kontekstni taqlid qiladi —
+    inline OutboxEvent'lar default orqali enterprise_id = default_enterprise oladi.
+    """
+    from app.core.tenant_context import set_current_enterprise
+
+    set_current_enterprise(default_enterprise.id)
+    yield
+    set_current_enterprise(None)
+
+
 # ─── Foydalanuvchi factory ────────────────────────────────────────────────────
 
 

@@ -50,6 +50,7 @@ from app.models.outbox import OutboxEvent
 from app.models.store import AgentStore, Store
 from app.models.user import AppUser
 from app.modules.delivery.schemas import DeliveryCreate, DeliveryStatusUpdate
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +199,7 @@ async def create_delivery(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Delivery:
     """
     Yangi yetkazish yaratadi — kuryer tayinlash.
@@ -240,11 +242,12 @@ async def create_delivery(
             )
             idem_key = None
 
-    # ── 2. Buyurtma mavjudligi va holati ─────────────────────────────────
+    # ── 2. Buyurtma mavjudligi va holati (enterprise filtr bilan) ────────
     order_stmt = select(Order).where(
         Order.id == data.order_id,
         Order.deleted_at.is_(None),
     )
+    order_stmt = apply_enterprise_filter(order_stmt, enterprise_id, Order.enterprise_id)
     order_result = await db.execute(order_stmt)
     order = order_result.scalar_one_or_none()
     if order is None:
@@ -319,6 +322,7 @@ async def create_delivery(
         version=1,
         created_at=_now(),
         updated_at=_now(),
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
     db.add(delivery)
     try:
@@ -378,6 +382,7 @@ async def update_status(
     delivery_id: uuid.UUID,
     data: DeliveryStatusUpdate,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Delivery:
     """
     Yetkazish holatini o'zgartiradi — server-avtoritar holat mashinasi.
@@ -416,6 +421,7 @@ async def update_status(
         )
         .with_for_update()
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Delivery.enterprise_id)
     result = await db.execute(stmt)
     delivery = result.scalar_one_or_none()
     if delivery is None:
@@ -555,6 +561,7 @@ async def get_delivery(
     db: AsyncSession,
     delivery_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Delivery:
     """
     Bitta yetkazishni qaytaradi.
@@ -566,6 +573,7 @@ async def get_delivery(
         Delivery.id == delivery_id,
         Delivery.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Delivery.enterprise_id)
     result = await db.execute(stmt)
     delivery = result.scalar_one_or_none()
     if delivery is None:
@@ -584,6 +592,7 @@ async def list_deliveries(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     status: str | None = None,
     courier_id: uuid.UUID | None = None,
     order_id: uuid.UUID | None = None,
@@ -604,6 +613,10 @@ async def list_deliveries(
     from sqlalchemy import or_
 
     conditions = [Delivery.deleted_at.is_(None)]
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        conditions.append(Delivery.enterprise_id == enterprise_id)
 
     if user is not None:
         role = user.role

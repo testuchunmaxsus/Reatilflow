@@ -44,6 +44,7 @@ from app.modules.delivery.schemas import (
     PaginatedDeliveries,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["delivery"])
@@ -101,12 +102,14 @@ async def create_delivery(
             },
         )
 
+    enterprise_id = get_current_enterprise_id(current_user)
     delivery = await service.create_delivery(
         db=db,
         data=body,
         actor_id=current_user.id,
         user=current_user,
         redis=redis,
+        enterprise_id=enterprise_id,
     )
     return _delivery_to_out(delivery, request)
 
@@ -131,11 +134,13 @@ async def update_delivery_status(
     current_user: AppUser = require_permission(Module.DELIVERY, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> DeliveryOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     delivery = await service.update_status(
         db=db,
         delivery_id=delivery_id,
         data=body,
         user=current_user,
+        enterprise_id=enterprise_id,
     )
     return _delivery_to_out(delivery, request)
 
@@ -207,9 +212,11 @@ async def list_deliveries(
     current_user: AppUser = require_permission(Module.DELIVERY, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedDeliveries:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_deliveries(
         db=db,
         user=current_user,
+        enterprise_id=enterprise_id,
         status=status,
         courier_id=courier_id,
         order_id=order_id,
@@ -245,9 +252,11 @@ async def get_delivery(
     current_user: AppUser = require_permission(Module.DELIVERY, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> DeliveryOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     delivery = await service.get_delivery(
         db=db,
         delivery_id=delivery_id,
         user=current_user,
+        enterprise_id=enterprise_id,
     )
     return _delivery_to_out(delivery, request)

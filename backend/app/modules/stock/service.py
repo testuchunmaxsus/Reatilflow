@@ -32,6 +32,7 @@ from app.models.audit import AuditLog
 from app.models.catalog import Product
 from app.models.outbox import OutboxEvent
 from app.models.stock import StockBalance, StockMovement
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.stock.schemas import StockMovementCreate
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,7 @@ async def record_movement(
     data: StockMovementCreate,
     actor_id: uuid.UUID | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> StockMovement:
     """
     Yangi ombor harakati qayd etadi — APPEND-ONLY INSERT.
@@ -180,11 +182,12 @@ async def record_movement(
             )
             idem_key = None
 
-    # ── 2. Mahsulot mavjudligi tekshiruvi ──────────────────────────────────
+    # ── 2. Mahsulot mavjudligi tekshiruvi (enterprise filtr bilan) ─────────
     prod_stmt = select(Product.id).where(
         Product.id == data.product_id,
         Product.is_active.is_(True),
     )
+    prod_stmt = apply_enterprise_filter(prod_stmt, enterprise_id, Product.enterprise_id)
     prod_result = await db.execute(prod_stmt)
     if prod_result.scalar_one_or_none() is None:
         raise AppError("stock.product_not_found", status_code=404)
@@ -204,6 +207,7 @@ async def record_movement(
         moved_at=_now(),
         client_uuid=data.client_uuid,
         created_at=_now(),
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
     db.add(movement)
     await db.flush()
@@ -364,6 +368,7 @@ async def get_balance(
 async def list_movements(
     db: AsyncSession,
     *,
+    enterprise_id: uuid.UUID | None = None,
     product_id: uuid.UUID | None = None,
     warehouse_id: uuid.UUID | None = None,
     movement_type: str | None = None,
@@ -387,6 +392,8 @@ async def list_movements(
         (harakatlar ro'yxati, jami son)
     """
     conditions = []
+    if enterprise_id is not None:
+        conditions.append(StockMovement.enterprise_id == enterprise_id)
     if product_id is not None:
         conditions.append(StockMovement.product_id == product_id)
     if warehouse_id is not None:

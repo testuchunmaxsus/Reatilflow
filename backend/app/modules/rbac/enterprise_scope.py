@@ -27,6 +27,7 @@ from fastapi import Depends, Request
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.tenant_context import set_current_enterprise
 from app.models.user import AppUser
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 def get_current_enterprise_id(user: AppUser) -> uuid.UUID | None:
     """
-    Joriy foydalanuvchidan enterprise_id qaytaradi.
+    Joriy foydalanuvchidan enterprise_id qaytaradi VA so'rov kontekstiga o'rnatadi.
 
     Args:
         user: Autentifikatsiyalangan AppUser (enterprise_id atributi bor).
@@ -46,9 +47,12 @@ def get_current_enterprise_id(user: AppUser) -> uuid.UUID | None:
 
     Xavfsizlik:
         enterprise_id SERVER'dan (user ob'ektidan) olinadi.
-        JWT token'da ham bor — lekin asosiy manba DB'dagi user.enterprise_id.
+        Yon ta'sir: ContextVar'ga o'rnatiladi — OutboxEvent va boshqa
+        avto-yozuvlar shu kontekstdan enterprise_id oladi (MT2).
     """
-    return user.enterprise_id
+    eid = user.enterprise_id
+    set_current_enterprise(eid)
+    return eid
 
 
 def get_enterprise_id_from_token_payload(payload: dict[str, Any]) -> uuid.UUID | None:

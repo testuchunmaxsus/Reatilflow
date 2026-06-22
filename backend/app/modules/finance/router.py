@@ -36,6 +36,7 @@ from app.modules.finance.schemas import (
     PaginatedLedger,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["finance"])
@@ -66,8 +67,9 @@ async def create_ledger_entry(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> LedgerEntryOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     entry = await service.record_entry(
-        db, body, actor_id=current_user.id, redis=redis
+        db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(entry)
@@ -98,7 +100,8 @@ async def get_balance(
     db: AsyncSession = Depends(get_db),
 ) -> AccountBalanceOut:
     # MUHIM: db = primary DB (ADR §3.4 — moliyaviy o'qish replica emas)
-    balance = await service.get_balance(db, store_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    balance = await service.get_balance(db, store_id, user=current_user, enterprise_id=enterprise_id)
     return AccountBalanceOut.model_validate(balance)
 
 
@@ -123,10 +126,12 @@ async def list_ledger(
     current_user: AppUser = require_permission(Module.FINANCE, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedLedger:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_entries(
         db,
         store_id=store_id,
         user=current_user,
+        enterprise_id=enterprise_id,
         entry_type=entry_type,
         limit=limit,
         offset=offset,

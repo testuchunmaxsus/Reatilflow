@@ -43,6 +43,7 @@ from app.models.outbox import OutboxEvent
 from app.models.promo import Promo
 from app.models.user import AppUser
 from app.modules.promo.schemas import PromoCreate, PromoUpdate
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ async def _write_outbox(
     aggregate_id: str,
     event_type: str,
     payload: dict,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
     """outbox_event ga yozuv qo'shadi — sync pull uchun."""
     event = OutboxEvent(
@@ -98,6 +100,7 @@ async def _write_outbox(
         aggregate_id=aggregate_id,
         event_type=event_type,
         payload=json.dumps(payload, default=str),
+        enterprise_id=enterprise_id,
     )
     db.add(event)
 
@@ -140,6 +143,7 @@ async def create_promo(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Promo:
     """
     Yangi aksiya yaratadi.
@@ -203,6 +207,7 @@ async def create_promo(
         version=1,
         created_at=_now(),
         updated_at=_now(),
+        enterprise_id=enterprise_id,
     )
     db.add(promo)
     try:
@@ -224,7 +229,7 @@ async def create_promo(
     # ── Audit + Outbox ────────────────────────────────────────────────────────
     payload = _promo_payload(promo)
     await _write_audit(db, actor_id, "create", str(promo.id), after=payload)
-    await _write_outbox(db, str(promo.id), "promo.created", payload)
+    await _write_outbox(db, str(promo.id), "promo.created", payload, enterprise_id=enterprise_id)
 
     # ── Redis idempotentlik kaliti ────────────────────────────────────────────
     if idem_key is not None:
@@ -246,11 +251,13 @@ async def get_promo(
     db: AsyncSession,
     promo_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Promo:
     """
     Bitta promo'ni qaytaradi.
 
     Barcha autentifikatsiyalangan rollar ko'ra oladi (ADR §3.6: hamma view).
+    enterprise_id filtr: faqat joriy korxona promoini qaytaradi.
 
     Raises:
         AppError("promo.not_found", 404): promo topilmasa yoki o'chirilgan.
@@ -259,6 +266,7 @@ async def get_promo(
         Promo.id == promo_id,
         Promo.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
     result = await db.execute(stmt)
     promo = result.scalar_one_or_none()
     if promo is None:
@@ -278,12 +286,14 @@ async def list_promos(
     promo_type: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    enterprise_id: uuid.UUID | None = None,
 ) -> tuple[list[Promo], int]:
     """
     Paginated promo ro'yxati.
 
     Barcha autentifikatsiyalangan rollar ko'ra oladi.
     Filtrlar: is_active, target_segment_id, target_product_id, promo_type.
+    enterprise_id filtr: faqat joriy korxona promolarini qaytaradi.
     """
     conditions = [Promo.deleted_at.is_(None)]
 
@@ -297,6 +307,7 @@ async def list_promos(
         conditions.append(Promo.promo_type == promo_type)
 
     count_stmt = select(func.count()).select_from(Promo).where(*conditions)
+    count_stmt = apply_enterprise_filter(count_stmt, enterprise_id, Promo.enterprise_id)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar_one()
 
@@ -307,6 +318,7 @@ async def list_promos(
         .limit(limit)
         .offset(offset)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
     result = await db.execute(stmt)
     items = list(result.scalars().all())
 
@@ -319,14 +331,14 @@ async def list_promos(
 async def list_active_promos(
     db: AsyncSession,
     at_date: date | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> list[Promo]:
     """
     Hozir amal qiladigan aksiyalar ro'yxatini qaytaradi.
 
     Shartlar: is_active=True AND valid_from<=at_date<=valid_to.
     at_date=None bo'lsa bugungi sana ishlatiladi.
-
-    Sync pull da promo global — barcha autentifikatsiyalangan foydalanuvchilarga.
+    enterprise_id filtr: faqat joriy korxona promolarini qaytaradi.
     """
     check_date = at_date or _today()
 
@@ -336,6 +348,7 @@ async def list_active_promos(
         Promo.valid_from <= check_date,
         Promo.valid_to >= check_date,
     ).order_by(Promo.valid_from.asc())
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
@@ -350,11 +363,13 @@ async def update_promo(
     data: PromoUpdate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Promo:
     """
     Aksiyani qisman yangilaydi (PATCH).
 
     Faqat administrator. version optimistik lock.
+    enterprise_id: faqat joriy korxona promoini yangilaydi (boshqasi → 404).
 
     Raises:
         AppError("promo.not_found", 404): promo topilmasa.
@@ -369,6 +384,7 @@ async def update_promo(
         Promo.id == promo_id,
         Promo.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
     result = await db.execute(stmt)
     promo = result.scalar_one_or_none()
     if promo is None:
@@ -416,7 +432,7 @@ async def update_promo(
 
     after_payload = _promo_payload(promo)
     await _write_audit(db, actor_id, "update", str(promo.id), before=before_payload, after=after_payload)
-    await _write_outbox(db, str(promo.id), "promo.updated", after_payload)
+    await _write_outbox(db, str(promo.id), "promo.updated", after_payload, enterprise_id=promo.enterprise_id)
 
     return promo
 
@@ -429,11 +445,13 @@ async def delete_promo(
     promo_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
     """
     Aksiyani soft-delete qiladi.
 
     Faqat administrator.
+    enterprise_id: faqat joriy korxona promoini o'chiradi (boshqasi → 404).
 
     Raises:
         AppError("promo.not_found", 404): promo topilmasa.
@@ -445,6 +463,7 @@ async def delete_promo(
         Promo.id == promo_id,
         Promo.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
     result = await db.execute(stmt)
     promo = result.scalar_one_or_none()
     if promo is None:
@@ -455,7 +474,7 @@ async def delete_promo(
     await db.flush()
 
     await _write_audit(db, actor_id, "delete", str(promo.id), before=before_payload)
-    await _write_outbox(db, str(promo.id), "promo.deleted", {"id": str(promo.id)})
+    await _write_outbox(db, str(promo.id), "promo.deleted", {"id": str(promo.id)}, enterprise_id=promo.enterprise_id)
 
 
 # ─── update_banner ────────────────────────────────────────────────────────────
@@ -467,11 +486,13 @@ async def update_banner(
     banner_url: str,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Promo:
     """
     Promo banner URL ni yangilaydi.
 
     Faqat administrator. banner URL storage'dan olinadi (magic-byte validatsiya storage'da).
+    enterprise_id: faqat joriy korxona promoini yangilaydi (boshqasi → 404).
 
     Raises:
         AppError("promo.not_found", 404): promo topilmasa.
@@ -483,6 +504,7 @@ async def update_banner(
         Promo.id == promo_id,
         Promo.deleted_at.is_(None),
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
     result = await db.execute(stmt)
     promo = result.scalar_one_or_none()
     if promo is None:
@@ -496,7 +518,7 @@ async def update_banner(
 
     after_payload = {"id": str(promo.id), "banner_url": banner_url}
     await _write_audit(db, actor_id, "update_banner", str(promo.id), before=before_payload, after=after_payload)
-    await _write_outbox(db, str(promo.id), "promo.banner_updated", after_payload)
+    await _write_outbox(db, str(promo.id), "promo.banner_updated", after_payload, enterprise_id=promo.enterprise_id)
 
     return promo
 
@@ -510,6 +532,7 @@ async def compute_line_discount(
     segment_id: uuid.UUID | None,
     qty: Decimal,
     unit_price: Decimal,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Decimal:
     """
     Buyurtma qatori uchun SERVER TOMONDA chegirma hisoblaydi.
@@ -584,6 +607,8 @@ async def compute_line_discount(
         )
         .limit(1)
     )
+    # MT2: faqat joriy korxona promoini hisoblashga olish (cross-tenant teshigi yo'q)
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Promo.enterprise_id)
 
     result = await db.execute(stmt)
     promo = result.scalar_one_or_none()

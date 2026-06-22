@@ -29,6 +29,7 @@ from app.core.errors import AppError
 from app.core.redis import get_redis
 from app.models.user import AppUser
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 from app.modules.users import service
 from app.modules.users.schemas import (
@@ -73,8 +74,10 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedUsers:
     _admin_only(current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_users(
         db,
+        enterprise_id=enterprise_id,
         limit=limit,
         offset=offset,
         role=role,
@@ -110,7 +113,8 @@ async def create_user(
     redis: Redis = Depends(get_redis),
 ) -> UserOut:
     _admin_only(current_user)
-    user = await service.create_user(db, body, actor_id=current_user.id, redis=redis)
+    enterprise_id = get_current_enterprise_id(current_user)
+    user = await service.create_user(db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id)
     await db.commit()
     await db.refresh(user)
     return UserOut.model_validate(user)
@@ -134,7 +138,8 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
     _admin_only(current_user)
-    user = await service.get_user(db, user_id)
+    enterprise_id = get_current_enterprise_id(current_user)
+    user = await service.get_user(db, user_id, enterprise_id=enterprise_id)
     return UserOut.model_validate(user)
 
 
@@ -159,7 +164,8 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
     _admin_only(current_user)
-    user = await service.update_user(db, user_id, body, actor_id=current_user.id)
+    enterprise_id = get_current_enterprise_id(current_user)
+    user = await service.update_user(db, user_id, body, actor_id=current_user.id, enterprise_id=enterprise_id)
     await db.commit()
     await db.refresh(user)
     return UserOut.model_validate(user)
@@ -187,8 +193,9 @@ async def deactivate_user(
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
     _admin_only(current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
     user = await service.deactivate_user(
-        db, user_id, actor_id=current_user.id, current_user=current_user
+        db, user_id, actor_id=current_user.id, current_user=current_user, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(user)
@@ -216,7 +223,8 @@ async def activate_user(
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
     _admin_only(current_user)
-    user = await service.activate_user(db, user_id, actor_id=current_user.id)
+    enterprise_id = get_current_enterprise_id(current_user)
+    user = await service.activate_user(db, user_id, actor_id=current_user.id, enterprise_id=enterprise_id)
     await db.commit()
     await db.refresh(user)
     return UserOut.model_validate(user)

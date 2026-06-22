@@ -38,6 +38,7 @@ from app.core.uuid7 import uuid7
 from app.models.audit import AuditLog
 from app.models.outbox import OutboxEvent
 from app.models.user import AppUser
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.users.schemas import VALID_ROLES, UserCreate, UserUpdate
 
 logger = logging.getLogger(__name__)
@@ -112,14 +113,18 @@ async def _check_phone_unique(
 async def get_user(
     db: AsyncSession,
     user_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AppUser:
     """
     ID bo'yicha foydalanuvchi oladi.
 
+    enterprise_id: server-authoritative (JWT dan). None = superadmin (filtr yo'q).
+
     Raises:
-        AppError("users.user_not_found"): topilmasa.
+        AppError("users.user_not_found"): topilmasa yoki boshqa korxonaga tegishli.
     """
     stmt = select(AppUser).where(AppUser.id == user_id)
+    stmt = apply_enterprise_filter(stmt, enterprise_id, AppUser.enterprise_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     if user is None:
@@ -133,6 +138,7 @@ async def get_user(
 async def list_users(
     db: AsyncSession,
     *,
+    enterprise_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
     role: str | None = None,
@@ -158,15 +164,17 @@ async def list_users(
     if is_active is not None:
         base_where.append(AppUser.is_active == is_active)
 
-    # Count
-    count_stmt = select(func.count()).select_from(AppUser)
+    # Enterprise filtr
+    count_base = select(func.count()).select_from(AppUser)
+    count_base = apply_enterprise_filter(count_base, enterprise_id, AppUser.enterprise_id)
     if base_where:
-        count_stmt = count_stmt.where(*base_where)
-    count_result = await db.execute(count_stmt)
+        count_base = count_base.where(*base_where)
+    count_result = await db.execute(count_base)
     total = count_result.scalar_one()
 
     # List
     list_stmt = select(AppUser).order_by(AppUser.created_at.desc()).limit(limit).offset(offset)
+    list_stmt = apply_enterprise_filter(list_stmt, enterprise_id, AppUser.enterprise_id)
     if base_where:
         list_stmt = list_stmt.where(*base_where)
 
@@ -184,6 +192,7 @@ async def create_user(
     data: UserCreate,
     actor_id: uuid.UUID | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AppUser:
     """
     Yangi foydalanuvchi yaratadi (faqat administrator).
@@ -236,6 +245,7 @@ async def create_user(
         biometric_enrolled=data.biometric_enrolled,
         device_id=data.device_id,
         is_active=True,
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
 
     db.add(user)
@@ -284,6 +294,7 @@ async def update_user(
     user_id: uuid.UUID,
     data: UserUpdate,
     actor_id: uuid.UUID | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AppUser:
     """
     Foydalanuvchini yangilaydi (PATCH — faqat berilgan maydonlar).
@@ -297,7 +308,7 @@ async def update_user(
         AppError("users.duplicate_phone"): dublikat telefon.
         AppError("users.invalid_role"): noto'g'ri rol.
     """
-    user = await get_user(db, user_id)
+    user = await get_user(db, user_id, enterprise_id=enterprise_id)
 
     if user.version != data.version:
         raise AppError("users.version_conflict", status_code=409)
@@ -372,6 +383,7 @@ async def deactivate_user(
     user_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
     current_user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AppUser:
     """
     Foydalanuvchini deaktivatsiya qiladi (is_active=False).
@@ -386,7 +398,7 @@ async def deactivate_user(
     if current_user is not None and current_user.id == user_id:
         raise AppError("users.cannot_deactivate_self", status_code=403)
 
-    user = await get_user(db, user_id)
+    user = await get_user(db, user_id, enterprise_id=enterprise_id)
 
     before = {"is_active": user.is_active}
 
@@ -405,6 +417,7 @@ async def activate_user(
     db: AsyncSession,
     user_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AppUser:
     """
     Foydalanuvchini qayta aktivlashtiradi (is_active=True).
@@ -414,7 +427,7 @@ async def activate_user(
     Raises:
         AppError("users.user_not_found"): topilmasa.
     """
-    user = await get_user(db, user_id)
+    user = await get_user(db, user_id, enterprise_id=enterprise_id)
 
     before = {"is_active": user.is_active}
 

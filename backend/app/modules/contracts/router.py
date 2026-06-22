@@ -45,6 +45,7 @@ from app.modules.contracts.schemas import (
     PaginatedContracts,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["contracts"])
@@ -74,9 +75,11 @@ async def list_contracts(
     current_user: AppUser = require_permission(Module.CONTRACTS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedContracts:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_contracts(
         db,
         user=current_user,
+        enterprise_id=enterprise_id,
         limit=limit,
         offset=offset,
         store_id=store_id,
@@ -112,8 +115,9 @@ async def create_contract(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> ContractOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     contract = await service.create_contract(
-        db, body, actor_id=current_user.id, user=current_user, redis=redis,
+        db, body, actor_id=current_user.id, user=current_user, redis=redis, enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(contract)
@@ -140,7 +144,8 @@ async def get_contract(
     current_user: AppUser = require_permission(Module.CONTRACTS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> ContractOut:
-    contract = await service.get_contract(db, contract_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    contract = await service.get_contract(db, contract_id, user=current_user, enterprise_id=enterprise_id)
     return ContractOut.model_validate(contract)
 
 
@@ -164,8 +169,9 @@ async def update_contract(
     current_user: AppUser = require_permission(Module.CONTRACTS, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> ContractOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     contract = await service.update_contract(
-        db, contract_id, body, actor_id=current_user.id, user=current_user,
+        db, contract_id, body, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(contract)
@@ -199,8 +205,9 @@ async def upload_contract_file(
     # Storage upload (validatsiya storage ichida)
     file_url = await storage.upload_contract_file(file)
 
+    enterprise_id = get_current_enterprise_id(current_user)
     contract = await service.update_contract_file(
-        db, contract_id, file_url, actor_id=current_user.id, user=current_user,
+        db, contract_id, file_url, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(contract)
@@ -224,7 +231,8 @@ async def delete_contract(
     current_user: AppUser = require_permission(Module.CONTRACTS, Action.DELETE),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    enterprise_id = get_current_enterprise_id(current_user)
     await service.delete_contract(
-        db, contract_id, actor_id=current_user.id, user=current_user,
+        db, contract_id, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id,
     )
     await db.commit()

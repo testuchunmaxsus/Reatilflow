@@ -25,6 +25,7 @@ from app.core.db import get_db
 from app.core.redis import get_redis
 from app.models.user import AppUser
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 from app.modules.stock import service
 from app.modules.stock.schemas import (
@@ -61,8 +62,9 @@ async def create_movement(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> StockMovementOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     movement = await service.record_movement(
-        db, body, actor_id=current_user.id, redis=redis
+        db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(movement)
@@ -114,8 +116,10 @@ async def list_movements(
     current_user: AppUser = require_permission(Module.STOCK, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedMovements:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_movements(
         db,
+        enterprise_id=enterprise_id,
         product_id=product_id,
         warehouse_id=warehouse_id,
         movement_type=movement_type,

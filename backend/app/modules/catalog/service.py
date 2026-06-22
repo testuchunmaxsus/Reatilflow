@@ -3,23 +3,23 @@ Katalog servis qatlami — biznes mantiq.
 
 Funksiyalar:
   Kategoriya:
-    create_category(db, data) → Category
-    list_categories(db) → list[Category]
+    create_category(db, data, enterprise_id) → Category
+    list_categories(db, enterprise_id) → list[Category]
 
   Narx segmenti:
-    create_segment(db, data) → PriceSegment
-    list_segments(db) → list[PriceSegment]
+    create_segment(db, data, enterprise_id) → PriceSegment
+    list_segments(db, enterprise_id) → list[PriceSegment]
 
   Mahsulot:
-    create_product(db, data, actor_id, redis) → Product
-    get_product(db, product_id, user) → Product
-    list_products(db, user, filters...) → (list[Product], total)
-    update_product(db, product_id, data, actor_id, user) → Product
-    delete_product(db, product_id, actor_id, user) → None  (soft-delete)
+    create_product(db, data, actor_id, redis, enterprise_id) → Product
+    get_product(db, product_id, user, enterprise_id) → Product
+    list_products(db, user, enterprise_id, filters...) → (list[Product], total)
+    update_product(db, product_id, data, actor_id, user, enterprise_id) → Product
+    delete_product(db, product_id, actor_id, user, enterprise_id) → None  (soft-delete)
 
   Narx:
-    set_price(db, product_id, data, actor_id, user) → ProductPrice
-    get_price_history(db, product_id, user) → list[PriceHistory]
+    set_price(db, product_id, data, actor_id, user, enterprise_id) → ProductPrice
+    get_price_history(db, product_id, user, enterprise_id) → list[PriceHistory]
 
 Qoidalar:
   - Har mutatsiyada audit_log va outbox_event yoziladi.
@@ -31,6 +31,8 @@ Qoidalar:
   - Branch ko'rinish: administrator/accountant → barchasi;
     boshqa rollar → faqat branch_scope IS NULL yoki == user.branch_id.
     Doiradan tashqari mahsulot uchun get/update/delete → 404 (mavjudlikni oshkor qilmaslik).
+  - MT2: enterprise_id server-avtoritar — har query'ga WHERE enterprise_id = ? qo'shiladi.
+    enterprise_id=None (superadmin) → filtr qo'llanmaydi.
 """
 
 from __future__ import annotations
@@ -66,6 +68,7 @@ from app.modules.catalog.schemas import (
     ProductUpdate,
     PriceSegmentCreate,
 )
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 
 logger = logging.getLogger(__name__)
 
@@ -158,13 +161,18 @@ def _apply_branch_visibility(query, user: AppUser):
 # ─── Category ────────────────────────────────────────────────────────────────
 
 
-async def create_category(db: AsyncSession, data: CategoryCreate) -> Category:
-    """Yangi kategoriya yaratadi."""
+async def create_category(
+    db: AsyncSession,
+    data: CategoryCreate,
+    enterprise_id: uuid.UUID | None = None,
+) -> Category:
+    """Yangi kategoriya yaratadi. enterprise_id server tomonidan o'rnatiladi."""
     cat = Category(
         name_uz=data.name_uz,
         name_ru=data.name_ru,
         parent_id=data.parent_id,
         is_active=data.is_active,
+        enterprise_id=enterprise_id,
     )
     db.add(cat)
     await db.flush()
@@ -180,18 +188,27 @@ async def create_category(db: AsyncSession, data: CategoryCreate) -> Category:
     return cat
 
 
-async def list_categories(db: AsyncSession) -> list[Category]:
-    """Barcha faol kategoriyalar ro'yxati."""
+async def list_categories(
+    db: AsyncSession,
+    enterprise_id: uuid.UUID | None = None,
+) -> list[Category]:
+    """Barcha faol kategoriyalar ro'yxati. MT2: enterprise_id bo'yicha filtrlanadi."""
     stmt = select(Category).where(Category.deleted_at.is_(None)).order_by(Category.created_at)
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Category.enterprise_id)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
 
-async def get_category(db: AsyncSession, category_id: uuid.UUID) -> Category:
-    """ID bo'yicha kategoriya oladi. Topilmasa AppError."""
+async def get_category(
+    db: AsyncSession,
+    category_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None = None,
+) -> Category:
+    """ID bo'yicha kategoriya oladi. MT2: enterprise_id filtr. Topilmasa AppError."""
     stmt = select(Category).where(
         Category.id == category_id, Category.deleted_at.is_(None)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Category.enterprise_id)
     result = await db.execute(stmt)
     cat = result.scalar_one_or_none()
     if cat is None:
@@ -202,9 +219,13 @@ async def get_category(db: AsyncSession, category_id: uuid.UUID) -> Category:
 # ─── PriceSegment ────────────────────────────────────────────────────────────
 
 
-async def create_segment(db: AsyncSession, data: PriceSegmentCreate) -> PriceSegment:
-    """Yangi narx segmenti yaratadi."""
-    seg = PriceSegment(name=data.name)
+async def create_segment(
+    db: AsyncSession,
+    data: PriceSegmentCreate,
+    enterprise_id: uuid.UUID | None = None,
+) -> PriceSegment:
+    """Yangi narx segmenti yaratadi. enterprise_id server tomonidan o'rnatiladi."""
+    seg = PriceSegment(name=data.name, enterprise_id=enterprise_id)
     db.add(seg)
     await db.flush()
 
@@ -215,18 +236,27 @@ async def create_segment(db: AsyncSession, data: PriceSegmentCreate) -> PriceSeg
     return seg
 
 
-async def list_segments(db: AsyncSession) -> list[PriceSegment]:
-    """Barcha narx segmentlar ro'yxati."""
+async def list_segments(
+    db: AsyncSession,
+    enterprise_id: uuid.UUID | None = None,
+) -> list[PriceSegment]:
+    """Barcha narx segmentlar ro'yxati. MT2: enterprise_id filtr."""
     stmt = select(PriceSegment).where(PriceSegment.deleted_at.is_(None)).order_by(PriceSegment.created_at)
+    stmt = apply_enterprise_filter(stmt, enterprise_id, PriceSegment.enterprise_id)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
 
-async def get_segment(db: AsyncSession, segment_id: uuid.UUID) -> PriceSegment:
-    """ID bo'yicha narx segmenti oladi. Topilmasa AppError."""
+async def get_segment(
+    db: AsyncSession,
+    segment_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None = None,
+) -> PriceSegment:
+    """ID bo'yicha narx segmenti oladi. MT2: enterprise_id filtr. Topilmasa AppError."""
     stmt = select(PriceSegment).where(
         PriceSegment.id == segment_id, PriceSegment.deleted_at.is_(None)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, PriceSegment.enterprise_id)
     result = await db.execute(stmt)
     seg = result.scalar_one_or_none()
     if seg is None:
@@ -238,14 +268,18 @@ async def get_segment(db: AsyncSession, segment_id: uuid.UUID) -> PriceSegment:
 
 
 async def _check_sku_unique(
-    db: AsyncSession, sku: str | None, exclude_id: uuid.UUID | None = None
+    db: AsyncSession,
+    sku: str | None,
+    exclude_id: uuid.UUID | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
-    """SKU unikalligi tekshiradi. Dublikat bo'lsa AppError."""
+    """SKU unikalligi tekshiradi. MT2: enterprise bo'yicha. Dublikat bo'lsa AppError."""
     if not sku:
         return
     stmt = select(Product.id).where(
         Product.sku == sku, Product.deleted_at.is_(None)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
     if exclude_id is not None:
         stmt = stmt.where(Product.id != exclude_id)
     result = await db.execute(stmt)
@@ -254,14 +288,18 @@ async def _check_sku_unique(
 
 
 async def _check_barcode_unique(
-    db: AsyncSession, barcode: str | None, exclude_id: uuid.UUID | None = None
+    db: AsyncSession,
+    barcode: str | None,
+    exclude_id: uuid.UUID | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
-    """Barcode unikalligi tekshiradi. Dublikat bo'lsa AppError."""
+    """Barcode unikalligi tekshiradi. MT2: enterprise bo'yicha. Dublikat bo'lsa AppError."""
     if not barcode:
         return
     stmt = select(Product.id).where(
         Product.barcode == barcode, Product.deleted_at.is_(None)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
     if exclude_id is not None:
         stmt = stmt.where(Product.id != exclude_id)
     result = await db.execute(stmt)
@@ -274,6 +312,7 @@ async def create_product(
     data: ProductCreate,
     actor_id: uuid.UUID | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Product:
     """
     Yangi mahsulot yaratadi.
@@ -300,6 +339,7 @@ async def create_product(
                     Product.id == uuid.UUID(cached_id),
                     Product.deleted_at.is_(None),
                 )
+                stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
                 result = await db.execute(stmt)
                 existing = result.scalar_one_or_none()
                 if existing is not None:
@@ -318,12 +358,13 @@ async def create_product(
             )
             idem_key = None  # Redis kalidini saqlash ham amalga oshmaydi
 
-    # ── Unikallık tekshiruv ─────────────────────────────────────────────────
-    await _check_sku_unique(db, data.sku)
-    await _check_barcode_unique(db, data.barcode)
+    # ── Unikallık tekshiruv (enterprise bo'yicha) ──────────────────────────
+    await _check_sku_unique(db, data.sku, enterprise_id=enterprise_id)
+    await _check_barcode_unique(db, data.barcode, enterprise_id=enterprise_id)
 
     # ── Mahsulot yaratish — id HER DOIM server uuid7() ────────────────────
     # client_uuid hech qachon id ga yozilmaydi (IDOR oldini olish)
+    # enterprise_id SERVER tomonidan o'rnatiladi (klient bera olmaydi)
     product = Product(
         name_uz=data.name_uz,
         name_ru=data.name_ru,
@@ -335,6 +376,7 @@ async def create_product(
         photo_url=data.photo_url,
         is_active=data.is_active,
         branch_scope=data.branch_scope,
+        enterprise_id=enterprise_id,
     )
 
     db.add(product)
@@ -376,10 +418,12 @@ async def get_product(
     db: AsyncSession,
     product_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Product:
     """
     ID bo'yicha mahsulot oladi (soft-delete qilinmagan).
 
+    MT2: enterprise_id filtr — boshqa korxona mahsuloti 404 qaytaradi.
     Branch ko'rinish filtri qo'llaniladi (user berilsa).
     Mavjudlikni oshkor qilmaslik: doiradan tashqari mahsulot ham 404 qaytaradi.
 
@@ -389,6 +433,7 @@ async def get_product(
     stmt = select(Product).where(
         Product.id == product_id, Product.deleted_at.is_(None)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
     if user is not None:
         stmt = _apply_branch_visibility(stmt, user)
 
@@ -403,6 +448,7 @@ async def list_products(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
     category_id: uuid.UUID | None = None,
@@ -443,14 +489,15 @@ async def list_products(
     if branch_scope is not None:
         base_where.append(Product.branch_scope.ilike(f"%{branch_scope}%"))
 
-    # Jami soni (branch visibility filtri bilan)
+    # MT2: enterprise filtr
     count_stmt = select(func.count()).select_from(Product).where(*base_where)
+    count_stmt = apply_enterprise_filter(count_stmt, enterprise_id, Product.enterprise_id)
     if user is not None:
         count_stmt = _apply_branch_visibility(count_stmt, user)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar_one()
 
-    # Ro'yxat (branch visibility filtri bilan)
+    # Ro'yxat (enterprise + branch visibility filtri bilan)
     stmt = (
         select(Product)
         .where(*base_where)
@@ -458,6 +505,7 @@ async def list_products(
         .limit(limit)
         .offset(offset)
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
     if user is not None:
         stmt = _apply_branch_visibility(stmt, user)
     result = await db.execute(stmt)
@@ -472,6 +520,7 @@ async def update_product(
     data: ProductUpdate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Product:
     """
     Mahsulotni yangilaydi (PATCH — faqat berilgan maydonlar).
@@ -484,7 +533,7 @@ async def update_product(
         AppError("catalog.version_conflict"): version mos kelmasa.
         AppError("catalog.duplicate_sku"/"catalog.duplicate_barcode"): dublikat.
     """
-    product = await get_product(db, product_id, user=user)
+    product = await get_product(db, product_id, user=user, enterprise_id=enterprise_id)
 
     # Optimistik lock tekshiruvi
     if product.version != data.version:
@@ -496,11 +545,11 @@ async def update_product(
         "version": product.version,
     }
 
-    # Unikallık tekshiruvlar (yangilangan qiymatlarda)
+    # Unikallık tekshiruvlar (enterprise bo'yicha)
     if data.sku is not None and data.sku != product.sku:
-        await _check_sku_unique(db, data.sku, exclude_id=product_id)
+        await _check_sku_unique(db, data.sku, exclude_id=product_id, enterprise_id=enterprise_id)
     if data.barcode is not None and data.barcode != product.barcode:
-        await _check_barcode_unique(db, data.barcode, exclude_id=product_id)
+        await _check_barcode_unique(db, data.barcode, exclude_id=product_id, enterprise_id=enterprise_id)
 
     # Maydonlarni yangilash
     if data.name_uz is not None:
@@ -555,16 +604,18 @@ async def delete_product(
     product_id: uuid.UUID,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
     """
     Mahsulotni soft-delete qiladi (deleted_at ni o'rnatadi).
 
+    MT2: enterprise_id filtr — boshqa korxona mahsuloti 404 qaytaradi.
     Branch ko'rinish filtri: doiradan tashqari mahsulot → 404.
 
     Raises:
         AppError("catalog.product_not_found"): mahsulot topilmasa yoki doiradan tashqari.
     """
-    product = await get_product(db, product_id, user=user)
+    product = await get_product(db, product_id, user=user, enterprise_id=enterprise_id)
 
     product.deleted_at = _now()
     product.updated_at = _now()
@@ -585,6 +636,7 @@ async def set_price(
     data: PriceSet,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> ProductPrice:
     """
     Mahsulot uchun narx o'rnatadi.
@@ -597,11 +649,11 @@ async def set_price(
 
     PriceHistory faqat INSERT (append-only) — hech qachon o'chirmaydi.
     """
-    # Mahsulot tekshiruvi (branch visibility bilan)
-    product = await get_product(db, product_id, user=user)
+    # Mahsulot tekshiruvi (enterprise + branch visibility bilan)
+    product = await get_product(db, product_id, user=user, enterprise_id=enterprise_id)
 
-    # Segment tekshiruvi
-    await get_segment(db, data.segment_id)
+    # Segment tekshiruvi (enterprise bo'yicha)
+    await get_segment(db, data.segment_id, enterprise_id=enterprise_id)
 
     # Joriy narxni SELECT FOR UPDATE bilan qulflab topish (race oldini olish)
     stmt = (
@@ -669,6 +721,7 @@ async def get_price_history(
     db: AsyncSession,
     product_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> list[PriceHistory]:
     """
     Mahsulot narx tarixini qaytaradi (yangirog'i birinchi).
@@ -678,8 +731,8 @@ async def get_price_history(
     Raises:
         AppError("catalog.product_not_found"): mahsulot topilmasa yoki doiradan tashqari.
     """
-    # Mahsulot mavjudligini tekshirish (branch visibility bilan)
-    await get_product(db, product_id, user=user)
+    # Mahsulot mavjudligini tekshirish (enterprise + branch visibility bilan)
+    await get_product(db, product_id, user=user, enterprise_id=enterprise_id)
 
     stmt = (
         select(PriceHistory)
@@ -699,9 +752,10 @@ async def update_photo_url(
     photo_url: str,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Product:
-    """Mahsulot rasm URL sini yangilaydi. Branch visibility tekshiriladi."""
-    product = await get_product(db, product_id, user=user)
+    """Mahsulot rasm URL sini yangilaydi. MT2: enterprise + branch visibility tekshiriladi."""
+    product = await get_product(db, product_id, user=user, enterprise_id=enterprise_id)
 
     before_url = product.photo_url
     product.photo_url = photo_url

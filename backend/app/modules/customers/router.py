@@ -38,6 +38,7 @@ from app.modules.customers.schemas import (
     StoreUpdate,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["customers"])
@@ -83,9 +84,11 @@ async def list_stores(
     current_user: AppUser = require_permission(Module.CUSTOMERS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ):
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_stores(
         db,
         user=current_user,
+        enterprise_id=enterprise_id,
         limit=limit,
         offset=offset,
         branch_id=branch_id,
@@ -131,7 +134,8 @@ async def create_store(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> StoreOut:
-    store = await service.create_store(db, body, actor_id=current_user.id, redis=redis)
+    enterprise_id = get_current_enterprise_id(current_user)
+    store = await service.create_store(db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id)
     await db.commit()
     await db.refresh(store)
     return StoreOut.model_validate(store)
@@ -156,7 +160,8 @@ async def get_store(
     current_user: AppUser = require_permission(Module.CUSTOMERS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ):
-    store = await service.get_store(db, store_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    store = await service.get_store(db, store_id, user=current_user, enterprise_id=enterprise_id)
     return _store_out(store, current_user)
 
 
@@ -179,8 +184,9 @@ async def update_store(
     current_user: AppUser = require_permission(Module.CUSTOMERS, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> StoreOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     store = await service.update_store(
-        db, store_id, body, actor_id=current_user.id, user=current_user
+        db, store_id, body, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id
     )
     await db.commit()
     await db.refresh(store)
@@ -204,7 +210,8 @@ async def delete_store(
     current_user: AppUser = require_permission(Module.CUSTOMERS, Action.DELETE),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await service.delete_store(db, store_id, actor_id=current_user.id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    await service.delete_store(db, store_id, actor_id=current_user.id, user=current_user, enterprise_id=enterprise_id)
     await db.commit()
 
 
@@ -232,12 +239,14 @@ async def assign_agent(
     if current_user.role != "administrator":
         raise _AppError("customers.forbidden", status_code=403)
 
+    enterprise_id = get_current_enterprise_id(current_user)
     link = await service.assign_agent(
         db,
         store_id=store_id,
         agent_id=body.agent_id,
         actor_id=current_user.id,
         user=current_user,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     return {

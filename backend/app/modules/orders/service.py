@@ -85,6 +85,7 @@ from app.modules.orders.schemas import (
     TemplateLineIn,
     ApplyTemplateIn,
 )
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 
 logger = logging.getLogger(__name__)
 
@@ -469,6 +470,7 @@ async def create_order(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Order:
     """
     Yangi buyurtma yaratadi — ATOMIK tranzaksiya.
@@ -544,11 +546,12 @@ async def create_order(
     if not data.lines:
         raise AppError("orders.empty_lines", status_code=422)
 
-    # ── 3. Do'kon mavjudligi ──────────────────────────────────────────────
+    # ── 3. Do'kon mavjudligi (enterprise filtr bilan) ─────────────────────
     store_stmt = select(Store).where(
         Store.id == data.store_id,
         Store.deleted_at.is_(None),
     )
+    store_stmt = apply_enterprise_filter(store_stmt, enterprise_id, Store.enterprise_id)
     store_result = await db.execute(store_stmt)
     store = store_result.scalar_one_or_none()
     if store is None:
@@ -607,6 +610,7 @@ async def create_order(
             segment_id=store_segment_id,
             qty=line_in.qty,
             unit_price=unit_price,
+            enterprise_id=enterprise_id,
         )
 
         line_total = (unit_price * line_in.qty - server_discount).quantize(Decimal("0.01"))
@@ -637,6 +641,7 @@ async def create_order(
         version=1,
         created_at=_now(),
         updated_at=_now(),
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
     db.add(order)
     try:
@@ -752,6 +757,7 @@ async def update_status(
     order_id: uuid.UUID,
     data: OrderStatusUpdate,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Order:
     """
     Buyurtma holatini o'zgartiradi — server-avtoritar holat mashinasi.
@@ -786,6 +792,7 @@ async def update_status(
             Order.deleted_at.is_(None),
         )
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Order.enterprise_id)
     result = await db.execute(stmt)
     order = result.scalar_one_or_none()
     if order is None:
@@ -882,6 +889,7 @@ async def get_order(
     db: AsyncSession,
     order_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Order:
     """
     Bitta buyurtmani qaytaradi.
@@ -897,6 +905,7 @@ async def get_order(
             Order.deleted_at.is_(None),
         )
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Order.enterprise_id)
     result = await db.execute(stmt)
     order = result.scalar_one_or_none()
     if order is None:
@@ -915,6 +924,7 @@ async def list_orders(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     store_id: uuid.UUID | None = None,
     agent_id: uuid.UUID | None = None,
     status: str | None = None,
@@ -934,6 +944,11 @@ async def list_orders(
     N+1 MUAMMOSI YO'Q: selectinload(Order.lines) orqali (MEDIUM #7).
     """
     conditions = [Order.deleted_at.is_(None)]
+
+    # MT2: Enterprise izolyatsiyasi
+    from sqlalchemy import and_ as _and
+    if enterprise_id is not None:
+        conditions.append(Order.enterprise_id == enterprise_id)
 
     # RBAC scope
     if user is not None:
@@ -1068,6 +1083,7 @@ async def create_template(
     data: OrderTemplateCreate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> OrderTemplate:
     """
     Yangi buyurtma shabloni yaratadi.
@@ -1081,11 +1097,12 @@ async def create_template(
     if not data.lines:
         raise AppError("orders.empty_template", status_code=422)
 
-    # Do'kon mavjudligi
+    # Do'kon mavjudligi (enterprise filtr bilan)
     store_stmt = select(Store).where(
         Store.id == data.store_id,
         Store.deleted_at.is_(None),
     )
+    store_stmt = apply_enterprise_filter(store_stmt, enterprise_id, Store.enterprise_id)
     store_result = await db.execute(store_stmt)
     store = store_result.scalar_one_or_none()
     if store is None:
@@ -1100,6 +1117,7 @@ async def create_template(
         name=data.name,
         created_by=actor_id,
         branch_id=store.branch_id,
+        enterprise_id=enterprise_id,  # MT2: server-authoritative
         version=1,
         created_at=_now(),
         updated_at=_now(),
@@ -1139,6 +1157,7 @@ async def list_templates(
     *,
     store_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[OrderTemplate], int]:
@@ -1149,6 +1168,10 @@ async def list_templates(
     Soft delete filtrlangan (deleted_at IS NULL).
     """
     conditions = [OrderTemplate.deleted_at.is_(None)]
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        conditions.append(OrderTemplate.enterprise_id == enterprise_id)
 
     if user is not None:
         role = user.role
@@ -1214,6 +1237,7 @@ async def get_template(
     db: AsyncSession,
     template_id: uuid.UUID,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> OrderTemplate:
     """
     Bitta shablonni qaytaradi.
@@ -1229,6 +1253,7 @@ async def get_template(
             OrderTemplate.deleted_at.is_(None),
         )
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, OrderTemplate.enterprise_id)
     result = await db.execute(stmt)
     template = result.scalar_one_or_none()
     if template is None:
@@ -1245,6 +1270,7 @@ async def delete_template(
     template_id: uuid.UUID,
     user: AppUser | None = None,
     actor_id: uuid.UUID | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> None:
     """
     Shablonni soft delete qiladi.
@@ -1258,6 +1284,7 @@ async def delete_template(
             OrderTemplate.deleted_at.is_(None),
         )
     )
+    stmt = apply_enterprise_filter(stmt, enterprise_id, OrderTemplate.enterprise_id)
     result = await db.execute(stmt)
     template = result.scalar_one_or_none()
     if template is None:
@@ -1286,6 +1313,7 @@ async def apply_template(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Order:
     """
     Shablon qatorlaridan yangi buyurtma yaratadi.
@@ -1308,7 +1336,7 @@ async def apply_template(
         AppError("orders.empty_template", 422): shablon qatorlari bo'sh.
         (create_order() xatolari: orders.insufficient_stock, orders.no_price va h.k.)
     """
-    # 1. Shablonni topish (RBAC scope bilan)
+    # 1. Shablonni topish (RBAC scope + enterprise bilan)
     template_stmt = (
         select(OrderTemplate)
         .options(selectinload(OrderTemplate.lines))
@@ -1317,6 +1345,7 @@ async def apply_template(
             OrderTemplate.deleted_at.is_(None),
         )
     )
+    template_stmt = apply_enterprise_filter(template_stmt, enterprise_id, OrderTemplate.enterprise_id)
     result = await db.execute(template_stmt)
     template = result.scalar_one_or_none()
     if template is None:
@@ -1353,6 +1382,7 @@ async def apply_template(
         actor_id=actor_id,
         user=user,
         redis=redis,
+        enterprise_id=enterprise_id,
     )
 
     # Audit: shablon orqali buyurtma yaratilgani haqida

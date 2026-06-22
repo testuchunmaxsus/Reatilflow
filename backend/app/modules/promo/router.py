@@ -42,6 +42,7 @@ from app.modules.promo.schemas import (
     PromoUpdate,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["promo"])
@@ -65,7 +66,8 @@ async def get_active_promos(
     current_user: AppUser = require_permission(Module.PROMO, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> list[PromoOut]:
-    promos = await service.list_active_promos(db, at_date=at_date)
+    enterprise_id = get_current_enterprise_id(current_user)
+    promos = await service.list_active_promos(db, at_date=at_date, enterprise_id=enterprise_id)
     return [PromoOut.model_validate(p) for p in promos]
 
 
@@ -92,6 +94,7 @@ async def list_promos(
     current_user: AppUser = require_permission(Module.PROMO, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedPromos:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_promos(
         db,
         is_active=is_active,
@@ -100,6 +103,7 @@ async def list_promos(
         promo_type=promo_type,
         limit=limit,
         offset=offset,
+        enterprise_id=enterprise_id,
     )
     return PaginatedPromos(
         items=[PromoOut.model_validate(p) for p in items],
@@ -133,8 +137,10 @@ async def create_promo(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> PromoOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     promo = await service.create_promo(
         db, body, actor_id=current_user.id, user=current_user, redis=redis,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(promo)
@@ -158,7 +164,8 @@ async def get_promo(
     current_user: AppUser = require_permission(Module.PROMO, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PromoOut:
-    promo = await service.get_promo(db, promo_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    promo = await service.get_promo(db, promo_id, user=current_user, enterprise_id=enterprise_id)
     return PromoOut.model_validate(promo)
 
 
@@ -183,8 +190,10 @@ async def update_promo(
     current_user: AppUser = require_permission(Module.PROMO, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> PromoOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     promo = await service.update_promo(
         db, promo_id, body, actor_id=current_user.id, user=current_user,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(promo)
@@ -216,11 +225,13 @@ async def upload_banner(
     db: AsyncSession = Depends(get_db),
     storage: StorageBackend = Depends(get_storage),
 ) -> PromoOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     # Magic-byte validatsiya storage ichida
     banner_url = await storage.upload_product_photo(file)
 
     promo = await service.update_banner(
         db, promo_id, banner_url, actor_id=current_user.id, user=current_user,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(promo)
@@ -245,7 +256,9 @@ async def delete_promo(
     current_user: AppUser = require_permission(Module.PROMO, Action.DELETE),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    enterprise_id = get_current_enterprise_id(current_user)
     await service.delete_promo(
         db, promo_id, actor_id=current_user.id, user=current_user,
+        enterprise_id=enterprise_id,
     )
     await db.commit()

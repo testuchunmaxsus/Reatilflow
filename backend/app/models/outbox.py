@@ -33,6 +33,7 @@ from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Sequence, String
 from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.tenant_context import get_current_enterprise
 from app.core.uuid7 import uuid7
 from app.models.base import Base
 
@@ -194,13 +195,17 @@ class OutboxEvent(Base):
         comment="Yuborilgan vaqt (NULL = navbatda kutilmoqda)",
     )
 
-    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    # ─── MT1/MT2: enterprise_id ──────────────────────────────────────────────
+    # MT2: default — so'rov kontekstidagi joriy korxona (tenant_context ContextVar).
+    # Shunday qilib har modulning _write_outbox'iga param uzatish shart emas;
+    # outbox hodisa avtomatik joriy korxonaga tegishli bo'ladi (sync izolyatsiyasi).
     enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("enterprise.id", ondelete="RESTRICT"),
         nullable=True,
         index=True,
-        comment="Korxona FK → enterprise (MT1)",
+        default=lambda: get_current_enterprise(),
+        comment="Korxona FK → enterprise (MT2: tenant_context default)",
     )
 
     def __repr__(self) -> str:

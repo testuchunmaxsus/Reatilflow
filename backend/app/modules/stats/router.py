@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db, get_db_replica
 from app.models.user import AppUser
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 from app.modules.stats import service
 from app.modules.stats.schemas import DeliveryStatsOut, FinanceStatsOut, SalesStatsOut
@@ -80,6 +81,7 @@ async def get_sales_stats(
         to_dt=to_dt,
         branch_id=branch_id,
         group_by=group_by,
+        enterprise_id=get_current_enterprise_id(current_user),
     )
 
 
@@ -120,6 +122,7 @@ async def get_delivery_stats(
         from_dt=from_dt,
         to_dt=to_dt,
         courier_id=courier_id,
+        enterprise_id=get_current_enterprise_id(current_user),
     )
 
 
@@ -163,4 +166,5 @@ async def get_finance_stats(
         from_dt=from_dt,
         to_dt=to_dt,
         branch_id=branch_id,
+        enterprise_id=get_current_enterprise_id(current_user),
     )

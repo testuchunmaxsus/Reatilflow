@@ -53,6 +53,7 @@ from app.models.store import Store
 from app.models.user import AppUser
 from app.modules.orders.schemas import OrderCreate, OrderLineIn
 from app.modules.orders.service import create_order
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter, get_current_enterprise_id
 from app.modules.rbac.scope import get_user_store_ids
 from app.modules.sync.schemas import ChangeItem, OpResult, SyncOp
 
@@ -89,12 +90,14 @@ async def _handle_order_create(
     user: AppUser,
     db: AsyncSession,
     redis: Any,
+    enterprise_id: uuid.UUID | None = None,
 ) -> OpResult:
     """
     "order.create" operatsiyasini qayta ishlaydi.
 
     Mavjud create_order() servisini QAYTA ISHLATADI — atomiklik, narx xavfsizligi,
     idempotentlik va RBAC scope create_order() ichida ta'minlangan.
+    enterprise_id — server-avtoritar korxona scope (cross-tenant teshigi yo'q).
 
     payload kutilgan maydonlar:
       store_id   — do'kon UUID (string)
@@ -135,6 +138,7 @@ async def _handle_order_create(
             actor_id=actor_id,
             user=user,
             redis=redis,
+            enterprise_id=enterprise_id,
         )
         return OpResult(
             client_uuid=op.client_uuid,
@@ -179,6 +183,7 @@ async def push(
     user: AppUser,
     db: AsyncSession,
     redis: Any,
+    enterprise_id: uuid.UUID | None = None,
 ) -> list[OpResult]:
     """
     Push batch — har op uchun dispatch + op-darajali xato izolyatsiyasi.
@@ -232,7 +237,7 @@ async def push(
         # Bunday hollarda sp.rollback() xato chiqaradi — qo'shimcha try/except bilan himoya.
         sp = await db.begin_nested()
         try:
-            result = await handler(op, actor_id, user, db, redis)
+            result = await handler(op, actor_id, user, db, redis, enterprise_id=enterprise_id)
             if result.status in ("applied", "duplicate"):
                 # Muvaffaqiyatli — SAVEPOINT commit (RELEASE SAVEPOINT)
                 try:
@@ -451,6 +456,7 @@ async def pull(
     limit: int,
     user: AppUser,
     db: AsyncSession,
+    enterprise_id: uuid.UUID | None = None,
 ) -> tuple[list[ChangeItem], int, bool]:
     """
     Delta pull — foydalanuvchi scope'idagi hodisalar, seq > since_seq.
@@ -488,6 +494,8 @@ async def pull(
         .order_by(OutboxEvent.seq.asc())
         .limit(effective_limit)
     )
+    # MT2: faqat joriy korxona outbox hodisalarini qaytarish (cross-tenant sync teshigi yo'q)
+    stmt = apply_enterprise_filter(stmt, enterprise_id, OutboxEvent.enterprise_id)
     result = await db.execute(stmt)
     events = list(result.scalars().all())
 

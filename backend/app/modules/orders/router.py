@@ -49,6 +49,7 @@ from app.modules.orders.schemas import (
     PaginatedTemplates,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Module, Action
 
 router = APIRouter(tags=["orders"])
@@ -74,12 +75,14 @@ async def create_order(
     db: AsyncSession = Depends(get_db),
     redis=Depends(get_redis),
 ) -> OrderOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     order = await service.create_order(
         db=db,
         data=body,
         actor_id=current_user.id,
         user=current_user,
         redis=redis,
+        enterprise_id=enterprise_id,
     )
     return OrderOut.model_validate(order)
 
@@ -107,9 +110,11 @@ async def list_orders(
     current_user: AppUser = require_permission(Module.ORDERS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedOrders:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_orders(
         db=db,
         user=current_user,
+        enterprise_id=enterprise_id,
         store_id=store_id,
         agent_id=agent_id,
         status=status,
@@ -146,11 +151,13 @@ async def create_template(
     current_user: AppUser = require_permission(Module.ORDERS, Action.CREATE),
     db: AsyncSession = Depends(get_db),
 ) -> OrderTemplateOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     template = await service.create_template(
         db=db,
         data=body,
         actor_id=current_user.id,
         user=current_user,
+        enterprise_id=enterprise_id,
     )
     return OrderTemplateOut.model_validate(template)
 
@@ -171,10 +178,12 @@ async def list_templates(
     current_user: AppUser = require_permission(Module.ORDERS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedTemplates:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_templates(
         db=db,
         store_id=store_id,
         user=current_user,
+        enterprise_id=enterprise_id,
         limit=limit,
         offset=offset,
     )
@@ -197,7 +206,8 @@ async def get_template(
     current_user: AppUser = require_permission(Module.ORDERS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> OrderTemplateOut:
-    template = await service.get_template(db=db, template_id=template_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    template = await service.get_template(db=db, template_id=template_id, user=current_user, enterprise_id=enterprise_id)
     return OrderTemplateOut.model_validate(template)
 
 
@@ -212,11 +222,13 @@ async def delete_template(
     current_user: AppUser = require_permission(Module.ORDERS, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    enterprise_id = get_current_enterprise_id(current_user)
     await service.delete_template(
         db=db,
         template_id=template_id,
         user=current_user,
         actor_id=current_user.id,
+        enterprise_id=enterprise_id,
     )
 
 
@@ -240,6 +252,7 @@ async def apply_template(
     db: AsyncSession = Depends(get_db),
     redis=Depends(get_redis),
 ) -> OrderOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     order = await service.apply_template(
         db=db,
         template_id=template_id,
@@ -247,6 +260,7 @@ async def apply_template(
         actor_id=current_user.id,
         user=current_user,
         redis=redis,
+        enterprise_id=enterprise_id,
     )
     return OrderOut.model_validate(order)
 
@@ -265,7 +279,8 @@ async def get_order(
     current_user: AppUser = require_permission(Module.ORDERS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> OrderOut:
-    order = await service.get_order(db=db, order_id=order_id, user=current_user)
+    enterprise_id = get_current_enterprise_id(current_user)
+    order = await service.get_order(db=db, order_id=order_id, user=current_user, enterprise_id=enterprise_id)
     return OrderOut.model_validate(order)
 
 
@@ -288,10 +303,12 @@ async def update_status(
     current_user: AppUser = require_permission(Module.ORDERS, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> OrderOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     order = await service.update_status(
         db=db,
         order_id=order_id,
         data=body,
         user=current_user,
+        enterprise_id=enterprise_id,
     )
     return OrderOut.model_validate(order)

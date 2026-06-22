@@ -53,6 +53,7 @@ from app.models.audit import AuditLog
 from app.models.outbox import OutboxEvent
 from app.models.user import AppUser
 from app.modules.attendance.schemas import CheckInRequest, CheckOutRequest
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +219,7 @@ async def check_in(
         version=1,
         created_at=now,
         updated_at=now,
+        enterprise_id=user.enterprise_id,  # MT2: server-authoritative (user dan olinadi)
     )
     db.add(att)
     try:
@@ -370,6 +372,7 @@ async def list_attendance(
     db: AsyncSession,
     *,
     user: AppUser,
+    enterprise_id: uuid.UUID | None = None,
     filter_user_id: uuid.UUID | None = None,
     filter_date: date | None = None,
     limit: int = 20,
@@ -409,6 +412,10 @@ async def list_attendance(
 
     # Shartlar
     conditions = [Attendance.deleted_at.is_(None)]
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        conditions.append(Attendance.enterprise_id == enterprise_id)
 
     if scope_user_id is not None:
         conditions.append(Attendance.user_id == scope_user_id)

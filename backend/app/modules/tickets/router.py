@@ -44,6 +44,7 @@ from app.modules.tickets.schemas import (
     TicketStatusUpdate,
 )
 from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["tickets"])
@@ -72,9 +73,11 @@ async def list_tickets(
     current_user: AppUser = require_permission(Module.TICKETS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedTickets:
+    enterprise_id = get_current_enterprise_id(current_user)
     items, total = await service.list_tickets(
         db,
         user=current_user,
+        enterprise_id=enterprise_id,
         limit=limit,
         offset=offset,
         status_filter=status,
@@ -112,8 +115,10 @@ async def create_ticket(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> TicketOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     ticket = await service.create_ticket(
         db, body, actor_id=current_user.id, user=current_user, redis=redis,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(ticket)
@@ -141,8 +146,9 @@ async def get_ticket(
     current_user: AppUser = require_permission(Module.TICKETS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> TicketOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     ticket = await service.get_ticket(
-        db, ticket_id, user=current_user, with_messages=True
+        db, ticket_id, user=current_user, with_messages=True, enterprise_id=enterprise_id,
     )
     out = TicketOut.model_validate(ticket)
     out.messages = [TicketMessageOut.model_validate(m) for m in ticket.messages]
@@ -172,8 +178,10 @@ async def add_message(
     current_user: AppUser = require_permission(Module.TICKETS, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> TicketMessageOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     msg = await service.add_message(
         db, ticket_id, body, actor_id=current_user.id, user=current_user,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(msg)
@@ -206,8 +214,10 @@ async def update_status(
     current_user: AppUser = require_permission(Module.TICKETS, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ) -> TicketOut:
+    enterprise_id = get_current_enterprise_id(current_user)
     ticket = await service.update_status(
         db, ticket_id, body, actor_id=current_user.id, user=current_user,
+        enterprise_id=enterprise_id,
     )
     await db.commit()
     await db.refresh(ticket)

@@ -36,6 +36,7 @@ from app.models.outbox import OutboxEvent
 from app.models.store import AgentStore, Store
 from app.models.ticket import Ticket, TicketMessage, is_valid_transition
 from app.models.user import AppUser
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter
 from app.modules.tickets.schemas import (
     TicketCreate,
     TicketMessageCreate,
@@ -143,6 +144,7 @@ async def get_ticket(
     ticket_id: uuid.UUID,
     user: AppUser | None = None,
     with_messages: bool = False,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Ticket:
     """
     ID bo'yicha murojaat oladi.
@@ -167,6 +169,8 @@ async def get_ticket(
             Ticket.id == ticket_id,
             Ticket.deleted_at.is_(None),
         )
+
+    stmt = apply_enterprise_filter(stmt, enterprise_id, Ticket.enterprise_id)
 
     if user is not None:
         stmt = await _apply_ticket_scope(db, stmt, user)
@@ -237,6 +241,7 @@ async def list_tickets(
     db: AsyncSession,
     *,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
     status_filter: str | None = None,
@@ -254,6 +259,10 @@ async def list_tickets(
     Scope: admin/buxgalter barchasi; agent/store → o'z doirasi.
     """
     base_where = [Ticket.deleted_at.is_(None)]
+
+    # MT2: Enterprise izolyatsiyasi
+    if enterprise_id is not None:
+        base_where.append(Ticket.enterprise_id == enterprise_id)
 
     if status_filter:
         base_where.append(Ticket.status == status_filter)
@@ -293,6 +302,7 @@ async def create_ticket(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     redis=None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Ticket:
     """
     Yangi murojaat yaratadi.
@@ -345,6 +355,7 @@ async def create_ticket(
         branch_id=data.branch_id,
         client_uuid=data.client_uuid,
         version=1,
+        enterprise_id=enterprise_id,
     )
 
     db.add(ticket)
@@ -404,6 +415,7 @@ async def add_message(
     data: TicketMessageCreate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> TicketMessage:
     """
     Murojaatga xabar qo'shadi.
@@ -416,7 +428,7 @@ async def add_message(
                     validatsiya router da amalga oshiriladi.
     """
     # Scope tekshiruvi + murojaat olish
-    ticket = await get_ticket(db, ticket_id, user=user)
+    ticket = await get_ticket(db, ticket_id, user=user, enterprise_id=enterprise_id)
 
     msg = TicketMessage(
         ticket_id=ticket.id,
@@ -453,6 +465,7 @@ async def update_status(
     data: TicketStatusUpdate,
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
+    enterprise_id: uuid.UUID | None = None,
 ) -> Ticket:
     """
     Murojaat holatini yangilaydi (server-avtoritar holat mashinasi).
@@ -475,8 +488,8 @@ async def update_status(
     if user is not None and user.role not in _RESOLVE_ROLES:
         raise AppError("tickets.forbidden", status_code=403)
 
-    # Admin/buxgalter barcha murojaatlarni ko'ra oladi — scope yo'q
-    ticket = await get_ticket(db, ticket_id, user=None)
+    # Admin/buxgalter barcha murojaatlarni ko'ra oladi — scope yo'q, lekin enterprise izolyatsiyasi qo'llaniladi
+    ticket = await get_ticket(db, ticket_id, user=None, enterprise_id=enterprise_id)
 
     # Optimistik lock
     if ticket.version != data.version:
