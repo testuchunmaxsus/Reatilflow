@@ -33,6 +33,7 @@ from app.models.promo import Promo  # noqa: F401
 from app.models.push import PushLog  # noqa: F401
 from app.models.ticket import Ticket, TicketMessage  # noqa: F401
 from app.models.pos import PosSale, PosSaleLine  # noqa: F401
+from app.models.marketplace import MarketplaceOrder, MarketplaceOrderLine  # noqa: F401 — MP2
 import app.models.append_only  # noqa: F401 — DDL event'larini ro'yxatga olish uchun
 
 __all__ = [
@@ -68,4 +69,6 @@ __all__ = [
     "TicketMessage",
     "PosSale",
     "PosSaleLine",
+    "MarketplaceOrder",
+    "MarketplaceOrderLine",
 ]

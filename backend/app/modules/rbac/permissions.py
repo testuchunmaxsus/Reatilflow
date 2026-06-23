@@ -105,7 +105,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # POS: administrator barcha sotuvlarni ko'radi
         | _p(Module.POS,         Action.VIEW, Action.CREATE)
         # MP1: administrator marketplace browse + o'z mahsulotini publish qiladi
-        | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT)
+        # MP2: administrator buyurtma yaratadi va tasdiqlaydi/rad etadi
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT, Action.CREATE)
     ),
 
     # ─── Savdo agenti ──────────────────────────────────────────────────────────
@@ -139,7 +140,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # T17: GPS — agent o'z trekini ingest qiladi va ko'radi (row-level scope)
         | _p(Module.GPS,         Action.CREATE, Action.VIEW)
         # MP1: agent marketplace browse qiladi
-        | _p(Module.MARKETPLACE, Action.VIEW)
+        # MP2: agent buyurtma yaratadi (supplier sifatida emas, faqat buyer sifatida)
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE)
     ),
 
     # ─── Kuryer (yetkazib beruvchi) ────────────────────────────────────────────
@@ -203,7 +205,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # POS: buxgalter sotuvlarni ko'ra oladi
         | _p(Module.POS,         Action.VIEW)
         # MP1: buxgalter marketplace browse qiladi
-        | _p(Module.MARKETPLACE, Action.VIEW)
+        # MP2: buxgalter kiruvchi buyurtmalarni tasdiqlaydi/rad etadi (supplier sifatida)
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT, Action.CREATE)
     ),
 
     # ─── Do'kon (mijoz) ────────────────────────────────────────────────────────
@@ -233,7 +236,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # POS: do'kon (kassir) sotuv yaratadi va ko'radi
         | _p(Module.POS,      Action.VIEW, Action.CREATE)
         # MP1: do'kon marketplace browse qiladi
-        | _p(Module.MARKETPLACE, Action.VIEW)
+        # MP2: do'kon buyurtma yaratadi (faqat buyer sifatida, tasdiqlash/rad etish emas)
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE)
     ),
 
     # ─── Superadmin (platforma egasi) ─────────────────────────────────────────

@@ -451,6 +451,44 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Товар не опубликован на маркетплейсе",
     },
 
+    # ── Marketplace (MP2) — Buyurtma ─────────────────────────────────────────
+    "marketplace.order_not_found": {
+        "uz": "Marketplace buyurtmasi topilmadi",
+        "ru": "Заказ на маркетплейсе не найден",
+    },
+    "marketplace.order_empty_lines": {
+        "uz": "Buyurtma qatorlari bo'sh bo'lishi mumkin emas",
+        "ru": "Строки заказа не могут быть пустыми",
+    },
+    "marketplace.order_mixed_suppliers": {
+        "uz": "Bitta buyurtmada faqat bitta supplier korxona mahsulotlari bo'lishi shart",
+        "ru": "В одном заказе могут быть товары только одного поставщика",
+    },
+    "marketplace.order_self_purchase": {
+        "uz": "O'z korxonasidan buyurtma berish mumkin emas",
+        "ru": "Нельзя оформить заказ у собственного предприятия",
+    },
+    "marketplace.order_no_price": {
+        "uz": "Mahsulot uchun marketplace narxi topilmadi (product_id={product_id})",
+        "ru": "Цена для товара на маркетплейсе не найдена (product_id={product_id})",
+    },
+    "marketplace.order_buyer_no_enterprise": {
+        "uz": "Foydalanuvchi korxonaga tegishli emas — buyurtma berish mumkin emas",
+        "ru": "Пользователь не принадлежит предприятию — оформление заказа невозможно",
+    },
+    "marketplace.order_invalid_transition": {
+        "uz": "Noto'g'ri holat o'tishi: '{from_status}' dan '{to_status}' ga o'tish mumkin emas",
+        "ru": "Недопустимый переход состояния: из '{from_status}' в '{to_status}' невозможен",
+    },
+    "marketplace.order_supplier_only": {
+        "uz": "Bu amalni faqat supplier korxona bajarishi mumkin",
+        "ru": "Это действие может выполнить только поставщик",
+    },
+    "marketplace.order_idempotency_conflict": {
+        "uz": "Bu client_uuid boshqa foydalanuvchi tomonidan allaqachon ishlatilgan",
+        "ru": "Данный client_uuid уже использован другим пользователем",
+    },
+
     # ── Umumiy ──────────────────────────────────────────────────────────────
     "common.not_found": {
         "uz": "So'ralgan resurs topilmadi",
