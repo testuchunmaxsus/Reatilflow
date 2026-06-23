@@ -29,6 +29,7 @@ class HomeShell extends ConsumerWidget {
 
     final isAgent = role == 'agent';
     final isCourier = role == 'courier';
+    final isStore = role == 'store';
 
     return Scaffold(
       appBar: AppBar(
@@ -56,7 +57,9 @@ class HomeShell extends ConsumerWidget {
           ? _AgentNavBar()
           : isCourier
               ? _CourierNavBar()
-              : null,
+              : isStore
+                  ? _StoreNavBar()
+                  : null,
     );
   }
 }
@@ -179,6 +182,56 @@ class _CourierNavBar extends ConsumerWidget {
           icon: Icons.fingerprint,
           label: 'Davomat',
         ),
+    ];
+
+    final currentIndex = _resolveIndex(tabs, location);
+
+    return BottomNavigationBar(
+      currentIndex: currentIndex,
+      type: BottomNavigationBarType.fixed,
+      selectedFontSize: 11,
+      unselectedFontSize: 10,
+      onTap: (index) => context.go(tabs[index].route),
+      items: tabs
+          .map((t) => BottomNavigationBarItem(
+                icon: Icon(t.icon),
+                label: t.label,
+              ))
+          .toList(),
+    );
+  }
+}
+
+/// Do'kon (store) pastki navigatsiya paneli — pos moduli gating.
+class _StoreNavBar extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).matchedLocation;
+
+    final hasPos = ref.watch(moduleEnabledProvider('pos'));
+
+    final tabs = <_NavTab>[
+      const _NavTab(
+        route: '/home/store',
+        matchPrefix: '/home/store',
+        icon: Icons.home,
+        label: 'Bosh',
+      ),
+      if (hasPos) ...[
+        const _NavTab(
+          route: '/home/pos/sale',
+          matchPrefix: '/home/pos/sale',
+          icon: Icons.point_of_sale,
+          label: 'Sotuv',
+        ),
+        const _NavTab(
+          route: '/home/pos/inventory',
+          matchPrefix: '/home/pos/inventory',
+          icon: Icons.inventory_2_outlined,
+          label: 'Inventar',
+        ),
+        // v2b: Marketplace tab qo'shiladi
+      ],
     ];
 
     final currentIndex = _resolveIndex(tabs, location);

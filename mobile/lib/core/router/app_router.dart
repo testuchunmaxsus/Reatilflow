@@ -14,6 +14,10 @@ import '../../features/delivery/delivery_list_screen.dart';
 import '../../features/home/home_shell.dart';
 import '../../features/orders/create_order_screen.dart';
 import '../../features/orders/order_list_screen.dart';
+import '../../features/pos/pos_inventory_screen.dart';
+import '../../features/pos/pos_sale_screen.dart';
+import '../../features/pos/pos_summary_screen.dart';
+import '../../features/pos/store_dashboard.dart';
 import '../../features/stores/store_detail_screen.dart';
 import '../../features/stores/store_list_screen.dart';
 
@@ -35,6 +39,11 @@ const String routeAttendance = '/home/attendance';
 // Courier routes
 const String routeDeliveries = '/home/deliveries';
 const String routeDeliveryDetail = '/home/deliveries/:deliveryId';
+
+// Store POS routes
+const String routePosSale = '/home/pos/sale';
+const String routePosInventory = '/home/pos/inventory';
+const String routePosSummary = '/home/pos/summary';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authNotifierProvider);
@@ -83,10 +92,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: routeStore,
-            builder: (context, state) => const _RolePlaceholder(
-              role: "Do'kon",
-              icon: Icons.store,
-            ),
+            builder: (context, state) => const StoreDashboard(),
           ),
 
           // --- Do'konlar ---
@@ -128,6 +134,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AttendanceScreen(),
           ),
 
+          // --- Do'kon: POS ---
+          GoRoute(
+            path: routePosSale,
+            builder: (context, state) => const PosSaleScreen(),
+          ),
+          GoRoute(
+            path: routePosInventory,
+            builder: (context, state) => const PosInventoryScreen(),
+          ),
+          GoRoute(
+            path: routePosSummary,
+            builder: (context, state) => const PosSummaryScreen(),
+          ),
+
           // --- Kuryer: Yetkazishlar ---
           GoRoute(
             path: routeDeliveries,
@@ -147,26 +167,3 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class _RolePlaceholder extends StatelessWidget {
-  const _RolePlaceholder({required this.role, required this.icon});
-
-  final String role;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 64, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 16),
-          Text(
-            '$role kabineti',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-        ],
-      ),
-    );
-  }
-}

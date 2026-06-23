@@ -152,5 +152,37 @@ class ApiClient {
     );
     return response.data!;
   }
+
+  // ---- POS ----
+
+  /// GET /marketplace/inventory — do'kon inventari (expiry bayroqlari bilan).
+  Future<List<dynamic>> getInventory() async {
+    final response = await _dio.get<dynamic>('/marketplace/inventory');
+    final data = response.data;
+    if (data is List) return data;
+    if (data is Map<String, dynamic>) {
+      return data['items'] as List? ?? [];
+    }
+    return [];
+  }
+
+  /// POST /pos/sales — sotuv yaratish (product_id + qty FAQAT, narx yubormaydi).
+  Future<Map<String, dynamic>> createPosSale(
+      Map<String, dynamic> body) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/pos/sales',
+      data: body,
+    );
+    return response.data!;
+  }
+
+  /// GET /pos/summary?date=YYYY-MM-DD — kunlik sotuv hisoboti.
+  Future<Map<String, dynamic>> getPosSummary({required String date}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/pos/summary',
+      queryParameters: {'date': date},
+    );
+    return response.data!;
+  }
 }
 

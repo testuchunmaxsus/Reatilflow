@@ -51,5 +51,9 @@ const EnterpriseInfo enterpriseAllModules = EnterpriseInfo(
   id: '',
   name: '',
   suspended: false,
-  enabledModules: ['delivery', 'attendance', 'gps', 'orders', 'catalog'],
+  enabledModules: [
+    'delivery', 'attendance', 'gps', 'orders', 'catalog',
+    'customers', 'finance', 'contracts', 'tickets', 'promo', 'stats', 'push',
+    'pos', 'marketplace',
+  ],
 );
