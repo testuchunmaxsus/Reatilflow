@@ -58,6 +58,18 @@ PUSH_MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
         ),
     },
 
+    # Inventar muddati yaqinlashmoqda (MP4)
+    "push.inventory_expiring_soon": {
+        "uz": (
+            "Inventar muddati",
+            "{product_name}: {days} kun qoldi ({store_name})",
+        ),
+        "ru": (
+            "Срок годности",
+            "{product_name}: осталось {days} дн. ({store_name})",
+        ),
+    },
+
     # Umumiy bildirishnoma (fallback)
     "push.general": {
         "uz": (

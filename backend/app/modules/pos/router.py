@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.models.user import AppUser
 from app.modules.pos import service
+from app.modules.pos.expiry_scan import mark_expired_inventory
 from app.modules.pos.schemas import (
     DailySummaryOut,
     PaginatedSales,
@@ -136,6 +137,24 @@ async def get_sale(
 
 
 # ─── GET /pos/summary ─────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/inventory/expiry-scan",
+    summary="Expiry skan — muddati o'tgan inventarni belgilash + bildirishnoma",
+    description=(
+        "Admin/cron endpoint: muddati o'tgan active StoreInventory → status='expired'. "
+        "Yaqin muddatli (expiry_notify_days) → korxona adminiga bildirishnoma. "
+        "Takror bildirishnoma bloklanadi (aggregate_id idempotentlik)."
+    ),
+    status_code=200,
+)
+async def expiry_scan(
+    current_user: AppUser = require_permission(Module.POS, Action.CREATE),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await mark_expired_inventory(db=db)
+    return result
 
 
 @router.get(

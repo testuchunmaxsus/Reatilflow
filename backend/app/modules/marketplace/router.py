@@ -613,7 +613,18 @@ async def accept_order(
 
 
 def _build_inventory_out(inv) -> StoreInventoryOut:
-    """StoreInventory ORM → StoreInventoryOut Pydantic sxemasi."""
+    """
+    StoreInventory ORM → StoreInventoryOut Pydantic sxemasi.
+
+    MP4: is_expired, is_near_expiry, days_to_expiry bayroqlari hisoblanadi.
+    """
+    from app.core.config import settings
+    from app.modules.pos.expiry import is_expired, is_near_expiry, days_to_expiry
+
+    _expired = is_expired(inv)
+    _near = is_near_expiry(inv, days=settings.pos_expiry_block_days)
+    _days = days_to_expiry(inv)
+
     return StoreInventoryOut(
         id=inv.id,
         enterprise_id=inv.enterprise_id,
@@ -627,6 +638,9 @@ def _build_inventory_out(inv) -> StoreInventoryOut:
         status=inv.status,
         source_order_id=inv.source_order_id,
         created_at=inv.created_at,
+        is_expired=_expired,
+        is_near_expiry=_near,
+        days_to_expiry=_days,
     )
 
 

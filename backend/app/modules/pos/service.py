@@ -41,13 +41,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.errors import AppError
 from app.core.uuid7 import uuid7
 from app.models.catalog import Product, ProductPrice
 from app.models.outbox import OutboxEvent
 from app.models.pos import PosSale, PosSaleLine
 from app.models.store import Store
+from app.models.store_inventory import StoreInventory
 from app.models.user import AppUser
+from app.modules.pos.expiry import is_expired, is_near_expiry
 from app.modules.pos.schemas import (
     DailySummaryOut,
     PaymentMethodSummary,
@@ -238,12 +241,12 @@ async def create_sale(
     # ── 4. Do'kon segmenti — server tomonidan ─────────────────────────────
     store_segment_id: uuid.UUID | None = store.segment_id
 
-    # ── 5. Har qator uchun mahsulot + narx tekshiruvi ─────────────────────
-    # (product, unit_price, line_total)
+    # ── 5. Har qator uchun StoreInventory + expiry tekshiruvi ────────────────
+    # resolved_lines: (line_in, inventory_item, unit_price, line_total)
     resolved_lines: list[tuple] = []
 
     for line_in in data.lines:
-        # Mahsulot mavjudligi
+        # ── 5a. Mahsulot mavjudligi ───────────────────────────────────────
         prod_stmt = select(Product).where(
             Product.id == line_in.product_id,
             Product.is_active.is_(True),
@@ -253,24 +256,87 @@ async def create_sale(
         if product is None:
             raise AppError("pos.product_not_found", status_code=404)
 
-        # Narx: FAQAT server tomonida, do'kon segmenti bo'yicha (CRITICAL)
-        if store_segment_id is None:
-            raise AppError("pos.no_price", status_code=422)
+        # ── 5b. StoreInventory: do'kon + mahsulot bo'yicha yaqinroq partiya ─
+        # Avval har holat bo'lgan inventarni topib, expiry tekshirish.
+        # Keyin faqat active + qty>0 bo'lsa sotish.
+        # PASS-1: har holat (status ixtiyoriy) — expiry blok tekshirish uchun
+        any_inv_stmt = (
+            select(StoreInventory)
+            .where(
+                StoreInventory.enterprise_id == enterprise_id,
+                StoreInventory.store_id == data.store_id,
+                StoreInventory.product_id == line_in.product_id,
+            )
+            .order_by(StoreInventory.created_at.asc())
+            .limit(1)
+        )
+        any_inv_result = await db.execute(any_inv_stmt)
+        any_inv_item = any_inv_result.scalar_one_or_none()
 
-        cat_price = await _get_product_price(db, line_in.product_id, store_segment_id)
-        if cat_price is None:
-            raise AppError("pos.no_price", status_code=422)
+        # Inventar bazada bor — expiry va blok tekshiruvi
+        now_dt = _now()
+        block_days = settings.pos_expiry_block_days
+        if any_inv_item is not None:
+            # ── 5c. EXPIRY blok (KRITIK) ──────────────────────────────────
+            # is_expired: status='expired' YOKI expiry_date < today
+            # is_near_expiry: expiry_date <= today + pos_expiry_block_days
+            if is_expired(any_inv_item, now_dt) or is_near_expiry(any_inv_item, now_dt, days=block_days):
+                raise AppError("pos.product_expired", status_code=422)
 
-        unit_price = cat_price
+        # PASS-2: faqat active + qty>0 partiya — sotuv uchun
+        inv_stmt = (
+            select(StoreInventory)
+            .where(
+                StoreInventory.enterprise_id == enterprise_id,
+                StoreInventory.store_id == data.store_id,
+                StoreInventory.product_id == line_in.product_id,
+                StoreInventory.status == "active",
+                StoreInventory.qty > Decimal("0"),
+            )
+            .order_by(StoreInventory.created_at.asc())
+            .limit(1)
+        )
+        inv_result = await db.execute(inv_stmt)
+        inv_item = inv_result.scalar_one_or_none()
+
+        if inv_item is None:
+            # Inventarda sotuvga yaroqli topilmadi → katalog narxiga fallback
+            # (eski testlar uchun backward-compat: inventarsiz do'kon ham sotishi mumkin)
+            if store_segment_id is None:
+                raise AppError("pos.no_price", status_code=422)
+            cat_price = await _get_product_price(db, line_in.product_id, store_segment_id)
+            if cat_price is None:
+                raise AppError("pos.no_price", status_code=422)
+
+            unit_price = cat_price
+            line_total = (unit_price * line_in.qty).quantize(Decimal("0.01"))
+            if line_total < Decimal("0"):
+                line_total = Decimal("0.00")
+            resolved_lines.append((line_in, None, unit_price, line_total))
+            continue
+
+        # ── 5d. Yetarli qty tekshiruvi ────────────────────────────────────
+        if inv_item.qty < line_in.qty:
+            raise AppError(
+                "pos.insufficient_inventory",
+                status_code=422,
+                params={
+                    "available": str(inv_item.qty),
+                    "requested": str(line_in.qty),
+                },
+            )
+
+        # ── 5e. Narx — inventardan (server-avtoritar) ─────────────────────
+        unit_price = inv_item.sale_price
         line_total = (unit_price * line_in.qty).quantize(Decimal("0.01"))
         if line_total < Decimal("0"):
             line_total = Decimal("0.00")
 
-        resolved_lines.append((line_in, unit_price, line_total))
+        resolved_lines.append((line_in, inv_item, unit_price, line_total))
 
     # ── 6. total_amount hisoblash ─────────────────────────────────────────
     total_amount = Decimal(
-        str(sum(lt for _, _, lt in resolved_lines))
+        str(sum(lt for _, _, _, lt in resolved_lines))
     ).quantize(Decimal("0.01"))
 
     # ── 7. PosSale INSERT ─────────────────────────────────────────────────
@@ -319,8 +385,8 @@ async def create_sale(
                 raise AppError("pos.idempotency_conflict", status_code=409) from exc
         raise AppError("pos.idempotency_conflict", status_code=409) from exc
 
-    # ── 8. PosSaleLine INSERT ─────────────────────────────────────────────
-    for line_in, unit_price, line_total in resolved_lines:
+    # ── 8. PosSaleLine INSERT + StoreInventory atomik qty deduktsiyasi ────
+    for line_in, inv_item, unit_price, line_total in resolved_lines:
         sl = PosSaleLine(
             sale_id=sale.id,
             product_id=line_in.product_id,
@@ -330,6 +396,12 @@ async def create_sale(
             enterprise_id=enterprise_id,
         )
         db.add(sl)
+
+        # Atomik qty kamaytiriladi (faqat inventar mavjud bo'lsa)
+        if inv_item is not None:
+            inv_item.qty = inv_item.qty - line_in.qty
+            db.add(inv_item)
+
     await db.flush()
 
     # ── 9. Outbox event ───────────────────────────────────────────────────

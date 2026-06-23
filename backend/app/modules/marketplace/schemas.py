@@ -313,6 +313,11 @@ class StoreInventoryOut(BaseModel):
     cost_price = buyurtma narxi (tan narx).
     sale_price = cost_price * (1 + markup_percent/100) — serverda hisoblanadi.
     expiry_date = yaroqlilik muddati (MP4 asos).
+
+    MP4 expiry bayroqlari (UI qizil ko'rsatishi uchun):
+      is_expired      — muddati o'tgan (sotuv bloklanadi).
+      is_near_expiry  — yaqinda tugaydi (konfigdan: pos_expiry_block_days).
+      days_to_expiry  — qolgan kun soni (manfiy = o'tgan, None = expiry yo'q).
     """
 
     id: uuid.UUID
@@ -327,6 +332,17 @@ class StoreInventoryOut(BaseModel):
     status: str = Field(..., description="active | expired")
     source_order_id: uuid.UUID | None = None
     created_at: datetime
+
+    # MP4: Expiry bayroqlari — UI qizil ko'rsatish uchun
+    is_expired: bool = Field(False, description="True — muddati o'tgan (sotuv bloklanadi)")
+    is_near_expiry: bool = Field(
+        False,
+        description="True — yaqinda tugaydi (POS blok chegarasida yoki undan kam)",
+    )
+    days_to_expiry: int | None = Field(
+        None,
+        description="Muddatgacha qolgan kunlar (manfiy = o'tgan, None = cheksiz)",
+    )
 
     model_config = {"from_attributes": True}
 

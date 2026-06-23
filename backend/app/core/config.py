@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # Dev default: T11 da ishlatiladigan fixed UUID.
     default_warehouse_id: str = "ffffcccc-0000-7000-8000-aaaaaaaaaaaa"
 
+    # ─── Expiry (MP4) ───────────────────────────────────────────────────────────
+    # Korxonaga bildirishnoma chegarasi (kun): expiry_date <= now + N → bildirishnoma
+    expiry_notify_days: int = 2
+    # POS sotuv blok chegarasi (kun): expiry_date <= now + N → sotuv bloklanadi
+    pos_expiry_block_days: int = 3
+
     # ─── Sync (T13) ─────────────────────────────────────────────────────────
     # Push batch maksimal operatsiyalar soni
     sync_max_batch: int = 100

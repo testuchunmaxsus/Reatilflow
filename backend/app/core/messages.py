@@ -410,6 +410,18 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Sotuv topilmadi",
         "ru": "Продажа не найдена",
     },
+    "pos.product_expired": {
+        "uz": "Mahsulot yaroqsiz — muddat o'tgan yoki yaqinda tugaydi: sotib bo'lmaydi",
+        "ru": "Товар недействителен — срок истёк или скоро истечёт: продажа невозможна",
+    },
+    "pos.insufficient_inventory": {
+        "uz": "Do'kon inventarida yetarli miqdor yo'q: mavjud={available}, so'ralgan={requested}",
+        "ru": "Недостаточное количество в инвентаре магазина: доступно={available}, запрошено={requested}",
+    },
+    "pos.inventory_not_found": {
+        "uz": "Do'kon inventarida mahsulot topilmadi",
+        "ru": "Товар не найден в инвентаре магазина",
+    },
     "pos.empty_lines": {
         "uz": "Sotuv qatorlari bo'sh bo'lishi mumkin emas",
         "ru": "Строки продажи не могут быть пустыми",
@@ -487,6 +499,16 @@ MESSAGES: dict[str, dict[str, str]] = {
     "marketplace.order_idempotency_conflict": {
         "uz": "Bu client_uuid boshqa foydalanuvchi tomonidan allaqachon ishlatilgan",
         "ru": "Данный client_uuid уже использован другим пользователем",
+    },
+
+    # ── Inventar (MP4) — Expiry bildirishnoma ───────────────────────────────
+    "inventory.expiring_soon": {
+        "uz": "Inventar muddati yaqinlashmoqda: {product_name} ({days} kun qoldi), do'kon: {store_name}",
+        "ru": "Срок годности инвентаря истекает: {product_name} (осталось {days} дн.), магазин: {store_name}",
+    },
+    "inventory.marked_expired": {
+        "uz": "Inventar muddati o'tgan deb belgilandi: {count} ta partiya",
+        "ru": "Инвентарь помечен как просроченный: {count} партий",
     },
 
     # ── Marketplace (MP3) — Yetkazish oqimi ─────────────────────────────────
