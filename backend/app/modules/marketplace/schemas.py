@@ -1,5 +1,5 @@
 """
-Marketplace moduli Pydantic v2 sxemalari — MP1 + MP2 + MP3.
+Marketplace moduli Pydantic v2 sxemalari — MP1 + MP2 + MP3 + MP5.
 
 MP1 sxemalar:
   MarketplaceProductOut     — browse ro'yxat va bitta mahsulot javobi
@@ -22,6 +22,13 @@ MP3 sxemalar:
   MarketplaceAcceptIn       — accept so'rovi tanasi (lines_info, store_id)
   StoreInventoryOut         — inventar partiyasi javobi
   PaginatedStoreInventory   — paginated inventar ro'yxati
+
+MP5 sxemalar:
+  AdBannerCreate            — banner yaratish so'rovi tanasi
+  AdBannerPatch             — banner tahrirlash (PATCH) tanasi
+  AdBannerOut               — banner javobi
+  MarketplacePromoOut       — qaynoq aksiya javobi (cross-tenant, featured)
+  PromoMarketplaceToggle    — PATCH /promos/{id}/marketplace-featured tanasi
 """
 
 from __future__ import annotations
@@ -354,3 +361,113 @@ class PaginatedStoreInventory(BaseModel):
     total: int = Field(..., description="Jami yozuvlar soni")
     limit: int = Field(..., description="So'rovdagi limit")
     offset: int = Field(..., description="So'rovdagi offset")
+
+
+# ─── MP5: Reklama banner sxemalari ───────────────────────────────────────────
+
+
+class AdBannerCreate(BaseModel):
+    """
+    POST /marketplace/banners tanasi.
+
+    Korxona o'z reklamasini yaratadi (enterprise-scoped).
+    image_url keyinchalik POST /marketplace/banners/{id}/image orqali yuklanadi.
+    """
+
+    title: str = Field(..., min_length=1, max_length=255, description="Banner sarlavhasi")
+    image_url: str | None = Field(None, description="Banner rasmi URL (ixtiyoriy, yuklab qo'shiladi)")
+    target_url: str | None = Field(
+        None,
+        max_length=2000,
+        description="Bosilganda yo'naltiriladigan URL (tashqi havola)",
+    )
+    target_product_id: uuid.UUID | None = Field(
+        None,
+        description="Bosilganda yo'naltiriladigan mahsulot UUID (target_url o'rniga)",
+    )
+    is_active: bool = Field(True, description="Aktiv holat (default True)")
+    priority: int = Field(0, ge=0, description="Ko'rsatish ustuvorligi (yuqori = birinchi, default 0)")
+    valid_from: date = Field(..., description="Ko'rsatish boshlanish sanasi (YYYY-MM-DD)")
+    valid_to: date = Field(..., description="Ko'rsatish tugash sanasi (YYYY-MM-DD)")
+
+
+class AdBannerPatch(BaseModel):
+    """
+    PATCH /marketplace/banners/{id} tanasi.
+
+    Faqat berilgan maydonlar yangilanadi (qisman yangilash).
+    Korxona faqat O'Z bannerini tahrirlaydi (enterprise-scoped, IDOR-safe).
+    """
+
+    title: str | None = Field(None, min_length=1, max_length=255)
+    image_url: str | None = Field(None)
+    target_url: str | None = Field(None, max_length=2000)
+    target_product_id: uuid.UUID | None = Field(None)
+    is_active: bool | None = Field(None)
+    priority: int | None = Field(None, ge=0)
+    valid_from: date | None = Field(None)
+    valid_to: date | None = Field(None)
+
+
+class AdBannerOut(BaseModel):
+    """
+    Reklama banner javobi.
+
+    enterprise_id qaytadi (kim reklamasi ekanligini bildirish uchun).
+    """
+
+    id: uuid.UUID
+    enterprise_id: uuid.UUID
+    title: str
+    image_url: str | None
+    target_url: str | None
+    target_product_id: uuid.UUID | None
+    is_active: bool
+    priority: int
+    valid_from: date
+    valid_to: date
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ─── MP5: Qaynoq aksiya sxemalari ────────────────────────────────────────────
+
+
+class MarketplacePromoOut(BaseModel):
+    """
+    Qaynoq aksiya javobi — GET /marketplace/promos da qaytadi.
+
+    cross-tenant (barcha korxonalar featured aksiyalari).
+    supplier_name: aksiya beruvchi korxona nomi.
+    Faqat is_active=True + marketplace_featured=True + valid sana.
+    """
+
+    id: uuid.UUID
+    name_uz: str
+    name_ru: str
+    promo_type: str
+    rule_json: dict
+    banner_url: str | None
+    valid_from: date
+    valid_to: date
+    is_active: bool
+    marketplace_featured: bool
+
+    # Supplier korxona ma'lumotlari (cross-tenant ko'rsatish uchun)
+    enterprise_id: uuid.UUID = Field(..., description="Aksiya beruvchi korxona ID")
+    supplier_name: str = Field(..., description="Aksiya beruvchi korxona nomi")
+
+    model_config = {"from_attributes": True}
+
+
+class PromoMarketplaceToggle(BaseModel):
+    """
+    PATCH /promos/{id}/marketplace-featured tanasi.
+
+    featured=True → aksiya marketplace'da qaynoq sifatida ko'rinadi.
+    featured=False → marketplace'dan olib tashlanadi.
+    """
+
+    featured: bool = Field(..., description="True = marketplace qaynoq aksiya, False = olish")

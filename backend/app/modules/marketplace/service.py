@@ -1,5 +1,5 @@
 """
-Marketplace servis qatlami — MP1 + MP2 + MP3.
+Marketplace servis qatlami — MP1 + MP2 + MP3 + MP5.
 
 MP1 funksiyalar:
   browse_products(db, filters...) → (list[ProductWithEnterprise], total)
@@ -25,6 +25,24 @@ MP3 funksiyalar (yetkazish oqimi):
     Atomik: har line → StoreInventory yozuvi (cost=unit_price, sale=cost*(1+markup/100)).
     Outbox: marketplace.order_accepted.
 
+MP5 funksiyalar (banner + qaynoq aksiya):
+  list_active_banners(db, limit) → list[AdBanner]
+    cross-tenant, is_active + valid sana + priority tartib.
+  create_banner(db, data, enterprise_id) → AdBanner
+    enterprise-scoped yaratish (korxona o'z reklamasi).
+  get_banner_for_enterprise(db, banner_id, enterprise_id) → AdBanner
+    IDOR-safe: faqat o'z korxonasi banneri.
+  patch_banner(db, banner_id, data, enterprise_id, is_superadmin) → AdBanner
+    enterprise-scoped tahrirlash; superadmin har qanday bannerni tahrirlaydi.
+  delete_banner(db, banner_id, enterprise_id, is_superadmin) → None
+    enterprise-scoped o'chirish; superadmin har qanday bannerni o'chiradi.
+  update_banner_image(db, banner_id, image_url, enterprise_id, is_superadmin) → AdBanner
+    Banner rasm URL yangilash (MinIO yuklash keyin).
+  list_marketplace_promos(db, limit) → list[(Promo, Enterprise)]
+    cross-tenant: marketplace_featured + is_active + valid sana.
+  toggle_promo_featured(db, promo_id, enterprise_id, featured) → Promo
+    Korxona O'Z aksiyasini featured qiladi (enterprise-scoped, IDOR-safe).
+
 Xavfsizlik qoidalari (MP1):
   - marketplace_published=True QATTIQ SHART — hech qachon published emas
     mahsulot cross-tenant oqmasligi.
@@ -44,6 +62,17 @@ Xavfsizlik qoidalari (MP3):
   - deliver: FAQAT tayinlangan kuryer (courier_id == current_user.id).
   - accept: FAQAT buyer korxona (admin/store).
   - 3-korxona → 404.
+
+Xavfsizlik qoidalari (MP5 banner):
+  - create/patch/delete: FAQAT korxona O'Z banneri (enterprise_id == enterprise_id).
+  - Superadmin har qanday bannerni moderatsiya qila oladi (is_active toggle).
+  - list_active_banners: cross-tenant (faqat is_active + valid_from<=bugun<=valid_to).
+  - IDOR: boshqa korxona banneri → 404 (mavjudlikni oshkor qilmaslik).
+
+Xavfsizlik qoidalari (MP5 promo):
+  - toggle_featured: FAQAT korxona O'Z aksiyasi (enterprise_id filtr — IDOR-safe).
+  - list_marketplace_promos: cross-tenant, faqat marketplace_featured=True + aktiv + valid.
+  - Featured emas aksiyalar oqmaydi (izolyatsiya kafolati).
 """
 
 from __future__ import annotations
@@ -58,10 +87,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.core.uuid7 import uuid7
+from app.models.ad_banner import AdBanner
 from app.models.catalog import Product, ProductPrice
 from app.models.enterprise import Enterprise
 from app.models.marketplace import MarketplaceOrder, MarketplaceOrderLine, MP_VALID_TRANSITIONS
 from app.models.outbox import OutboxEvent
+from app.models.promo import Promo
 from app.models.store_inventory import StoreInventory
 from app.models.user import AppUser
 
@@ -1259,3 +1290,347 @@ async def list_store_inventory(
     result = await db.execute(stmt)
     items = list(result.scalars().all())
     return items, total
+
+
+# ─── MP5: Reklama banner funksiyalari ─────────────────────────────────────────
+
+
+async def list_active_banners(
+    db: AsyncSession,
+    limit: int = 5,
+) -> list[AdBanner]:
+    """
+    Marketplace uchun aktiv bannerlar ro'yxatini qaytaradi (cross-tenant).
+
+    QOIDALAR:
+      - is_active=True MAJBURIY.
+      - valid_from <= bugun <= valid_to MAJBURIY.
+      - priority kamayish tartibida (yuqori son birinchi).
+      - limit bilan cheklanadi (halaqit bermaslik uchun, default 5).
+      - cross-tenant: enterprise_id filtri qo'llanmaydi.
+
+    Args:
+        db:    AsyncSession
+        limit: Maksimal bannerlar soni (default 5)
+
+    Returns:
+        AdBanner ro'yxati (priority kamayish tartibida).
+    """
+    today = datetime.now(timezone.utc).date()
+    stmt = (
+        select(AdBanner)
+        .where(
+            AdBanner.is_active.is_(True),
+            AdBanner.valid_from <= today,
+            AdBanner.valid_to >= today,
+        )
+        .order_by(AdBanner.priority.desc(), AdBanner.created_at.asc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def create_banner(
+    db: AsyncSession,
+    data,
+    enterprise_id: uuid.UUID,
+) -> AdBanner:
+    """
+    Korxona O'Z reklamasini yaratadi (enterprise-scoped).
+
+    XAVFSIZLIK:
+      - enterprise_id = current_user.enterprise_id — server avtoritar.
+      - Klient enterprise_id bera OLMAYDI.
+
+    Args:
+        db:            AsyncSession
+        data:          AdBannerCreate (Pydantic sxema)
+        enterprise_id: Korxona UUID (server tomonida o'rnatiladi)
+
+    Returns:
+        Yaratilgan AdBanner.
+
+    Raises:
+        AppError(422) — valid_to < valid_from bo'lsa.
+    """
+    if data.valid_to < data.valid_from:
+        raise AppError(
+            message_key="marketplace.banner_invalid_dates",
+            status_code=422,
+        )
+
+    banner = AdBanner(
+        id=uuid7(),
+        enterprise_id=enterprise_id,
+        title=data.title,
+        image_url=data.image_url,
+        target_url=data.target_url,
+        target_product_id=data.target_product_id,
+        is_active=data.is_active,
+        priority=data.priority,
+        valid_from=data.valid_from,
+        valid_to=data.valid_to,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db.add(banner)
+    await db.flush()
+    return banner
+
+
+async def _get_banner_scoped(
+    db: AsyncSession,
+    banner_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None,
+    is_superadmin: bool = False,
+) -> AdBanner:
+    """
+    Bannerli yuklash — enterprise-scoped yoki superadmin bypass.
+
+    XAVFSIZLIK:
+      - enterprise_id berilsa: faqat shu korxona banneri (IDOR-safe).
+      - is_superadmin=True: har qanday bannerni oladi.
+      - Topilmasa → 404 (mavjudlikni oshkor qilmaslik).
+
+    Returns:
+        AdBanner
+
+    Raises:
+        AppError(404) — topilmasa yoki boshqa korxona banneri.
+    """
+    stmt = select(AdBanner).where(AdBanner.id == banner_id)
+
+    if not is_superadmin and enterprise_id is not None:
+        stmt = stmt.where(AdBanner.enterprise_id == enterprise_id)
+
+    result = await db.execute(stmt)
+    banner = result.scalar_one_or_none()
+
+    if banner is None:
+        raise AppError(
+            message_key="marketplace.banner_not_found",
+            status_code=404,
+        )
+    return banner
+
+
+async def get_banner_for_enterprise(
+    db: AsyncSession,
+    banner_id: uuid.UUID,
+    enterprise_id: uuid.UUID,
+) -> AdBanner:
+    """
+    Korxona O'Z bannerini oladi (IDOR-safe).
+
+    Raises:
+        AppError(404) — boshqa korxona banneri yoki topilmasa.
+    """
+    return await _get_banner_scoped(db, banner_id, enterprise_id, is_superadmin=False)
+
+
+async def patch_banner(
+    db: AsyncSession,
+    banner_id: uuid.UUID,
+    data,
+    enterprise_id: uuid.UUID | None,
+    is_superadmin: bool = False,
+) -> AdBanner:
+    """
+    Bannerni qisman yangilaydi (PATCH).
+
+    XAVFSIZLIK:
+      - enterprise_id bilan: faqat O'Z banneri tahrir (IDOR-safe).
+      - is_superadmin=True: superadmin har qanday bannerni tahrirlaydi
+        (moderatsiya: is_active toggle).
+
+    Args:
+        db:            AsyncSession
+        banner_id:     Banner UUID
+        data:          AdBannerPatch (Pydantic sxema — faqat berilgan maydonlar)
+        enterprise_id: Korxona UUID (None = superadmin)
+        is_superadmin: Superadmin belgisi
+
+    Returns:
+        Yangilangan AdBanner.
+
+    Raises:
+        AppError(404) — topilmasa yoki IDOR.
+        AppError(422) — valid_to < valid_from.
+    """
+    banner = await _get_banner_scoped(db, banner_id, enterprise_id, is_superadmin)
+
+    if data.title is not None:
+        banner.title = data.title
+    if data.image_url is not None:
+        banner.image_url = data.image_url
+    if "target_url" in data.model_fields_set:
+        banner.target_url = data.target_url
+    if "target_product_id" in data.model_fields_set:
+        banner.target_product_id = data.target_product_id
+    if data.is_active is not None:
+        banner.is_active = data.is_active
+    if data.priority is not None:
+        banner.priority = data.priority
+    if data.valid_from is not None:
+        banner.valid_from = data.valid_from
+    if data.valid_to is not None:
+        banner.valid_to = data.valid_to
+
+    # Sana izchilligini tekshirish
+    if banner.valid_to < banner.valid_from:
+        raise AppError(
+            message_key="marketplace.banner_invalid_dates",
+            status_code=422,
+        )
+
+    banner.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+    return banner
+
+
+async def delete_banner(
+    db: AsyncSession,
+    banner_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None,
+    is_superadmin: bool = False,
+) -> None:
+    """
+    Bannerni o'chiradi (qattiq o'chirish — ad_banner jadvalidan DELETE).
+
+    XAVFSIZLIK:
+      - enterprise_id bilan: faqat O'Z banneri o'chirish (IDOR-safe).
+      - is_superadmin=True: superadmin har qanday bannerni o'chiradi.
+
+    Raises:
+        AppError(404) — topilmasa yoki IDOR.
+    """
+    banner = await _get_banner_scoped(db, banner_id, enterprise_id, is_superadmin)
+    await db.delete(banner)
+    await db.flush()
+
+
+async def update_banner_image(
+    db: AsyncSession,
+    banner_id: uuid.UUID,
+    image_url: str,
+    enterprise_id: uuid.UUID | None,
+    is_superadmin: bool = False,
+) -> AdBanner:
+    """
+    Banner rasm URL ni yangilaydi (MinIO upload'dan keyin chaqiriladi).
+
+    XAVFSIZLIK:
+      - enterprise_id bilan: faqat O'Z banneri (IDOR-safe).
+      - is_superadmin=True: superadmin bypass.
+
+    Args:
+        db:          AsyncSession
+        banner_id:   Banner UUID
+        image_url:   MinIO dan qaytgan URL
+        enterprise_id: Korxona UUID (None = superadmin)
+        is_superadmin: Superadmin belgisi
+
+    Returns:
+        Yangilangan AdBanner.
+
+    Raises:
+        AppError(404) — topilmasa yoki IDOR.
+    """
+    banner = await _get_banner_scoped(db, banner_id, enterprise_id, is_superadmin)
+    banner.image_url = image_url
+    banner.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+    return banner
+
+
+# ─── MP5: Qaynoq aksiya (marketplace promo) funksiyalari ─────────────────────
+
+
+async def list_marketplace_promos(
+    db: AsyncSession,
+    limit: int = 20,
+) -> list[tuple[Promo, Enterprise]]:
+    """
+    Marketplace'da ko'rinadigan qaynoq aksiyalar (cross-tenant).
+
+    QOIDALAR:
+      - marketplace_featured=True MAJBURIY — izolyatsiya kafolati.
+      - is_active=True MAJBURIY.
+      - valid_from <= bugun <= valid_to MAJBURIY.
+      - deleted_at IS NULL.
+      - cross-tenant: enterprise_id filtri qo'llanmaydi.
+      - Har aksiya bilan birga supplier korxona nomi qaytadi.
+      - Featured EMAS aksiyalar HECH QACHON oqmaydi (izolyatsiya).
+
+    Args:
+        db:    AsyncSession
+        limit: Maksimal aksiyalar soni (default 20)
+
+    Returns:
+        list of (Promo, Enterprise) uchliklar.
+    """
+    today = datetime.now(timezone.utc).date()
+    stmt = (
+        select(Promo, Enterprise)
+        .join(Enterprise, Promo.enterprise_id == Enterprise.id)
+        .where(
+            Promo.deleted_at.is_(None),
+            Promo.is_active.is_(True),
+            Promo.marketplace_featured.is_(True),
+            Promo.valid_from <= today,
+            Promo.valid_to >= today,
+            Enterprise.deleted_at.is_(None),
+            Enterprise.status == "active",
+        )
+        .order_by(Promo.valid_from.asc(), Promo.created_at.asc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return [(row[0], row[1]) for row in result.all()]
+
+
+async def toggle_promo_featured(
+    db: AsyncSession,
+    promo_id: uuid.UUID,
+    enterprise_id: uuid.UUID,
+    featured: bool,
+) -> Promo:
+    """
+    Korxona O'Z aksiyasini marketplace'da featured qiladi (opt-in).
+
+    XAVFSIZLIK (KRITIK — IDOR-safe):
+      - enterprise_id == promo.enterprise_id tekshiriladi.
+      - Boshqa korxona aksiyasini featured qilishga urinish → 404.
+      - Server tomonida enterprise_id o'rnatiladi (klient bera olmaydi).
+
+    Args:
+        db:            AsyncSession
+        promo_id:      Aksiya UUID
+        enterprise_id: Joriy korxona UUID (server tomonida)
+        featured:      True = marketplace qaynoq, False = olib tashlash
+
+    Returns:
+        Yangilangan Promo.
+
+    Raises:
+        AppError(404) — aksiya topilmasa yoki boshqa korxona aksiyasi (IDOR).
+    """
+    stmt = select(Promo).where(
+        Promo.id == promo_id,
+        Promo.enterprise_id == enterprise_id,  # IDOR himoyasi — MAJBURIY
+        Promo.deleted_at.is_(None),
+    )
+    result = await db.execute(stmt)
+    promo = result.scalar_one_or_none()
+
+    if promo is None:
+        raise AppError(
+            message_key="promo.not_found",
+            status_code=404,
+        )
+
+    promo.marketplace_featured = featured
+    promo.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+    return promo

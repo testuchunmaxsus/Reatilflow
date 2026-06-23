@@ -35,6 +35,7 @@ from app.core.redis import get_redis
 from app.core.storage import StorageBackend, get_storage
 from app.models.user import AppUser
 from app.modules.promo import service
+from app.modules.marketplace.schemas import PromoMarketplaceToggle
 from app.modules.promo.schemas import (
     PaginatedPromos,
     PromoCreate,
@@ -262,3 +263,60 @@ async def delete_promo(
         enterprise_id=enterprise_id,
     )
     await db.commit()
+
+
+# ─── MP5: Marketplace featured toggle ────────────────────────────────────────
+
+
+@router.patch(
+    "/{promo_id}/marketplace-featured",
+    response_model=PromoOut,
+    summary="Aksiyani marketplace'da featured qilish (administrator)",
+    description=(
+        "Korxona O'Z aksiyasini marketplace'da 'qaynoq' sifatida ko'rsatadi. "
+        "featured=True → GET /marketplace/promos da ko'rinadi (cross-tenant). "
+        "featured=False → marketplace'dan olib tashlanadi. "
+        "IDOR-safe: faqat O'Z korxonasi aksiyasi (boshqasi → 404)."
+    ),
+    responses={
+        200: {"description": "Aksiya marketplace featured holati yangilandi"},
+        403: {"description": "Ruxsat yo'q (faqat administrator)"},
+        404: {"description": "Aksiya topilmadi yoki boshqa korxona aksiyasi (IDOR)"},
+    },
+)
+async def toggle_marketplace_featured(
+    promo_id: uuid.UUID,
+    body: PromoMarketplaceToggle,
+    current_user: AppUser = require_permission(Module.PROMO, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> PromoOut:
+    """
+    Aksiyani marketplace'da featured qilish/olib tashlash.
+
+    XAVFSIZLIK (IDOR-safe):
+      - enterprise_id = current_user.enterprise_id — server tomonida.
+      - Boshqa korxona aksiyasini featured qilishga urinish → 404.
+      - Superadmin uchun: enterprise_id=None → bazaga enterprise_id filtri yo'q
+        (superadmin ham faqat O'Z korxonasi aksiyasini emas, ammо bu holat
+        superadmin uchun enterprise_id bo'lmasligi tufayli 404 bo'ladi —
+        superadmin promo yarata OLMAYDI, enterprise kerak).
+    """
+    from app.modules.marketplace import service as mp_service
+
+    enterprise_id = get_current_enterprise_id(current_user)
+    if enterprise_id is None:
+        from app.core.errors import AppError
+        raise AppError(
+            message_key="promo.not_found",
+            status_code=404,
+        )
+
+    promo = await mp_service.toggle_promo_featured(
+        db,
+        promo_id=promo_id,
+        enterprise_id=enterprise_id,
+        featured=body.featured,
+    )
+    await db.commit()
+    await db.refresh(promo)
+    return PromoOut.model_validate(promo)

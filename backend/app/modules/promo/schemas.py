@@ -120,6 +120,7 @@ class PromoOut(BaseModel):
     target_segment_id: uuid.UUID | None
     target_product_id: uuid.UUID | None
     is_active: bool
+    marketplace_featured: bool = False
     branch_id: uuid.UUID | None
     client_uuid: uuid.UUID | None
     version: int

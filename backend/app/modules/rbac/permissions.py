@@ -252,6 +252,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p("enterprise", "suspend", "activate", "module_toggle")
         # RBAC va audit — platforma darajasida
         | _p(Module.RBAC, Action.VIEW, Action.CREATE, Action.EDIT, Action.DELETE)
+        # MP5: Marketplace banner moderatsiya — superadmin aktiv/deaktiv qiladi
+        # LEKIN enterprise_id=None bo'lgani uchun banner yarata OLMAYDI (service tekshiradi)
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT)
         # Barcha modul ko'rinishi (statistika uchun) — LEKIN tenant ma'lumoti emas
         # MT4 da to'liq aniqlanadi; hozir minimal set
     ),

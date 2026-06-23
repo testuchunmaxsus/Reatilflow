@@ -20,32 +20,51 @@ Endpointlar (MP3 — Yetkazish):
   PATCH  /marketplace/orders/{id}/accept   — qabul (buyer do'kon/admin, inventar yaratiladi)
   GET    /marketplace/inventory            — do'kon inventari (buyer korxona, tenant-scoped)
 
+Endpointlar (MP5 — Banner + Qaynoq aksiyalar):
+  GET    /marketplace/banners              — aktiv bannerlar (cross-tenant browse, limit=5)
+  POST   /marketplace/banners             — banner yaratish (korxona admin)
+  PATCH  /marketplace/banners/{id}        — banner tahrirlash (o'z korxona yoki superadmin)
+  DELETE /marketplace/banners/{id}        — banner o'chirish (o'z korxona yoki superadmin)
+  POST   /marketplace/banners/{id}/image  — banner rasm yuklash (MinIO)
+  GET    /marketplace/promos              — qaynoq aksiyalar (cross-tenant, featured)
+
 XAVFSIZLIK (MP3):
   - ship: FAQAT supplier korxona (admin/accountant) — marketplace:edit.
   - deliver: FAQAT tayinlangan kuryer — marketplace:edit (courier roli).
   - accept: FAQAT buyer korxona (admin/store) — marketplace:edit.
   - inventory: buyer korxona foydalanuvchisi — marketplace:view.
   - 3-korxona → 404.
+
+XAVFSIZLIK (MP5):
+  - banner browse: barcha (marketplace:view) — cross-tenant, faqat aktiv+valid.
+  - banner CRUD: administrator (marketplace:edit) — faqat O'Z korxonasi.
+  - superadmin: har qanday bannerni moderatsiya qiladi.
+  - promo featured: administrator (marketplace:edit + promo module) — IDOR-safe.
 """
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.i18n import current_locale, localized_name
+from app.core.storage import StorageBackend, get_storage
 from app.models.user import AppUser
 from app.modules.marketplace import service
 from app.modules.marketplace.schemas import (
+    AdBannerCreate,
+    AdBannerOut,
+    AdBannerPatch,
     MarketplaceAcceptIn,
     MarketplaceDeliverIn,
     MarketplaceOrderCreateIn,
     MarketplaceOrderOut,
     MarketplaceOrderRejectIn,
     MarketplaceProductOut,
+    MarketplacePromoOut,
     MarketplaceShipIn,
     MarketplaceSupplierOut,
     PaginatedMarketplace,
@@ -691,3 +710,264 @@ async def list_inventory(
         limit=limit,
         offset=(page - 1) * limit,
     )
+
+
+# ─── MP5: Reklama banner endpointlari ────────────────────────────────────────
+
+
+def _build_banner_out(banner) -> AdBannerOut:
+    """AdBanner ORM → AdBannerOut Pydantic sxemasi."""
+    return AdBannerOut(
+        id=banner.id,
+        enterprise_id=banner.enterprise_id,
+        title=banner.title,
+        image_url=banner.image_url,
+        target_url=banner.target_url,
+        target_product_id=banner.target_product_id,
+        is_active=banner.is_active,
+        priority=banner.priority,
+        valid_from=banner.valid_from,
+        valid_to=banner.valid_to,
+        created_at=banner.created_at,
+        updated_at=banner.updated_at,
+    )
+
+
+@router.get(
+    "/banners",
+    response_model=list[AdBannerOut],
+    summary="Marketplace aktiv bannerlari (cross-tenant browse)",
+    description=(
+        "Barcha korxonalarning aktiv bannerlarini qaytaradi. "
+        "Bu endpoint ATAYIN cross-tenant — korxona filtri qo'llanmaydi. "
+        "Halaqit bermaslik: faqat aktiv + valid sana + limit (default 5). "
+        "priority kamayish tartibida (yuqori birinchi). "
+        "Muddati o'tgan yoki o'chiq bannerlar ko'rinmaydi."
+    ),
+    responses={
+        200: {"description": "Aktiv bannerlar ro'yxati"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+    },
+)
+async def list_banners(
+    limit: int = Query(5, ge=1, le=20, description="Maksimal bannerlar soni (halaqit bermaslik uchun, max 20)"),
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.VIEW),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdBannerOut]:
+    """
+    Marketplace aktiv bannerlari — cross-tenant browse.
+
+    XAVFSIZLIK: faqat is_active=True + valid_from<=bugun<=valid_to bannerlar.
+    Nofaol yoki muddati o'tgan bannerlar HECH QACHON ko'rinmaydi.
+    """
+    banners = await service.list_active_banners(db, limit=limit)
+    return [_build_banner_out(b) for b in banners]
+
+
+@router.post(
+    "/banners",
+    response_model=AdBannerOut,
+    status_code=201,
+    summary="Banner yaratish (korxona admini)",
+    description=(
+        "Korxona O'Z reklamasini yaratadi. "
+        "enterprise_id SERVER TOMONIDA o'rnatiladi (klient bera olmaydi). "
+        "Rasm keyinchalik POST /marketplace/banners/{id}/image orqali yuklanadi."
+    ),
+    responses={
+        201: {"description": "Banner muvaffaqiyatli yaratildi"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+        422: {"description": "Noto'g'ri sanalar (valid_to < valid_from)"},
+    },
+)
+async def create_banner(
+    body: AdBannerCreate,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> AdBannerOut:
+    """
+    Banner yaratish — FAQAT administrator.
+
+    XAVFSIZLIK:
+      - enterprise_id = current_user.enterprise_id (server avtoritar).
+      - Superadmin (enterprise_id=None) banner yarata OLMAYDI (korxona kerak).
+    """
+    if current_user.enterprise_id is None:
+        from app.core.errors import AppError
+        raise AppError(
+            message_key="marketplace.banner_no_enterprise",
+            status_code=422,
+        )
+    banner = await service.create_banner(db, body, current_user.enterprise_id)
+    await db.commit()
+    return _build_banner_out(banner)
+
+
+@router.patch(
+    "/banners/{banner_id}",
+    response_model=AdBannerOut,
+    summary="Banner tahrirlash (o'z korxona yoki superadmin)",
+    description=(
+        "Bannerni qisman yangilaydi. "
+        "Korxona faqat O'Z bannerini tahrirlaydi (IDOR-safe). "
+        "Superadmin har qanday bannerni tahrirlaydi (moderatsiya: is_active toggle)."
+    ),
+    responses={
+        200: {"description": "Banner yangilandi"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+        404: {"description": "Banner topilmadi yoki boshqa korxona banneri (IDOR)"},
+        422: {"description": "Noto'g'ri sanalar"},
+    },
+)
+async def patch_banner(
+    banner_id: uuid.UUID,
+    body: AdBannerPatch,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> AdBannerOut:
+    """
+    Banner tahrirlash — korxona O'Z banneri yoki superadmin.
+
+    XAVFSIZLIK:
+      - enterprise_id bilan: faqat O'Z korxonasi banneri (IDOR himoyasi).
+      - Superadmin (enterprise_id=None): har qanday bannerni tahrirlaydi.
+    """
+    is_superadmin = current_user.enterprise_id is None
+    banner = await service.patch_banner(
+        db,
+        banner_id=banner_id,
+        data=body,
+        enterprise_id=current_user.enterprise_id,
+        is_superadmin=is_superadmin,
+    )
+    await db.commit()
+    return _build_banner_out(banner)
+
+
+@router.delete(
+    "/banners/{banner_id}",
+    status_code=204,
+    summary="Banner o'chirish (o'z korxona yoki superadmin)",
+    description=(
+        "Bannerni o'chiradi (qattiq o'chirish). "
+        "Korxona faqat O'Z bannerini o'chiradi. "
+        "Superadmin har qanday bannerni o'chiradi."
+    ),
+    responses={
+        204: {"description": "Banner o'chirildi"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+        404: {"description": "Banner topilmadi yoki boshqa korxona banneri (IDOR)"},
+    },
+)
+async def delete_banner(
+    banner_id: uuid.UUID,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Banner o'chirish — korxona O'Z banneri yoki superadmin.
+
+    XAVFSIZLIK: enterprise_id bilan IDOR himoyasi.
+    """
+    is_superadmin = current_user.enterprise_id is None
+    await service.delete_banner(
+        db,
+        banner_id=banner_id,
+        enterprise_id=current_user.enterprise_id,
+        is_superadmin=is_superadmin,
+    )
+    await db.commit()
+
+
+@router.post(
+    "/banners/{banner_id}/image",
+    response_model=AdBannerOut,
+    summary="Banner rasmi yuklash (MinIO)",
+    description=(
+        "Banner rasmi yuklash (JPEG/PNG/WebP, max 5MB). "
+        "Magic bytes validatsiya: faqat rasm formatlari. "
+        "Korxona faqat O'Z banneriga rasm yuklaydi. "
+        "Superadmin har qanday bannerga rasm yuklay oladi."
+    ),
+    responses={
+        200: {"description": "Rasm yuklandi, banner yangilandi"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+        404: {"description": "Banner topilmadi yoki boshqa korxona banneri (IDOR)"},
+        422: {"description": "Noto'g'ri rasm formati yoki hajmi"},
+    },
+)
+async def upload_banner_image(
+    banner_id: uuid.UUID,
+    file: UploadFile,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+    storage: StorageBackend = Depends(get_storage),
+) -> AdBannerOut:
+    """
+    Banner rasmi yuklash — korxona O'Z banneri yoki superadmin.
+
+    Magic-byte validatsiya storage ichida (JPEG/PNG/WebP, 5MB).
+    """
+    image_url = await storage.upload_product_photo(file)
+    is_superadmin = current_user.enterprise_id is None
+    banner = await service.update_banner_image(
+        db,
+        banner_id=banner_id,
+        image_url=image_url,
+        enterprise_id=current_user.enterprise_id,
+        is_superadmin=is_superadmin,
+    )
+    await db.commit()
+    return _build_banner_out(banner)
+
+
+# ─── MP5: Qaynoq aksiyalar endpointi ─────────────────────────────────────────
+
+
+@router.get(
+    "/promos",
+    response_model=list[MarketplacePromoOut],
+    summary="Marketplace qaynoq aksiyalar (cross-tenant, featured)",
+    description=(
+        "Barcha korxonalarning marketplace'da ko'rinadigan qaynoq aksiyalarini qaytaradi. "
+        "Bu endpoint ATAYIN cross-tenant — korxona filtri qo'llanmaydi. "
+        "Faqat: marketplace_featured=True + is_active=True + valid sana. "
+        "Har aksiyada supplier korxona nomi (supplier_name) qaytadi. "
+        "Featured EMAS aksiyalar HECH QACHON ko'rinmaydi (izolyatsiya kafolati)."
+    ),
+    responses={
+        200: {"description": "Qaynoq aksiyalar ro'yxati"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+    },
+)
+async def list_marketplace_promos(
+    limit: int = Query(20, ge=1, le=50, description="Maksimal aksiyalar soni (max 50)"),
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.VIEW),
+    db: AsyncSession = Depends(get_db),
+) -> list[MarketplacePromoOut]:
+    """
+    Marketplace qaynoq aksiyalari — cross-tenant browse.
+
+    XAVFSIZLIK: faqat marketplace_featured=True + aktiv + valid sana.
+    Featured emas aksiyalar HECH QACHON oqmaydi (izolyatsiya).
+    """
+    items = await service.list_marketplace_promos(db, limit=limit)
+    result = []
+    for promo, enterprise in items:
+        result.append(
+            MarketplacePromoOut(
+                id=promo.id,
+                name_uz=promo.name_uz,
+                name_ru=promo.name_ru,
+                promo_type=promo.promo_type,
+                rule_json=promo.rule_json,
+                banner_url=promo.banner_url,
+                valid_from=promo.valid_from,
+                valid_to=promo.valid_to,
+                is_active=promo.is_active,
+                marketplace_featured=promo.marketplace_featured,
+                enterprise_id=enterprise.id,
+                supplier_name=enterprise.name,
+            )
+        )
+    return result

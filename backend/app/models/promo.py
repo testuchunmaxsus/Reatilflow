@@ -146,6 +146,13 @@ class Promo(TimestampMixin, Base):
         comment="Aktiv holat",
     )
 
+    marketplace_featured: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Marketplace'da qaynoq aksiya sifatida ko'rsatish (opt-in, MP5)",
+    )
+
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,

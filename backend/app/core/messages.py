@@ -533,6 +533,34 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Указанный магазин не принадлежит данному предприятию или не найден",
     },
 
+    # ── Marketplace (MP5) — Reklama banner ──────────────────────────────────
+    "marketplace.banner_not_found": {
+        "uz": "Banner topilmadi yoki sizga tegishli emas",
+        "ru": "Баннер не найден или не принадлежит вам",
+    },
+    "marketplace.banner_invalid_dates": {
+        "uz": "Noto'g'ri sanalar: valid_to valid_from dan oldin bo'lishi mumkin emas",
+        "ru": "Некорректные даты: valid_to не может быть раньше valid_from",
+    },
+    "marketplace.banner_no_enterprise": {
+        "uz": "Banner yaratish uchun korxona kerak (superadmin banner yarata olmaydi)",
+        "ru": "Для создания баннера необходимо предприятие (суперадмин не может создавать баннеры)",
+    },
+    "marketplace.banner_storage_error": {
+        "uz": "Banner rasmini saqlash xizmati hozircha mavjud emas, keyinroq urinib ko'ring",
+        "ru": "Сервис хранения изображений баннера временно недоступен, попробуйте позже",
+    },
+
+    # ── Marketplace (MP5) — Qaynoq aksiyalar ────────────────────────────────
+    "marketplace.promo_not_featured": {
+        "uz": "Aksiya marketplace'da qaynoq sifatida belgilanmagan",
+        "ru": "Акция не отмечена как горячая на маркетплейсе",
+    },
+    "marketplace.promo_not_found": {
+        "uz": "Aksiya topilmadi yoki sizga tegishli emas",
+        "ru": "Акция не найдена или не принадлежит вам",
+    },
+
     # ── Umumiy ──────────────────────────────────────────────────────────────
     "common.not_found": {
         "uz": "So'ralgan resurs topilmadi",
