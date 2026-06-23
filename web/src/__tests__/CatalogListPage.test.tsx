@@ -73,6 +73,18 @@ const mockCategories = [
   },
 ];
 
+// ─── Enterprise mock ──────────────────────────────────────────────────────────
+
+vi.mock("@/enterprise/EnterpriseContext", () => ({
+  useEnterprise: () => ({
+    enterprise: { id: "ent-001", name: "Test", inn: null, status: "active", enabled_modules: ["catalog"] },
+    isLoading: false,
+    hasModule: (key: string) => key === "catalog",
+    refreshEnterprise: vi.fn(),
+  }),
+  EnterpriseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // ─── API mock ─────────────────────────────────────────────────────────────────
 
 vi.mock("@/api/client", async (importOriginal) => {

@@ -59,6 +59,11 @@ const SuperadminEnterprisesPage = lazy(() =>
 );
 // Enterprise settings
 import { EnterpriseSettingsPage } from "@/features/enterprise-settings/EnterpriseSettingsPage";
+// Marketplace
+import { MarketplaceLayout } from "@/features/marketplace/MarketplaceLayout";
+import { IncomingOrdersPage } from "@/features/marketplace/IncomingOrdersPage";
+import { OutgoingOrdersPage } from "@/features/marketplace/OutgoingOrdersPage";
+import { BannersPage } from "@/features/marketplace/BannersPage";
 
 // ─── TanStack Query ───────────────────────────────────────────────────────
 
@@ -165,6 +170,12 @@ function App() {
                     <Route path="tickets" element={<TicketsListPage />} />
                     {/* /promo — aksiyalar boshqaruvi */}
                     <Route path="promo" element={<PromoListPage />} />
+                    {/* /marketplace — marketplace boshqaruvi */}
+                    <Route path="marketplace" element={<MarketplaceLayout />}>
+                      <Route index element={<IncomingOrdersPage />} />
+                      <Route path="outgoing" element={<OutgoingOrdersPage />} />
+                      <Route path="banners" element={<BannersPage />} />
+                    </Route>
                     {/* /settings — korxona modullari sozlamalari */}
                     <Route path="settings" element={<EnterpriseSettingsPage />} />
                     {/* Noma'lum yo'l — bosh sahifaga */}

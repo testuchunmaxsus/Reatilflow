@@ -38,6 +38,7 @@ import {
   IconMessage,
   IconTag,
   IconSettings,
+  IconShoppingBag,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -127,6 +128,13 @@ function useNavItems(): NavItem[] {
       icon: IconTag,
       requiredPermission: "promo:view",
       requiredModule: "promo",
+    },
+    {
+      label: t("nav.marketplace"),
+      path: "/marketplace",
+      icon: IconShoppingBag,
+      requiredPermission: "catalog:view",
+      requiredModule: "marketplace",
     },
     {
       label: t("nav.settings"),

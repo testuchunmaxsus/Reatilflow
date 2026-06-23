@@ -48,6 +48,8 @@ export interface PromoOut {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  /** Marketplace: qaynoq aksiya belgisi (ixtiyoriy — marketplace moduli yoqilganda keladi) */
+  is_marketplace_featured?: boolean;
 }
 
 // ─── Paginated ────────────────────────────────────────────────────────────────

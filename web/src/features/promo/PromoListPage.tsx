@@ -23,6 +23,7 @@ import {
   Pagination,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   Title,
@@ -34,7 +35,9 @@ import { useTranslation } from "react-i18next";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { Can } from "@/rbac/Can";
+import { useEnterprise } from "@/enterprise/EnterpriseContext";
 import { usePromos, useDeletePromo } from "./api/promoApi";
+import { useToggleMarketplaceFeatured } from "@/features/marketplace/api/marketplaceApi";
 import { PromoFormModal } from "./components/PromoFormModal";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { useApiError } from "@/hooks/useApiError";
@@ -59,6 +62,27 @@ function ruleLabel(rule: RuleJson): string {
 export function PromoListPage() {
   const { t } = useTranslation();
   const { showError } = useApiError();
+  const { hasModule } = useEnterprise();
+  const hasMarketplace = hasModule("marketplace");
+
+  const toggleFeatured = useToggleMarketplaceFeatured();
+
+  const handleFeaturedToggle = async (promo: PromoOut, featured: boolean) => {
+    try {
+      await toggleFeatured.mutateAsync({
+        id: promo.id,
+        payload: { featured: featured },
+      });
+      notifications.show({
+        color: featured ? "teal" : "gray",
+        message: featured
+          ? t("marketplace.featured.enabled")
+          : t("marketplace.featured.disabled"),
+      });
+    } catch (err) {
+      showError(err);
+    }
+  };
 
   // Filtrlar
   const [activeFilter, setActiveFilter] = useState<"" | "true" | "false">("");
@@ -209,6 +233,9 @@ export function PromoListPage() {
                   <Table.Th>{t("promo.table.valid_from")}</Table.Th>
                   <Table.Th>{t("promo.table.valid_to")}</Table.Th>
                   <Table.Th>{t("promo.table.status")}</Table.Th>
+                  {hasMarketplace && (
+                    <Table.Th>{t("marketplace.featured.column_label")}</Table.Th>
+                  )}
                   <Table.Th>{t("catalog.table.actions")}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -258,6 +285,20 @@ export function PromoListPage() {
                           : t("promo.status.inactive")}
                       </Badge>
                     </Table.Td>
+                    {hasMarketplace && (
+                      <Table.Td>
+                        <Can permission="promo:edit">
+                          <Switch
+                            size="sm"
+                            checked={promo.is_marketplace_featured ?? false}
+                            onChange={(e) => {
+                              void handleFeaturedToggle(promo, e.currentTarget.checked);
+                            }}
+                            aria-label={t("marketplace.featured.toggle_label")}
+                          />
+                        </Can>
+                      </Table.Td>
+                    )}
                     <Table.Td>
                       <Group gap={4}>
                         <Can permission="promo:edit">

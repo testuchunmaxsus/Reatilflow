@@ -92,6 +92,10 @@ export interface ProductOut {
   version: number;
   created_at: string;
   updated_at: string;
+  /** Marketplace: mahsulot nashr qilinganmi (ixtiyoriy — marketplace moduli yoqilganda keladi) */
+  marketplace_published?: boolean;
+  /** Marketplace: alohida narx (ixtiyoriy) */
+  marketplace_price?: number | null;
 }
 
 export interface PriceSegmentOut {

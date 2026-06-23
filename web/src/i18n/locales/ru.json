@@ -48,7 +48,8 @@
     "promo": "Акции",
     "settings": "Настройки",
     "superadmin": "Панель суперадмина",
-    "enterprises": "Организации"
+    "enterprises": "Организации",
+    "marketplace": "Маркетплейс"
   },
   "common": {
     "loading": "Загрузка...",
@@ -644,7 +645,122 @@
       "tickets": "Обращения",
       "promo": "Акции",
       "stats": "Статистика",
-      "push": "Push-уведомления"
+      "push": "Push-уведомления",
+      "marketplace": "Маркетплейс"
+    }
+  },
+  "marketplace": {
+    "tabs": {
+      "incoming": "Входящие заказы",
+      "outgoing": "Исходящие заказы",
+      "banners": "Баннеры"
+    },
+    "filter": {
+      "all_statuses": "Все статусы"
+    },
+    "order_status": {
+      "pending": "Ожидает",
+      "confirmed": "Подтверждён",
+      "rejected": "Отклонён",
+      "delivering": "Доставляется",
+      "delivered": "Доставлен",
+      "accepted": "Принят"
+    },
+    "table": {
+      "buyer_store": "Магазин-покупатель",
+      "supplier": "Поставщик",
+      "products": "Товары",
+      "items_count": "шт.",
+      "total_amount": "Сумма",
+      "status": "Статус",
+      "courier": "Курьер",
+      "created_at": "Дата"
+    },
+    "incoming": {
+      "title": "Входящие заказы маркетплейса",
+      "empty": "Входящие заказы не найдены"
+    },
+    "outgoing": {
+      "title": "Исходящие заказы маркетплейса",
+      "empty": "Исходящие заказы не найдены"
+    },
+    "actions": {
+      "confirm": "Подтвердить",
+      "reject": "Отклонить",
+      "ship": "Назначить курьера"
+    },
+    "assign_courier": {
+      "title": "Назначить курьера",
+      "courier_label": "Курьер",
+      "courier_placeholder": "Выберите курьера",
+      "submit": "Назначить"
+    },
+    "messages": {
+      "order_confirmed": "Заказ подтверждён",
+      "order_rejected": "Заказ отклонён",
+      "order_shipped": "Курьер назначен, заказ отправлен"
+    },
+    "publish": {
+      "column_label": "Маркетплейс",
+      "toggle_label": "Публикация в маркетплейсе",
+      "modal_title": "Публикация в маркетплейсе",
+      "modal_product": "Товар",
+      "price_label": "Цена в маркетплейсе (UZS)",
+      "price_placeholder": "Введите цену",
+      "price_hint": "Необязательно. Если не указано — используется основная цена.",
+      "publish_btn": "Опубликовать",
+      "listed": "Товар опубликован в маркетплейсе",
+      "unlisted": "Товар снят с маркетплейса"
+    },
+    "featured": {
+      "column_label": "Горячая акция",
+      "toggle_label": "Горячая акция маркетплейса",
+      "enabled": "Акция помечена как горячая в маркетплейсе",
+      "disabled": "Метка горячей акции снята"
+    },
+    "banners": {
+      "title": "Баннеры маркетплейса",
+      "empty": "Баннеры не найдены",
+      "actions": {
+        "create": "Добавить баннер"
+      },
+      "table": {
+        "image": "Изображение",
+        "title": "Заголовок",
+        "target_url": "Ссылка",
+        "priority": "Приоритет",
+        "valid_from": "Начало",
+        "valid_to": "Конец",
+        "status": "Статус"
+      }
+    },
+    "banner": {
+      "form": {
+        "create_title": "Новый баннер",
+        "edit_title": "Редактировать баннер",
+        "title": "Заголовок",
+        "title_placeholder": "Введите заголовок",
+        "title_required": "Заголовок обязателен",
+        "valid_from": "Дата начала",
+        "valid_from_required": "Дата начала обязательна",
+        "valid_to": "Дата окончания",
+        "valid_to_required": "Дата окончания обязательна",
+        "priority": "Приоритет (порядок)",
+        "target_url": "Ссылка (URL)",
+        "is_active": "Активный баннер",
+        "image": "Изображение",
+        "image_hint": "Допустимые форматы: JPEG, PNG, WebP. Максимальный размер: 5 МБ.",
+        "choose_image": "Выбрать изображение"
+      },
+      "messages": {
+        "created": "Баннер успешно создан",
+        "updated": "Баннер успешно обновлён",
+        "deleted": "Баннер удалён"
+      },
+      "delete": {
+        "title": "Удалить баннер",
+        "confirm": "Вы уверены, что хотите удалить баннер «{{name}}»?"
+      }
     }
   },
   "dashboard": {

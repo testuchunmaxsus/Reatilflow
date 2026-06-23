@@ -24,6 +24,7 @@ import {
   Pagination,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -43,11 +44,14 @@ import { useTranslation } from "react-i18next";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { Can } from "@/rbac/Can";
+import { useEnterprise } from "@/enterprise/EnterpriseContext";
 import { useCategories, useDeleteProduct, useProducts } from "./api/catalogApi";
+import { useToggleMarketplacePublish } from "@/features/marketplace/api/marketplaceApi";
 import { ProductFormModal } from "./components/ProductFormModal";
 import { PriceHistoryModal } from "./components/PriceHistoryModal";
 import { PhotoUploadModal } from "./components/PhotoUploadModal";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
+import { MarketplacePriceModal } from "@/features/marketplace/components/MarketplacePriceModal";
 import { useApiError } from "@/hooks/useApiError";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { ProductOut } from "@/api/types";
@@ -59,6 +63,8 @@ const PAGE_SIZE = 20;
 export function CatalogListPage() {
   const { t, i18n } = useTranslation();
   const { showError } = useApiError();
+  const { hasModule } = useEnterprise();
+  const hasMarketplace = hasModule("marketplace");
 
   // Qidiruv
   const [searchInput, setSearchInput] = useState("");
@@ -77,9 +83,34 @@ export function CatalogListPage() {
   const [historyOpened, { open: openHistory, close: closeHistory }] = useDisclosure(false);
   const [photoOpened, { open: openPhoto, close: closePhoto }] = useDisclosure(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
+  const [marketplacePriceOpened, { open: openMarketplacePrice, close: closeMarketplacePrice }] = useDisclosure(false);
   const [editingProduct, setEditingProduct] = useState<ProductOut | undefined>(undefined);
   const [selectedProduct, setSelectedProduct] = useState<ProductOut | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<ProductOut | null>(null);
+  const [marketplacePriceProduct, setMarketplacePriceProduct] = useState<ProductOut | null>(null);
+
+  const toggleMarketplace = useToggleMarketplacePublish();
+
+  const handleMarketplaceToggle = async (product: ProductOut, listed: boolean) => {
+    if (listed) {
+      // Narx kiritish kerak — modal ochish
+      setMarketplacePriceProduct(product);
+      openMarketplacePrice();
+    } else {
+      try {
+        await toggleMarketplace.mutateAsync({
+          id: product.id,
+          payload: { marketplace_published: false },
+        });
+        notifications.show({
+          color: "orange",
+          message: t("marketplace.publish.unlisted"),
+        });
+      } catch (err) {
+        showError(err);
+      }
+    }
+  };
 
   // API
   const { data, isLoading, isError, error } = useProducts({
@@ -221,6 +252,9 @@ export function CatalogListPage() {
                 <Table.Th>{t("catalog.table.barcode")}</Table.Th>
                 <Table.Th>{t("catalog.table.unit")}</Table.Th>
                 <Table.Th>{t("catalog.table.status")}</Table.Th>
+                {hasMarketplace && (
+                  <Table.Th>{t("marketplace.publish.column_label")}</Table.Th>
+                )}
                 <Table.Th>{t("catalog.table.actions")}</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -274,6 +308,20 @@ export function CatalogListPage() {
                         : t("catalog.status.inactive")}
                     </Badge>
                   </Table.Td>
+                  {hasMarketplace && (
+                    <Table.Td>
+                      <Can permission="catalog:edit">
+                        <Switch
+                          size="sm"
+                          checked={product.marketplace_published ?? false}
+                          onChange={(e) => {
+                            void handleMarketplaceToggle(product, e.currentTarget.checked);
+                          }}
+                          aria-label={t("marketplace.publish.toggle_label")}
+                        />
+                      </Can>
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Group gap={4}>
                       <Tooltip label={t("catalog.actions.price_history")}>
@@ -367,6 +415,11 @@ export function CatalogListPage() {
             : ""
         }
         loading={deleteProduct.isPending}
+      />
+      <MarketplacePriceModal
+        opened={marketplacePriceOpened}
+        onClose={closeMarketplacePrice}
+        product={marketplacePriceProduct}
       />
     </Stack>
   );

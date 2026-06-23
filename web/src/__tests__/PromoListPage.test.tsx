@@ -85,6 +85,18 @@ const mockProducts = {
 
 const mockPromosEmpty = { items: [], total: 0, limit: 20, offset: 0 };
 
+// ─── Enterprise mock ──────────────────────────────────────────────────────────
+
+vi.mock("@/enterprise/EnterpriseContext", () => ({
+  useEnterprise: () => ({
+    enterprise: { id: "ent-001", name: "Test", inn: null, status: "active", enabled_modules: ["catalog", "promo"] },
+    isLoading: false,
+    hasModule: (key: string) => ["catalog", "promo"].includes(key),
+    refreshEnterprise: vi.fn(),
+  }),
+  EnterpriseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // ─── API mock ─────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

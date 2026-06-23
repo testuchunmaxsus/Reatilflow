@@ -48,7 +48,8 @@
     "promo": "Aksiyalar",
     "settings": "Sozlamalar",
     "superadmin": "Superadmin panel",
-    "enterprises": "Korxonalar"
+    "enterprises": "Korxonalar",
+    "marketplace": "Marketplace"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -644,7 +645,122 @@
       "tickets": "Murojaatlar",
       "promo": "Aksiyalar",
       "stats": "Statistika",
-      "push": "Push xabarnomalar"
+      "push": "Push xabarnomalar",
+      "marketplace": "Marketplace"
+    }
+  },
+  "marketplace": {
+    "tabs": {
+      "incoming": "Kiruvchi buyurtmalar",
+      "outgoing": "Chiquvchi buyurtmalar",
+      "banners": "Bannerlar"
+    },
+    "filter": {
+      "all_statuses": "Barcha holatlar"
+    },
+    "order_status": {
+      "pending": "Kutilmoqda",
+      "confirmed": "Tasdiqlangan",
+      "rejected": "Rad etilgan",
+      "delivering": "Yetkazilmoqda",
+      "delivered": "Yetkazildi",
+      "accepted": "Qabul qilindi"
+    },
+    "table": {
+      "buyer_store": "Xaridor do'kon",
+      "supplier": "Ta'minotchi",
+      "products": "Mahsulotlar",
+      "items_count": "ta",
+      "total_amount": "Summa",
+      "status": "Holat",
+      "courier": "Kuryer",
+      "created_at": "Sana"
+    },
+    "incoming": {
+      "title": "Kiruvchi marketplace buyurtmalar",
+      "empty": "Kiruvchi buyurtmalar topilmadi"
+    },
+    "outgoing": {
+      "title": "Chiquvchi marketplace buyurtmalar",
+      "empty": "Chiquvchi buyurtmalar topilmadi"
+    },
+    "actions": {
+      "confirm": "Tasdiqlash",
+      "reject": "Rad etish",
+      "ship": "Kuryer tayinlash"
+    },
+    "assign_courier": {
+      "title": "Kuryer tayinlash",
+      "courier_label": "Kuryer",
+      "courier_placeholder": "Kuryer tanlang",
+      "submit": "Tayinlash"
+    },
+    "messages": {
+      "order_confirmed": "Buyurtma tasdiqlandi",
+      "order_rejected": "Buyurtma rad etildi",
+      "order_shipped": "Kuryer tayinlandi va jo'natildi"
+    },
+    "publish": {
+      "column_label": "Marketplace",
+      "toggle_label": "Marketplace'da nashr",
+      "modal_title": "Marketplace'ga nashr qilish",
+      "modal_product": "Mahsulot",
+      "price_label": "Marketplace narxi (UZS)",
+      "price_placeholder": "Narxni kiriting",
+      "price_hint": "Ixtiyoriy. Bo'sh qoldirilsa — asosiy narx ishlatiladi.",
+      "publish_btn": "Nashr qilish",
+      "listed": "Mahsulot marketplace'ga nashr qilindi",
+      "unlisted": "Mahsulot marketplace'dan olib tashlandi"
+    },
+    "featured": {
+      "column_label": "Qaynoq aksiya",
+      "toggle_label": "Marketplace qaynoq belgisi",
+      "enabled": "Aksiya marketplace'da qaynoq deb belgilandi",
+      "disabled": "Aksiyadan qaynoq belgisi olib tashlandi"
+    },
+    "banners": {
+      "title": "Marketplace bannerlari",
+      "empty": "Bannerlar topilmadi",
+      "actions": {
+        "create": "Banner qo'shish"
+      },
+      "table": {
+        "image": "Rasm",
+        "title": "Sarlavha",
+        "target_url": "Havola",
+        "priority": "Ustuvorlik",
+        "valid_from": "Boshlanishi",
+        "valid_to": "Tugashi",
+        "status": "Holat"
+      }
+    },
+    "banner": {
+      "form": {
+        "create_title": "Yangi banner",
+        "edit_title": "Bannerni tahrirlash",
+        "title": "Sarlavha",
+        "title_placeholder": "Sarlavhani kiriting",
+        "title_required": "Sarlavha majburiy",
+        "valid_from": "Boshlanish sanasi",
+        "valid_from_required": "Boshlanish sanasi majburiy",
+        "valid_to": "Tugash sanasi",
+        "valid_to_required": "Tugash sanasi majburiy",
+        "priority": "Ustuvorlik (tartibi)",
+        "target_url": "Havola (URL)",
+        "is_active": "Faol banner",
+        "image": "Rasm",
+        "image_hint": "Ruxsat etilgan formatlar: JPEG, PNG, WebP. Maksimal hajm: 5 MB.",
+        "choose_image": "Rasm tanlash"
+      },
+      "messages": {
+        "created": "Banner muvaffaqiyatli yaratildi",
+        "updated": "Banner muvaffaqiyatli yangilandi",
+        "deleted": "Banner o'chirildi"
+      },
+      "delete": {
+        "title": "Bannerni o'chirish",
+        "confirm": "\"{{name}}\" bannerni o'chirishni tasdiqlaysizmi?"
+      }
     }
   },
   "dashboard": {
