@@ -44,6 +44,25 @@ from app.tests.conftest import TEST_ENTERPRISE_UUID
 TEST_PASSWORD = "TestPassword123!"
 
 
+# ─── Test izolyatsiyasi: GPS ish-soati filtri sozlamasi ───────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _reset_gps_work_hours_filter():
+    """
+    Har GPS test'dan oldingi `gps_work_hours_filter_enabled` qiymatini saqlab,
+    teardown'da TIKLAYDI (test yiqilsa ham — failure-safe).
+
+    Muammo: ba'zi testlar (work_hours, gps_client) global `settings`ni
+    `object.__setattr__` bilan o'zgartirib qo'lда restore qiladi — assertion
+    yiqilsa restore ishlamaydi → sozlama keyingi testga LEAK bo'ladi (flaky).
+    Bu autouse teardown leak'ni butunlay yo'q qiladi.
+    """
+    original = settings.gps_work_hours_filter_enabled
+    yield
+    object.__setattr__(settings, "gps_work_hours_filter_enabled", original)
+
+
 # ─── Engine ──────────────────────────────────────────────────────────────────
 
 
