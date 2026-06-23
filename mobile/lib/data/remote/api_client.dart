@@ -184,5 +184,81 @@ class ApiClient {
     );
     return response.data!;
   }
+
+  // ---- Marketplace ----
+
+  /// GET /marketplace/banners?limit=N — reklama bannerlari.
+  Future<dynamic> getMarketplaceBanners({int limit = 5}) async {
+    final response = await _dio.get<dynamic>(
+      '/marketplace/banners',
+      queryParameters: {'limit': limit},
+    );
+    return response.data;
+  }
+
+  /// GET /marketplace/promos?limit=N — qaynoq aksiyalar (supplier nomi bilan).
+  Future<dynamic> getMarketplacePromos({int limit = 20}) async {
+    final response = await _dio.get<dynamic>(
+      '/marketplace/promos',
+      queryParameters: {'limit': limit},
+    );
+    return response.data;
+  }
+
+  /// GET /marketplace/products — mahsulotlar ro'yxati.
+  Future<dynamic> browseProducts({
+    String? search,
+    String? supplierEnterpriseId,
+  }) async {
+    final params = <String, dynamic>{
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (supplierEnterpriseId != null && supplierEnterpriseId.isNotEmpty)
+        'supplier_enterprise_id': supplierEnterpriseId,
+    };
+    final response = await _dio.get<dynamic>(
+      '/marketplace/products',
+      queryParameters: params.isEmpty ? null : params,
+    );
+    return response.data;
+  }
+
+  /// POST /marketplace/orders — buyurtma yaratish (product_id + qty FAQAT).
+  Future<Map<String, dynamic>> createMarketplaceOrder(
+      Map<String, dynamic> body) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/marketplace/orders',
+      data: body,
+    );
+    return response.data!;
+  }
+
+  /// GET /marketplace/orders/outgoing — chiquvchi buyurtmalar.
+  Future<dynamic> getOutgoingOrders() async {
+    final response =
+        await _dio.get<dynamic>('/marketplace/orders/outgoing');
+    return response.data;
+  }
+
+  /// GET /marketplace/orders/{id} — bitta buyurtma.
+  Future<Map<String, dynamic>> getMarketplaceOrder(String orderId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/marketplace/orders/$orderId',
+    );
+    return response.data!;
+  }
+
+  /// PATCH /marketplace/orders/{id}/accept — buyurtmani qabul qilish.
+  ///
+  /// [body] = { lines: [ { line_id, expiry_date, markup_percent } ] }
+  Future<Map<String, dynamic>> acceptOrder({
+    required String orderId,
+    required Map<String, dynamic> body,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/marketplace/orders/$orderId/accept',
+      data: body,
+    );
+    return response.data!;
+  }
 }
 

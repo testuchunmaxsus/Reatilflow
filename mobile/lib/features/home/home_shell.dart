@@ -209,6 +209,7 @@ class _StoreNavBar extends ConsumerWidget {
     final location = GoRouterState.of(context).matchedLocation;
 
     final hasPos = ref.watch(moduleEnabledProvider('pos'));
+    final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
 
     final tabs = <_NavTab>[
       const _NavTab(
@@ -230,8 +231,14 @@ class _StoreNavBar extends ConsumerWidget {
           icon: Icons.inventory_2_outlined,
           label: 'Inventar',
         ),
-        // v2b: Marketplace tab qo'shiladi
       ],
+      if (hasMarketplace)
+        const _NavTab(
+          route: '/home/marketplace',
+          matchPrefix: '/home/marketplace',
+          icon: Icons.storefront,
+          label: 'Marketplace',
+        ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);

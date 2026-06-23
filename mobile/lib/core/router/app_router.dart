@@ -12,6 +12,10 @@ import '../../features/dashboard/courier_dashboard.dart';
 import '../../features/delivery/delivery_detail_screen.dart';
 import '../../features/delivery/delivery_list_screen.dart';
 import '../../features/home/home_shell.dart';
+import '../../features/marketplace/marketplace_accept_screen.dart';
+import '../../features/marketplace/marketplace_browse_screen.dart';
+import '../../features/marketplace/marketplace_cart_screen.dart';
+import '../../features/marketplace/marketplace_orders_screen.dart';
 import '../../features/orders/create_order_screen.dart';
 import '../../features/orders/order_list_screen.dart';
 import '../../features/pos/pos_inventory_screen.dart';
@@ -44,6 +48,14 @@ const String routeDeliveryDetail = '/home/deliveries/:deliveryId';
 const String routePosSale = '/home/pos/sale';
 const String routePosInventory = '/home/pos/inventory';
 const String routePosSummary = '/home/pos/summary';
+
+// Store Marketplace routes
+const String routeMarketplace = '/home/marketplace';
+const String routeMarketplaceCart = '/home/marketplace/cart';
+const String routeMarketplaceOrders = '/home/marketplace/orders';
+const String routeMarketplaceOrderDetail = '/home/marketplace/orders/:orderId';
+const String routeMarketplaceAccept =
+    '/home/marketplace/orders/:orderId/accept';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authNotifierProvider);
@@ -146,6 +158,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: routePosSummary,
             builder: (context, state) => const PosSummaryScreen(),
+          ),
+
+          // --- Do'kon: Marketplace ---
+          GoRoute(
+            path: routeMarketplace,
+            builder: (context, state) =>
+                const MarketplaceBrowseScreen(),
+            routes: [
+              GoRoute(
+                path: 'cart',
+                builder: (context, state) =>
+                    const MarketplaceCartScreen(),
+              ),
+              GoRoute(
+                path: 'orders',
+                builder: (context, state) =>
+                    const MarketplaceOrdersScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':orderId/accept',
+                    builder: (context, state) =>
+                        MarketplaceAcceptScreen(
+                      orderId: state.pathParameters['orderId']!,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
 
           // --- Kuryer: Yetkazishlar ---
