@@ -1,5 +1,5 @@
 """
-Marketplace moduli Pydantic v2 sxemalari — MP1 + MP2.
+Marketplace moduli Pydantic v2 sxemalari — MP1 + MP2 + MP3.
 
 MP1 sxemalar:
   MarketplaceProductOut     — browse ro'yxat va bitta mahsulot javobi
@@ -14,12 +14,20 @@ MP2 sxemalar:
   MarketplaceOrderOut       — buyurtma javobi (lines bilan)
   PaginatedMarketplaceOrders — paginated buyurtmalar ro'yxati
   MarketplaceOrderRejectIn  — reject so'rovi tanasi (reason)
+
+MP3 sxemalar:
+  MarketplaceShipIn         — ship so'rovi tanasi (courier_id)
+  MarketplaceDeliverIn      — deliver so'rovi tanasi (proof_photo_url)
+  MarketplaceAcceptLineIn   — accept: bitta line uchun expiry+markup
+  MarketplaceAcceptIn       — accept so'rovi tanasi (lines_info, store_id)
+  StoreInventoryOut         — inventar partiyasi javobi
+  PaginatedStoreInventory   — paginated inventar ro'yxati
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -193,6 +201,7 @@ class MarketplaceOrderOut(BaseModel):
     Marketplace buyurtma javobi.
 
     Ikkita korxona uchun: buyer va supplier ma'lumotlari.
+    MP3 maydonlari: courier_id, delivered_at, proof_photo_url, accepted_at.
     """
 
     id: uuid.UUID
@@ -204,6 +213,11 @@ class MarketplaceOrderOut(BaseModel):
     total_amount: Decimal
     reject_reason: str | None
     client_uuid: uuid.UUID | None
+    # MP3 maydonlari
+    courier_id: uuid.UUID | None = None
+    delivered_at: datetime | None = None
+    proof_photo_url: str | None = None
+    accepted_at: datetime | None = None
     lines: list[MarketplaceOrderLineOut] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -216,5 +230,111 @@ class PaginatedMarketplaceOrders(BaseModel):
 
     items: list[MarketplaceOrderOut]
     total: int = Field(..., description="Jami buyurtmalar soni")
+    limit: int = Field(..., description="So'rovdagi limit")
+    offset: int = Field(..., description="So'rovdagi offset")
+
+
+# ─── MP3: Yetkazish sxemalari ────────────────────────────────────────────────
+
+
+class MarketplaceShipIn(BaseModel):
+    """
+    PATCH /marketplace/orders/{id}/ship tanasi.
+
+    courier_id: tayinlanadigan kuryer (supplier korxona kuryeri).
+    """
+
+    courier_id: uuid.UUID = Field(
+        ...,
+        description="Tayinlanadigan kuryer UUID (supplier korxona foydalanuvchisi, courier roli)",
+    )
+
+
+class MarketplaceDeliverIn(BaseModel):
+    """
+    PATCH /marketplace/orders/{id}/deliver tanasi.
+
+    proof_photo_url: yetkazish isboti rasm URL (ixtiyoriy).
+    """
+
+    proof_photo_url: str | None = Field(
+        None,
+        max_length=1000,
+        description="Yetkazish isboti rasm URL (do'kon oldidagi fotosurat, ixtiyoriy)",
+    )
+
+
+class MarketplaceAcceptLineIn(BaseModel):
+    """
+    accept so'rovida bitta buyurtma qatori ma'lumoti.
+
+    line_id:        buyurtma qatori UUID (MarketplaceOrderLine.id).
+    expiry_date:    yaroqlilik muddati (NULL = cheksiz).
+    markup_percent: ustama foizi (default 0 — sale_price = cost_price).
+    """
+
+    line_id: uuid.UUID = Field(..., description="Buyurtma qatori UUID")
+    expiry_date: date | None = Field(
+        None,
+        description="Yaroqlilik muddati (NULL = cheksiz)",
+    )
+    markup_percent: Decimal = Field(
+        default=Decimal("0"),
+        ge=Decimal("0"),
+        description="Ustama foizi % (default=0; sale_price = cost*(1+markup/100))",
+    )
+
+
+class MarketplaceAcceptIn(BaseModel):
+    """
+    PATCH /marketplace/orders/{id}/accept tanasi.
+
+    lines: har line uchun expiry_date + markup_percent.
+    store_id: qabul qiladigan do'kon (None = order.buyer_store_id).
+    """
+
+    lines: list[MarketplaceAcceptLineIn] = Field(
+        default_factory=list,
+        description="Har qator uchun expiry va markup ma'lumoti (bo'sh = hammasi default)",
+    )
+    store_id: uuid.UUID | None = Field(
+        None,
+        description="Do'kon UUID (None = buyurtmadagi buyer_store_id ishlatiladi)",
+    )
+
+
+# ─── MP3: StoreInventory sxemasi ─────────────────────────────────────────────
+
+
+class StoreInventoryOut(BaseModel):
+    """
+    Do'kon inventar partiyasi javobi.
+
+    cost_price = buyurtma narxi (tan narx).
+    sale_price = cost_price * (1 + markup_percent/100) — serverda hisoblanadi.
+    expiry_date = yaroqlilik muddati (MP4 asos).
+    """
+
+    id: uuid.UUID
+    enterprise_id: uuid.UUID
+    store_id: uuid.UUID
+    product_id: uuid.UUID
+    qty: Decimal
+    cost_price: Decimal = Field(..., description="Tan narx (buyurtma unit_price)")
+    markup_percent: Decimal = Field(..., description="Ustama foizi %")
+    sale_price: Decimal = Field(..., description="Sotuv narxi: cost*(1+markup/100)")
+    expiry_date: date | None = Field(None, description="Yaroqlilik muddati (MP4 asos)")
+    status: str = Field(..., description="active | expired")
+    source_order_id: uuid.UUID | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedStoreInventory(BaseModel):
+    """Paginated do'kon inventar ro'yxati javobi."""
+
+    items: list[StoreInventoryOut]
+    total: int = Field(..., description="Jami yozuvlar soni")
     limit: int = Field(..., description="So'rovdagi limit")
     offset: int = Field(..., description="So'rovdagi offset")

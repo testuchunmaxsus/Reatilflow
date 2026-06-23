@@ -1,5 +1,5 @@
 """
-Marketplace buyurtma modellari — MP2.
+Marketplace buyurtma modellari — MP2 + MP3.
 
 Jadvallar:
   marketplace_order      — cross-tenant buyurtma (buyer ↔ supplier ikki korxona)
@@ -15,14 +15,17 @@ XAVFSIZLIK va ARXITEKTURA IZOHI:
       Uchinchi korxona → 404 (mavjudlikni oshkor qilmaslik).
     - Migratsiyada oddiy tenant-RLS QO'YILMAYDI — bu istisno, service nazorat qiladi.
 
-Status mashinasi (MP2):
-  pending → confirmed → (MP3: delivering → delivered → accepted)
+Status mashinasi (MP3):
+  pending → confirmed → delivering → delivered → accepted
   pending → rejected   (terminal)
 
 Outbox:
-  marketplace.order_created  — supplier_enterprise_id bilan (supplier sync uchun)
-  marketplace.order_confirmed — buyer_enterprise_id bilan (buyer sync uchun)
-  marketplace.order_rejected  — buyer_enterprise_id bilan (buyer sync uchun)
+  marketplace.order_created    — supplier_enterprise_id bilan (supplier sync uchun)
+  marketplace.order_confirmed  — buyer_enterprise_id bilan (buyer sync uchun)
+  marketplace.order_rejected   — buyer_enterprise_id bilan (buyer sync uchun)
+  marketplace.order_delivering — buyer_enterprise_id bilan (MP3)
+  marketplace.order_delivered  — buyer_enterprise_id bilan (MP3)
+  marketplace.order_accepted   — supplier_enterprise_id bilan (MP3)
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -52,6 +56,7 @@ if TYPE_CHECKING:
     from app.models.enterprise import Enterprise
     from app.models.store import Store
     from app.models.user import AppUser
+    from app.models.store_inventory import StoreInventory
 
 
 def _now_utc() -> datetime:
@@ -169,6 +174,33 @@ class MarketplaceOrder(Base):
         comment="Rad etish sababi (faqat rejected holat uchun)",
     )
 
+    # ─── MP3: Yetkazish maydonlari ────────────────────────────────────────────
+
+    courier_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Tayinlangan kuryer FK → app_user (MP3: ship bosqichida o'rnatiladi)",
+    )
+
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Yetkazilgan vaqt (MP3: delivered holat, UTC)",
+    )
+
+    proof_photo_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Yetkazish isboti rasm URL (MP3: delivered holat, do'kon oldida)",
+    )
+
+    accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Do'kon qabul qilgan vaqt (MP3: accepted holat, UTC)",
+    )
+
     # ─── Idempotentlik ────────────────────────────────────────────────────────
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(
@@ -224,6 +256,12 @@ class MarketplaceOrder(Base):
     buyer_user: Mapped["AppUser"] = relationship(
         "AppUser",
         foreign_keys="[MarketplaceOrder.buyer_user_id]",
+        lazy="select",
+    )
+
+    courier: Mapped["AppUser | None"] = relationship(
+        "AppUser",
+        foreign_keys="[MarketplaceOrder.courier_id]",
         lazy="select",
     )
 

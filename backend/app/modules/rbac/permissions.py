@@ -169,7 +169,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # T17: GPS — kuryer o'z trekini ingest qiladi va ko'radi (row-level scope)
         | _p(Module.GPS,        Action.CREATE, Action.VIEW)
         # MP1: kuryer marketplace browse qiladi
-        | _p(Module.MARKETPLACE, Action.VIEW)
+        # MP3: kuryer tayinlangan buyurtmani yetkazildi deb belgilaydi (deliver endpoint)
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT)
         # POS: agent — ruxsati yo'q (pos checkout faqat store roli uchun)
     ),
 
@@ -237,7 +238,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.POS,      Action.VIEW, Action.CREATE)
         # MP1: do'kon marketplace browse qiladi
         # MP2: do'kon buyurtma yaratadi (faqat buyer sifatida, tasdiqlash/rad etish emas)
-        | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE)
+        # MP3: do'kon delivered buyurtmani qabul qiladi (accept endpoint)
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE, Action.EDIT)
     ),
 
     # ─── Superadmin (platforma egasi) ─────────────────────────────────────────

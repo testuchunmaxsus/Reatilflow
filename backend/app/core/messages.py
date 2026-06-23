@@ -489,6 +489,28 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Данный client_uuid уже использован другим пользователем",
     },
 
+    # ── Marketplace (MP3) — Yetkazish oqimi ─────────────────────────────────
+    "marketplace.courier_not_found": {
+        "uz": "Kuryer topilmadi yoki ushbu korxonaga tegishli emas",
+        "ru": "Курьер не найден или не принадлежит данному предприятию",
+    },
+    "marketplace.order_courier_mismatch": {
+        "uz": "Faqat tayinlangan kuryer yetkazilganini tasdiqlay oladi",
+        "ru": "Только назначенный курьер может подтвердить доставку",
+    },
+    "marketplace.order_buyer_only": {
+        "uz": "Bu amalni faqat buyer korxona bajarishi mumkin",
+        "ru": "Это действие может выполнить только покупатель",
+    },
+    "marketplace.accept_no_store": {
+        "uz": "Qabul qilish uchun do'kon ko'rsatilmagan va buyurtmada buyer_store_id yo'q",
+        "ru": "Не указан магазин для приёмки, а в заказе отсутствует buyer_store_id",
+    },
+    "marketplace.accept_store_not_found": {
+        "uz": "Ko'rsatilgan do'kon ushbu korxonaga tegishli emas yoki topilmadi",
+        "ru": "Указанный магазин не принадлежит данному предприятию или не найден",
+    },
+
     # ── Umumiy ──────────────────────────────────────────────────────────────
     "common.not_found": {
         "uz": "So'ralgan resurs topilmadi",

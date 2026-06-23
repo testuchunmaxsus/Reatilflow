@@ -27,6 +27,24 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _reset_tenant_context():
+    """
+    Test izolyatsiyasi: har test boshida/oxirida tenant ContextVar'ni tozalaydi.
+
+    MT2: `core/tenant_context` ContextVar so'rov doirasida o'rnatiladi. Testlar
+    orasida qolib ketsa (leak), keyingi test natijasini buzishi mumkin (flaky).
+    Bu global autouse fixture'ning setup'i (deps'siz) boshqa setter'lardan OLDIN,
+    teardown'i ULARDAN KEYIN ishlaydi — shuning uchun pre-empt qilmaydi, faqat
+    har test toza None holatdan boshlanishini va toza tugashini kafolatlaydi.
+    """
+    from app.core.tenant_context import set_current_enterprise
+
+    set_current_enterprise(None)
+    yield
+    set_current_enterprise(None)
+
+
 @pytest.fixture
 async def async_client() -> AsyncClient:
     """

@@ -3,33 +3,29 @@ Marketplace moduli router — /marketplace prefiksi bilan main.py ga ulanadi.
 
 Endpointlar (MP1):
   GET /marketplace/products                — barcha korxonalar published mahsulotlari
-                                             (cross-tenant browse, marketplace_published=True)
   GET /marketplace/products/{id}           — bitta published marketplace mahsuloti
   GET /marketplace/suppliers               — marketplace'da mahsuloti bor korxonalar
 
 Endpointlar (MP2 — Buyurtma):
-  POST   /marketplace/orders               — buyurtma yaratish (do'kon/admin → supplier)
+  POST   /marketplace/orders               — buyurtma yaratish
   GET    /marketplace/orders/outgoing      — chiquvchi buyurtmalar (buyer korxona)
   GET    /marketplace/orders/incoming      — kiruvchi buyurtmalar (supplier korxona)
   GET    /marketplace/orders/{id}          — bitta buyurtma
   PATCH  /marketplace/orders/{id}/confirm  — tasdiqlash (FAQAT supplier)
   PATCH  /marketplace/orders/{id}/reject   — rad etish (FAQAT supplier)
 
-XAVFSIZLIK (MP1):
-  - marketplace_published=True QATTIQ SHART — hech qachon published emas
-    mahsulot cross-tenant oqmaydi.
-  - enterprise_id filtri bu endpointlarda QILINMAYDI (atayin cross-tenant).
-  - RBAC: marketplace:view ruxsati — store/admin/accountant/agent/courier ko'radi.
-  - Module gating: "marketplace" moduli yoqilgan bo'lishi shart.
+Endpointlar (MP3 — Yetkazish):
+  PATCH  /marketplace/orders/{id}/ship     — jo'natish (supplier admin, kuryer tayinlash)
+  PATCH  /marketplace/orders/{id}/deliver  — yetkazildi (tayinlangan kuryer + proof_photo)
+  PATCH  /marketplace/orders/{id}/accept   — qabul (buyer do'kon/admin, inventar yaratiladi)
+  GET    /marketplace/inventory            — do'kon inventari (buyer korxona, tenant-scoped)
 
-XAVFSIZLIK (MP2):
-  - Buyurtma faqat buyer YOKI supplier korxonasiga ko'rinadi.
-  - Uchinchi korxona → 404 (mavjudlikni oshkor qilmaslik).
-  - confirm/reject: FAQAT supplier korxona (admin/accountant).
-  - Server-avtoritar narx: klient narx bera olmaydi.
-
-Publish toggle endpoint:
-  PATCH /catalog/products/{id}/marketplace — catalog router'da (catalog modul gate).
+XAVFSIZLIK (MP3):
+  - ship: FAQAT supplier korxona (admin/accountant) — marketplace:edit.
+  - deliver: FAQAT tayinlangan kuryer — marketplace:edit (courier roli).
+  - accept: FAQAT buyer korxona (admin/store) — marketplace:edit.
+  - inventory: buyer korxona foydalanuvchisi — marketplace:view.
+  - 3-korxona → 404.
 """
 
 from __future__ import annotations
@@ -44,13 +40,18 @@ from app.core.i18n import current_locale, localized_name
 from app.models.user import AppUser
 from app.modules.marketplace import service
 from app.modules.marketplace.schemas import (
+    MarketplaceAcceptIn,
+    MarketplaceDeliverIn,
     MarketplaceOrderCreateIn,
     MarketplaceOrderOut,
     MarketplaceOrderRejectIn,
     MarketplaceProductOut,
+    MarketplaceShipIn,
     MarketplaceSupplierOut,
     PaginatedMarketplace,
     PaginatedMarketplaceOrders,
+    PaginatedStoreInventory,
+    StoreInventoryOut,
 )
 from app.modules.rbac.dependency import require_permission
 from app.modules.rbac.permissions import Action, Module
@@ -207,7 +208,7 @@ async def list_suppliers(
 
 
 def _build_order_out(order) -> MarketplaceOrderOut:
-    """MarketplaceOrder ORM → MarketplaceOrderOut Pydantic sxemasi."""
+    """MarketplaceOrder ORM → MarketplaceOrderOut Pydantic sxemasi (MP2 + MP3)."""
     lines_out = []
     for line in (order.lines or []):
         from app.modules.marketplace.schemas import MarketplaceOrderLineOut
@@ -230,6 +231,11 @@ def _build_order_out(order) -> MarketplaceOrderOut:
         total_amount=order.total_amount,
         reject_reason=order.reject_reason,
         client_uuid=order.client_uuid,
+        # MP3 maydonlari
+        courier_id=getattr(order, "courier_id", None),
+        delivered_at=getattr(order, "delivered_at", None),
+        proof_photo_url=getattr(order, "proof_photo_url", None),
+        accepted_at=getattr(order, "accepted_at", None),
         lines=lines_out,
         created_at=order.created_at,
         updated_at=order.updated_at,
@@ -460,3 +466,214 @@ async def reject_order(
     order = await service.reject_order(db, order_id, current_user, reason)
     await db.commit()
     return _build_order_out(order)
+
+
+# ─── MP3: Yetkazish endpointlari ─────────────────────────────────────────────
+
+
+@router.patch(
+    "/orders/{order_id}/ship",
+    response_model=MarketplaceOrderOut,
+    summary="Buyurtmani jo'natish (FAQAT supplier)",
+    description=(
+        "Supplier korxona admini/accountant'i confirmed buyurtmani jo'natadi. "
+        "courier_id: shu supplier korxona kuryeri tayinlanadi. "
+        "Status: confirmed → delivering."
+    ),
+    responses={
+        200: {"description": "Buyurtma jo'natildi (delivering)"},
+        403: {"description": "Foydalanuvchi supplier emas yoki ruxsat yo'q"},
+        404: {"description": "Buyurtma topilmadi"},
+        422: {"description": "Noto'g'ri holat o'tishi yoki kuryer topilmadi"},
+    },
+)
+async def ship_order(
+    order_id: uuid.UUID,
+    body: MarketplaceShipIn,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> MarketplaceOrderOut:
+    """
+    Buyurtmani jo'natish — FAQAT supplier korxona.
+
+    XAVFSIZLIK:
+      - supplier_enterprise_id == current_user.enterprise_id tekshiriladi.
+      - Kuryer ham supplier korxonasiga tegishli bo'lishi shart.
+    """
+    order = await service.ship_order(
+        db,
+        order_id=order_id,
+        supplier_user=current_user,
+        courier_id=body.courier_id,
+    )
+    await db.commit()
+    return _build_order_out(order)
+
+
+@router.patch(
+    "/orders/{order_id}/deliver",
+    response_model=MarketplaceOrderOut,
+    summary="Buyurtma yetkazildi (FAQAT tayinlangan kuryer)",
+    description=(
+        "Tayinlangan kuryer buyurtmani yetkazib berganini tasdiqlaydi. "
+        "proof_photo_url: do'kon oldidagi fotosurat URL (ixtiyoriy). "
+        "Status: delivering → delivered."
+    ),
+    responses={
+        200: {"description": "Buyurtma yetkazildi (delivered)"},
+        403: {"description": "Kuryer tayinlanmagan yoki ruxsat yo'q"},
+        404: {"description": "Buyurtma topilmadi"},
+        422: {"description": "Noto'g'ri holat o'tishi"},
+    },
+)
+async def deliver_order(
+    order_id: uuid.UUID,
+    body: MarketplaceDeliverIn | None = None,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> MarketplaceOrderOut:
+    """
+    Buyurtma yetkazildi — FAQAT tayinlangan kuryer.
+
+    XAVFSIZLIK:
+      - order.courier_id == current_user.id tekshiriladi.
+      - Boshqa kuryer → 403.
+    """
+    proof_url = body.proof_photo_url if body else None
+    order = await service.deliver_order(
+        db,
+        order_id=order_id,
+        courier_user=current_user,
+        proof_photo_url=proof_url,
+    )
+    await db.commit()
+    return _build_order_out(order)
+
+
+@router.patch(
+    "/orders/{order_id}/accept",
+    response_model=MarketplaceOrderOut,
+    summary="Buyurtmani qabul qilish (FAQAT buyer do'kon/admin)",
+    description=(
+        "Buyer do'kon/admin delivered buyurtmani qabul qiladi. "
+        "Har buyurtma qatori uchun expiry_date va markup_percent beriladi. "
+        "Atomik: qabul = StoreInventory yozuvlari yaratiladi. "
+        "Status: delivered → accepted. sale_price = cost * (1 + markup/100)."
+    ),
+    responses={
+        200: {"description": "Buyurtma qabul qilindi (accepted), inventar yaratildi"},
+        403: {"description": "Foydalanuvchi buyer emas yoki ruxsat yo'q"},
+        404: {"description": "Buyurtma topilmadi"},
+        422: {"description": "Noto'g'ri holat o'tishi yoki do'kon topilmadi"},
+    },
+)
+async def accept_order(
+    order_id: uuid.UUID,
+    body: MarketplaceAcceptIn | None = None,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> MarketplaceOrderOut:
+    """
+    Buyurtmani qabul qilish — FAQAT buyer korxona.
+
+    XAVFSIZLIK:
+      - buyer_enterprise_id == current_user.enterprise_id tekshiriladi.
+      - supplier korxona accept qilishga urinsa → 403.
+
+    Atomik: har line → StoreInventory yozuvi.
+    sale_price server tomonida: cost_price * (1 + markup_percent/100).
+    """
+    from app.modules.marketplace.service import AcceptLineInfo
+    from decimal import Decimal
+
+    lines_info: list[AcceptLineInfo] = []
+    store_id = None
+
+    if body:
+        store_id = body.store_id
+        for li in body.lines:
+            lines_info.append(AcceptLineInfo(
+                line_id=li.line_id,
+                expiry_date=li.expiry_date,
+                markup_percent=li.markup_percent,
+            ))
+
+    order = await service.accept_order(
+        db,
+        order_id=order_id,
+        buyer_user=current_user,
+        lines_info=lines_info,
+        store_id=store_id,
+    )
+    await db.commit()
+    return _build_order_out(order)
+
+
+# ─── MP3: Do'kon inventari endpointi ─────────────────────────────────────────
+
+
+def _build_inventory_out(inv) -> StoreInventoryOut:
+    """StoreInventory ORM → StoreInventoryOut Pydantic sxemasi."""
+    return StoreInventoryOut(
+        id=inv.id,
+        enterprise_id=inv.enterprise_id,
+        store_id=inv.store_id,
+        product_id=inv.product_id,
+        qty=inv.qty,
+        cost_price=inv.cost_price,
+        markup_percent=inv.markup_percent,
+        sale_price=inv.sale_price,
+        expiry_date=inv.expiry_date,
+        status=inv.status,
+        source_order_id=inv.source_order_id,
+        created_at=inv.created_at,
+    )
+
+
+@router.get(
+    "/inventory",
+    response_model=PaginatedStoreInventory,
+    summary="Do'kon inventari (buyer korxona, tenant-scoped)",
+    description=(
+        "Marketplace orqali qabul qilingan mahsulotlar inventarini ko'radi. "
+        "Faqat joriy korxona inventari (enterprise_id filtr). "
+        "store_id bo'yicha filtr: bitta do'kon inventari."
+    ),
+    responses={
+        200: {"description": "Inventar ro'yxati (paginated)"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+    },
+)
+async def list_inventory(
+    store_id: uuid.UUID | None = Query(None, description="Do'kon UUID filtri"),
+    product_id: uuid.UUID | None = Query(None, description="Mahsulot UUID filtri"),
+    status: str | None = Query(None, description="Holat filtri: active | expired"),
+    page: int = Query(1, ge=1, description="Sahifa raqami (1-bazali)"),
+    limit: int = Query(50, ge=1, le=200, description="Sahifa hajmi"),
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.VIEW),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedStoreInventory:
+    """
+    Buyer korxona do'kon inventarini qaytaradi (tenant-scoped).
+
+    XAVFSIZLIK: enterprise_id = current_user.enterprise_id — boshqa korxona
+    inventarini ko'ra olmaydi.
+    """
+    if current_user.enterprise_id is None:
+        return PaginatedStoreInventory(items=[], total=0, limit=limit, offset=0)
+
+    items, total = await service.list_store_inventory(
+        db,
+        enterprise_id=current_user.enterprise_id,
+        store_id=store_id,
+        product_id=product_id,
+        status=status,
+        page=page,
+        limit=limit,
+    )
+    return PaginatedStoreInventory(
+        items=[_build_inventory_out(inv) for inv in items],
+        total=total,
+        limit=limit,
+        offset=(page - 1) * limit,
+    )

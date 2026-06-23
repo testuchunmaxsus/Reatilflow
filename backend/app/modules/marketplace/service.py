@@ -1,5 +1,5 @@
 """
-Marketplace servis qatlami — MP1 + MP2.
+Marketplace servis qatlami — MP1 + MP2 + MP3.
 
 MP1 funksiyalar:
   browse_products(db, filters...) → (list[ProductWithEnterprise], total)
@@ -14,6 +14,17 @@ MP2 funksiyalar:
   confirm_order(db, order_id, supplier_user) → MarketplaceOrder
   reject_order(db, order_id, supplier_user, reason) → MarketplaceOrder
 
+MP3 funksiyalar (yetkazish oqimi):
+  ship_order(db, order_id, supplier_user, courier_id) → MarketplaceOrder
+    confirmed → delivering, kuryer tayinlaydi (supplier korxona kuryeri).
+  deliver_order(db, order_id, courier_user, proof_photo_url) → MarketplaceOrder
+    delivering → delivered + proof_photo_url + delivered_at.
+    Faqat tayinlangan kuryer (courier_id == courier_user.id).
+  accept_order(db, order_id, buyer_user, lines_info) → MarketplaceOrder
+    delivered → accepted + accepted_at.
+    Atomik: har line → StoreInventory yozuvi (cost=unit_price, sale=cost*(1+markup/100)).
+    Outbox: marketplace.order_accepted.
+
 Xavfsizlik qoidalari (MP1):
   - marketplace_published=True QATTIQ SHART — hech qachon published emas
     mahsulot cross-tenant oqmasligi.
@@ -27,12 +38,19 @@ Xavfsizlik qoidalari (MP2):
   - Server-avtoritar narx: klient narx bera olmaydi (marketplace_price yoki segment).
   - Bitta so'rovda faqat bitta supplier korxona mahsulotlari (aralash → xato).
   - confirm/reject: FAQAT supplier korxona admini bajaradi.
+
+Xavfsizlik qoidalari (MP3):
+  - ship: FAQAT supplier korxona (admin/accountant). Kuryer ham shu korxona.
+  - deliver: FAQAT tayinlangan kuryer (courier_id == current_user.id).
+  - accept: FAQAT buyer korxona (admin/store).
+  - 3-korxona → 404.
 """
 
 from __future__ import annotations
 
 import json
 import uuid
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import String, func, or_, select
@@ -42,8 +60,9 @@ from app.core.errors import AppError
 from app.core.uuid7 import uuid7
 from app.models.catalog import Product, ProductPrice
 from app.models.enterprise import Enterprise
-from app.models.marketplace import MarketplaceOrder, MarketplaceOrderLine
+from app.models.marketplace import MarketplaceOrder, MarketplaceOrderLine, MP_VALID_TRANSITIONS
 from app.models.outbox import OutboxEvent
+from app.models.store_inventory import StoreInventory
 from app.models.user import AppUser
 
 
@@ -761,6 +780,320 @@ async def reject_order(
     return order
 
 
+# ─── MP3: Yetkazish oqimi ────────────────────────────────────────────────────
+
+
+class AcceptLineInfo:
+    """accept_order uchun har line'ga berilgan ma'lumot (ichki DTO)."""
+
+    __slots__ = ("line_id", "expiry_date", "markup_percent")
+
+    def __init__(
+        self,
+        line_id: uuid.UUID,
+        expiry_date: date | None = None,
+        markup_percent: Decimal = Decimal("0"),
+    ) -> None:
+        self.line_id = line_id
+        self.expiry_date = expiry_date
+        self.markup_percent = markup_percent
+
+
+async def ship_order(
+    db: AsyncSession,
+    order_id: uuid.UUID,
+    supplier_user: AppUser,
+    courier_id: uuid.UUID,
+) -> MarketplaceOrder:
+    """
+    Supplier korxona buyurtmani jo'natadi: confirmed → delivering.
+    Kuryer tayinlanadi (courier_id = supplier korxona kuryeri).
+
+    XAVFSIZLIK:
+      - Faqat supplier korxona foydalanuvchisi (admin/accountant) bajaradi.
+      - Kuryer shu supplier korxonaga tegishli va courier roli bo'lishi kerak.
+      - Faqat confirmed holat uchun → boshqa holat = 422.
+
+    Args:
+        db:            AsyncSession
+        order_id:      Buyurtma UUID
+        supplier_user: Supplier korxona foydalanuvchisi
+        courier_id:    Tayinlanadigan kuryer FK (app_user.id)
+
+    Returns:
+        Yangilangan MarketplaceOrder (status=delivering).
+
+    Raises:
+        AppError(404) — buyurtma topilmadi yoki ruxsatsiz.
+        AppError(403) — supplier emas.
+        AppError(422) — noto'g'ri holat o'tishi yoki kuryer topilmadi.
+    """
+    order = await _get_supplier_order(db, order_id, supplier_user)
+
+    if order.status not in MP_VALID_TRANSITIONS or "delivering" not in MP_VALID_TRANSITIONS.get(order.status, set()):
+        raise AppError(
+            message_key="marketplace.order_invalid_transition",
+            status_code=422,
+            params={"from_status": order.status, "to_status": "delivering"},
+        )
+
+    # Kuryer tekshiruvi — shu supplier korxonaniki bo'lishi shart
+    from app.models.user import AppUser as UserModel
+    courier_stmt = select(UserModel).where(
+        UserModel.id == courier_id,
+        UserModel.role == "courier",
+        UserModel.enterprise_id == order.supplier_enterprise_id,
+        UserModel.is_active.is_(True),
+    )
+    courier_result = await db.execute(courier_stmt)
+    courier = courier_result.scalar_one_or_none()
+    if courier is None:
+        raise AppError(
+            message_key="marketplace.courier_not_found",
+            status_code=422,
+        )
+
+    order.status = "delivering"
+    order.courier_id = courier_id
+    order.updated_at = datetime.now(timezone.utc)
+
+    outbox = OutboxEvent(
+        aggregate_type="marketplace_order",
+        aggregate_id=str(order.id),
+        event_type="marketplace.order_delivering",
+        payload=json.dumps({
+            "order_id": str(order.id),
+            "buyer_enterprise_id": str(order.buyer_enterprise_id),
+            "supplier_enterprise_id": str(order.supplier_enterprise_id),
+            "status": "delivering",
+            "courier_id": str(courier_id),
+        }),
+        enterprise_id=order.buyer_enterprise_id,
+    )
+    db.add(outbox)
+    await db.flush()
+    return order
+
+
+async def deliver_order(
+    db: AsyncSession,
+    order_id: uuid.UUID,
+    courier_user: AppUser,
+    proof_photo_url: str | None = None,
+) -> MarketplaceOrder:
+    """
+    Tayinlangan kuryer yetkazib berdi: delivering → delivered.
+    proof_photo_url va delivered_at o'rnatiladi.
+
+    XAVFSIZLIK:
+      - Faqat tayinlangan kuryer (order.courier_id == courier_user.id) bajaradi.
+      - Boshqa kuryer → 403.
+      - Faqat delivering holat uchun → boshqa holat = 422.
+
+    Args:
+        db:             AsyncSession
+        order_id:       Buyurtma UUID
+        courier_user:   Joriy kuryer foydalanuvchisi
+        proof_photo_url: Isboti rasm URL (ixtiyoriy, lekin tavsiya etiladi)
+
+    Returns:
+        Yangilangan MarketplaceOrder (status=delivered).
+
+    Raises:
+        AppError(404) — buyurtma topilmadi.
+        AppError(403) — bu kuryer tayinlanmagan.
+        AppError(422) — noto'g'ri holat o'tishi.
+    """
+    # Buyurtmani olish (faqat supplier YOKI buyer tomoni — courier ular ichida)
+    stmt = select(MarketplaceOrder).where(MarketplaceOrder.id == order_id)
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
+
+    if order is None:
+        raise AppError(
+            message_key="marketplace.order_not_found",
+            status_code=404,
+        )
+
+    # Faqat tayinlangan kuryer deliver qila oladi
+    if order.courier_id != courier_user.id:
+        raise AppError(
+            message_key="marketplace.order_courier_mismatch",
+            status_code=403,
+        )
+
+    if "delivered" not in MP_VALID_TRANSITIONS.get(order.status, set()):
+        raise AppError(
+            message_key="marketplace.order_invalid_transition",
+            status_code=422,
+            params={"from_status": order.status, "to_status": "delivered"},
+        )
+
+    now = datetime.now(timezone.utc)
+    order.status = "delivered"
+    order.delivered_at = now
+    order.proof_photo_url = proof_photo_url
+    order.updated_at = now
+
+    outbox = OutboxEvent(
+        aggregate_type="marketplace_order",
+        aggregate_id=str(order.id),
+        event_type="marketplace.order_delivered",
+        payload=json.dumps({
+            "order_id": str(order.id),
+            "buyer_enterprise_id": str(order.buyer_enterprise_id),
+            "supplier_enterprise_id": str(order.supplier_enterprise_id),
+            "status": "delivered",
+            "proof_photo_url": proof_photo_url,
+            "delivered_at": now.isoformat(),
+        }),
+        enterprise_id=order.buyer_enterprise_id,
+    )
+    db.add(outbox)
+    await db.flush()
+    return order
+
+
+async def accept_order(
+    db: AsyncSession,
+    order_id: uuid.UUID,
+    buyer_user: AppUser,
+    lines_info: list[AcceptLineInfo],
+    store_id: uuid.UUID | None = None,
+) -> MarketplaceOrder:
+    """
+    Buyer do'kon buyurtmani qabul qiladi: delivered → accepted.
+    Atomik: har buyurtma qatori → StoreInventory yozuvi.
+
+    XAVFSIZLIK:
+      - Faqat buyer korxona (admin yoki store roli) bajaradi.
+      - Supplier korxona accept qila OLMAYDI → 403.
+      - Faqat delivered holat uchun → boshqa holat = 422.
+
+    BIZNES MANTIQI:
+      - Har line uchun StoreInventory yaratiladi:
+          cost_price  = line.unit_price (server-avtoritar)
+          sale_price  = cost_price * (1 + markup_percent / 100)
+          expiry_date = lines_info[line].expiry_date
+          qty         = line.qty
+          enterprise_id = order.buyer_enterprise_id
+          store_id    = buyer_store_id (parametrdan yoki order.buyer_store_id)
+
+    Args:
+        db:          AsyncSession
+        order_id:    Buyurtma UUID
+        buyer_user:  Buyer korxona foydalanuvchisi
+        lines_info:  Har line uchun expiry_date + markup_percent ro'yxati
+        store_id:    Do'kon UUID (None bo'lsa order.buyer_store_id ishlatiladi)
+
+    Returns:
+        Yangilangan MarketplaceOrder (status=accepted).
+
+    Raises:
+        AppError(404) — buyurtma topilmadi yoki ruxsatsiz.
+        AppError(403) — buyer emas.
+        AppError(422) — noto'g'ri holat o'tishi yoki store topilmadi.
+    """
+    order = await _get_buyer_order(db, order_id, buyer_user)
+
+    if "accepted" not in MP_VALID_TRANSITIONS.get(order.status, set()):
+        raise AppError(
+            message_key="marketplace.order_invalid_transition",
+            status_code=422,
+            params={"from_status": order.status, "to_status": "accepted"},
+        )
+
+    # Do'kon aniqlash: parametr → order.buyer_store_id → xato
+    effective_store_id = store_id or order.buyer_store_id
+    if effective_store_id is None:
+        raise AppError(
+            message_key="marketplace.accept_no_store",
+            status_code=422,
+        )
+
+    # Do'kon buyer korxonasiga tegishli ekanligini tekshiramiz
+    from app.models.store import Store
+    store_stmt = select(Store).where(
+        Store.id == effective_store_id,
+        Store.enterprise_id == order.buyer_enterprise_id,
+        Store.deleted_at.is_(None),
+    )
+    store_result = await db.execute(store_stmt)
+    store_obj = store_result.scalar_one_or_none()
+    if store_obj is None:
+        raise AppError(
+            message_key="marketplace.accept_store_not_found",
+            status_code=422,
+        )
+
+    # lines_info indeksi quramiz
+    lines_info_map: dict[uuid.UUID, AcceptLineInfo] = {
+        li.line_id: li for li in lines_info
+    }
+
+    # Buyurtma line'larini yuklash (selectin bo'lmasa qo'lda)
+    from sqlalchemy.orm import selectinload
+    order_with_lines_stmt = (
+        select(MarketplaceOrder)
+        .options(selectinload(MarketplaceOrder.lines))
+        .where(MarketplaceOrder.id == order_id)
+    )
+    ow_result = await db.execute(order_with_lines_stmt)
+    order_loaded = ow_result.scalar_one()
+
+    now = datetime.now(timezone.utc)
+
+    # Har line → StoreInventory yozuvi
+    for line in order_loaded.lines:
+        li = lines_info_map.get(line.id)
+        markup_pct = li.markup_percent if li else Decimal("0")
+        expiry_dt = li.expiry_date if li else None
+
+        # sale_price server tomonida hisoblanadi
+        sale_price = line.unit_price * (1 + markup_pct / Decimal("100"))
+        # 2 kasrga yaxlitlash
+        sale_price = sale_price.quantize(Decimal("0.01"))
+
+        inv = StoreInventory(
+            id=uuid7(),
+            enterprise_id=order.buyer_enterprise_id,
+            store_id=effective_store_id,
+            product_id=line.product_id,
+            qty=line.qty,
+            cost_price=line.unit_price,
+            markup_percent=markup_pct,
+            sale_price=sale_price,
+            expiry_date=expiry_dt,
+            status="active",
+            source_order_id=order.id,
+            created_at=now,
+        )
+        db.add(inv)
+
+    # Buyurtma holatini yangilash
+    order.status = "accepted"
+    order.accepted_at = now
+    order.updated_at = now
+
+    outbox = OutboxEvent(
+        aggregate_type="marketplace_order",
+        aggregate_id=str(order.id),
+        event_type="marketplace.order_accepted",
+        payload=json.dumps({
+            "order_id": str(order.id),
+            "buyer_enterprise_id": str(order.buyer_enterprise_id),
+            "supplier_enterprise_id": str(order.supplier_enterprise_id),
+            "status": "accepted",
+            "store_id": str(effective_store_id),
+            "accepted_at": now.isoformat(),
+        }),
+        enterprise_id=order.supplier_enterprise_id,
+    )
+    db.add(outbox)
+    await db.flush()
+    return order
+
+
 # ─── Ichki yordamchilar ───────────────────────────────────────────────────────
 
 
@@ -817,3 +1150,112 @@ async def _get_supplier_order(
         )
 
     return order
+
+
+async def _get_buyer_order(
+    db: AsyncSession,
+    order_id: uuid.UUID,
+    buyer_user: AppUser,
+) -> MarketplaceOrder:
+    """
+    Buyer foydalanuvchi uchun buyurtmani yuklaydi va tekshiradi.
+
+    XAVFSIZLIK:
+      - Buyurtma mavjudligini tekshiradi (404 agar yo'q).
+      - buyer_enterprise_id == buyer_user.enterprise_id tekshiradi.
+        Agar supplier korxona foydalanuvchisi accept qilmoqchi bo'lsa → 403.
+      - Uchinchi korxona → 404.
+
+    Returns:
+        MarketplaceOrder
+
+    Raises:
+        AppError(404) — buyurtma topilmadi.
+        AppError(403) — foydalanuvchi buyer emas (supplier yoki uchinchi korxona).
+    """
+    user_enterprise = buyer_user.enterprise_id
+
+    stmt = select(MarketplaceOrder).where(MarketplaceOrder.id == order_id)
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
+
+    if order is None:
+        raise AppError(
+            message_key="marketplace.order_not_found",
+            status_code=404,
+        )
+
+    # Superadmin bypass
+    if user_enterprise is None:
+        return order
+
+    # Supplier korxona foydalanuvchisi accept qila olmaydi → 403
+    if order.supplier_enterprise_id == user_enterprise and order.buyer_enterprise_id != user_enterprise:
+        raise AppError(
+            message_key="marketplace.order_buyer_only",
+            status_code=403,
+        )
+
+    # Uchinchi korxona → 404
+    if order.buyer_enterprise_id != user_enterprise:
+        raise AppError(
+            message_key="marketplace.order_not_found",
+            status_code=404,
+        )
+
+    return order
+
+
+# ─── StoreInventory o'qish ────────────────────────────────────────────────────
+
+
+async def list_store_inventory(
+    db: AsyncSession,
+    enterprise_id: uuid.UUID,
+    store_id: uuid.UUID | None = None,
+    product_id: uuid.UUID | None = None,
+    status: str | None = None,
+    page: int = 1,
+    limit: int = 50,
+) -> tuple[list[StoreInventory], int]:
+    """
+    Do'kon inventarini ro'yxatini qaytaradi (tenant-scoped).
+
+    XAVFSIZLIK:
+      - enterprise_id MAJBURIY — boshqa korxona inventarini ko'ra olmaydi.
+      - store_id bo'yicha qo'shimcha filtr (ixtiyoriy).
+
+    Args:
+        db:            AsyncSession
+        enterprise_id: Joriy korxona UUID (buyer korxona)
+        store_id:      Do'kon filtri (ixtiyoriy)
+        product_id:    Mahsulot filtri (ixtiyoriy)
+        status:        Holat filtri: active | expired (ixtiyoriy)
+        page:          Sahifa (1-bazali)
+        limit:         Sahifa hajmi
+
+    Returns:
+        (inventories, total)
+    """
+    offset = (page - 1) * limit
+    base = select(StoreInventory).where(
+        StoreInventory.enterprise_id == enterprise_id,
+    )
+
+    if store_id is not None:
+        base = base.where(StoreInventory.store_id == store_id)
+
+    if product_id is not None:
+        base = base.where(StoreInventory.product_id == product_id)
+
+    if status is not None:
+        base = base.where(StoreInventory.status == status)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    total_result = await db.execute(count_stmt)
+    total: int = total_result.scalar_one()
+
+    stmt = base.order_by(StoreInventory.created_at.desc()).offset(offset).limit(limit)
+    result = await db.execute(stmt)
+    items = list(result.scalars().all())
+    return items, total
