@@ -38,6 +38,7 @@ ALL_MODULE_KEYS: list[str] = [
     "promo",
     "stats",
     "push",
+    "pos",
 ]
 
 # Default korxona UUID (jonli ma'lumot backfill uchun — migratsiya 0020)

@@ -41,7 +41,7 @@ from enum import StrEnum
 
 
 class Module(StrEnum):
-    """11 ta domen moduli + rbac/audit + orders (T11) + gps (T17)."""
+    """11 ta domen moduli + rbac/audit + orders (T11) + gps (T17) + pos (POS chakana sotuv)."""
 
     CATALOG = "catalog"
     AGENT_CABINET = "agent_cabinet"
@@ -57,6 +57,7 @@ class Module(StrEnum):
     RBAC = "rbac"
     ORDERS = "orders"  # T11: Buyurtma yadrosi
     GPS = "gps"        # T17: GPS Ingest (agent/courier trekking)
+    POS = "pos"        # POS: Chakana sotuv yadrosi
 
 
 class Action(StrEnum):
@@ -100,6 +101,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.ORDERS,      Action.VIEW, Action.CREATE, Action.EDIT)
         # T17: GPS — administrator barcha agentlar/kuryerlar trekini ko'radi
         | _p(Module.GPS,         Action.VIEW)
+        # POS: administrator barcha sotuvlarni ko'radi
+        | _p(Module.POS,         Action.VIEW, Action.CREATE)
     ),
 
     # ─── Savdo agenti ──────────────────────────────────────────────────────────
@@ -158,6 +161,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.STATS,      Action.VIEW)
         # T17: GPS — kuryer o'z trekini ingest qiladi va ko'radi (row-level scope)
         | _p(Module.GPS,        Action.CREATE, Action.VIEW)
+        # POS: agent — ruxsati yo'q (pos checkout faqat store roli uchun)
     ),
 
     # ─── Buxgalter ─────────────────────────────────────────────────────────────
@@ -189,6 +193,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.RBAC,        Action.VIEW)
         # T11: buxgalter barcha buyurtmalarni ko'ra oladi (filial bo'yicha)
         | _p(Module.ORDERS,      Action.VIEW)
+        # POS: buxgalter sotuvlarni ko'ra oladi
+        | _p(Module.POS,         Action.VIEW)
     ),
 
     # ─── Do'kon (mijoz) ────────────────────────────────────────────────────────
@@ -215,6 +221,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.PROMO,    Action.VIEW)
         # T11: do'kon o'z buyurtmalarini ko'ra oladi (faqat view)
         | _p(Module.ORDERS,   Action.VIEW)
+        # POS: do'kon (kassir) sotuv yaratadi va ko'radi
+        | _p(Module.POS,      Action.VIEW, Action.CREATE)
     ),
 
     # ─── Superadmin (platforma egasi) ─────────────────────────────────────────

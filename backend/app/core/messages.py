@@ -405,6 +405,32 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Конфликт версий: другой пользователь изменил акцию",
     },
 
+    # ── POS (Point-of-Sale) — chakana sotuv ─────────────────────────────────
+    "pos.sale_not_found": {
+        "uz": "Sotuv topilmadi",
+        "ru": "Продажа не найдена",
+    },
+    "pos.empty_lines": {
+        "uz": "Sotuv qatorlari bo'sh bo'lishi mumkin emas",
+        "ru": "Строки продажи не могут быть пустыми",
+    },
+    "pos.product_not_found": {
+        "uz": "Mahsulot topilmadi yoki narx belgilanmagan",
+        "ru": "Товар не найден или цена не установлена",
+    },
+    "pos.no_price": {
+        "uz": "Mahsulot uchun do'kon segmentida narx topilmadi",
+        "ru": "Цена для товара в сегменте магазина не найдена",
+    },
+    "pos.idempotency_conflict": {
+        "uz": "Bu client_uuid boshqa foydalanuvchi tomonidan allaqachon ishlatilgan",
+        "ru": "Данный client_uuid уже использован другим пользователем",
+    },
+    "pos.invalid_payment_method": {
+        "uz": "Noto'g'ri to'lov usuli: faqat 'cash' yoki 'card' qabul qilinadi",
+        "ru": "Неверный способ оплаты: допустимы только 'cash' или 'card'",
+    },
+
     # ── Statistika (stats) — T22 ────────────────────────────────────────────
     "stats.invalid_period": {
         "uz": "Noto'g'ri davr: boshlanish vaqti tugash vaqtidan katta bo'lishi mumkin emas",
