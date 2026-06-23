@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_providers.dart';
@@ -467,5 +469,114 @@ final marketplaceOrderDetailProvider =
   (ref, orderId) async {
     final repo = ref.watch(marketplaceRepositoryProvider);
     return repo.getOrder(orderId);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// V2C: Kuryer marketplace yetkazish (GET /marketplace/orders/deliveries)
+
+sealed class CourierDeliveriesState {
+  const CourierDeliveriesState();
+}
+
+class CourierDeliveriesLoading extends CourierDeliveriesState {
+  const CourierDeliveriesLoading();
+}
+
+class CourierDeliveriesLoaded extends CourierDeliveriesState {
+  const CourierDeliveriesLoaded({required this.orders});
+  final List<MarketplaceOrder> orders;
+}
+
+class CourierDeliveriesError extends CourierDeliveriesState {
+  const CourierDeliveriesError({required this.message});
+  final String message;
+}
+
+class CourierDeliveriesNotifier
+    extends StateNotifier<CourierDeliveriesState> {
+  CourierDeliveriesNotifier(this._repository)
+      : super(const CourierDeliveriesLoading()) {
+    load();
+  }
+
+  final MarketplaceRepository _repository;
+
+  Future<void> load() async {
+    state = const CourierDeliveriesLoading();
+    try {
+      final orders = await _repository.getMarketplaceDeliveries();
+      state = CourierDeliveriesLoaded(orders: orders);
+    } on Exception catch (e) {
+      state = CourierDeliveriesError(message: e.toString());
+    }
+  }
+}
+
+final courierDeliveriesProvider = StateNotifierProvider.autoDispose<
+    CourierDeliveriesNotifier, CourierDeliveriesState>(
+  (ref) {
+    final repo = ref.watch(marketplaceRepositoryProvider);
+    return CourierDeliveriesNotifier(repo);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// V2C: Kuryer proof-photo yuklash + deliver
+
+sealed class MarketplaceDeliverState {
+  const MarketplaceDeliverState();
+}
+
+class MarketplaceDeliverIdle extends MarketplaceDeliverState {
+  const MarketplaceDeliverIdle();
+}
+
+class MarketplaceDeliverLoading extends MarketplaceDeliverState {
+  const MarketplaceDeliverLoading();
+}
+
+class MarketplaceDeliverSuccess extends MarketplaceDeliverState {
+  const MarketplaceDeliverSuccess({required this.order});
+  final MarketplaceOrder order;
+}
+
+class MarketplaceDeliverFailure extends MarketplaceDeliverState {
+  const MarketplaceDeliverFailure({required this.message});
+  final String message;
+}
+
+class MarketplaceDeliverNotifier
+    extends StateNotifier<MarketplaceDeliverState> {
+  MarketplaceDeliverNotifier(this._repository)
+      : super(const MarketplaceDeliverIdle());
+
+  final MarketplaceRepository _repository;
+
+  /// Proof rasm yuklaydi va buyurtmani delivered qiladi.
+  Future<void> deliver({
+    required String orderId,
+    required File imageFile,
+  }) async {
+    state = const MarketplaceDeliverLoading();
+    try {
+      final order = await _repository.uploadProofAndDeliver(
+        orderId: orderId,
+        imageFile: imageFile,
+      );
+      state = MarketplaceDeliverSuccess(order: order);
+    } on Exception catch (e) {
+      state = MarketplaceDeliverFailure(message: e.toString());
+    }
+  }
+
+  void reset() => state = const MarketplaceDeliverIdle();
+}
+
+final marketplaceDeliverProvider = StateNotifierProvider.autoDispose.family<
+    MarketplaceDeliverNotifier, MarketplaceDeliverState, String>(
+  (ref, orderId) {
+    final repo = ref.watch(marketplaceRepositoryProvider);
+    return MarketplaceDeliverNotifier(repo);
   },
 );

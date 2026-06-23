@@ -28,12 +28,21 @@ Endpointlar (MP5 — Banner + Qaynoq aksiyalar):
   POST   /marketplace/banners/{id}/image  — banner rasm yuklash (MinIO)
   GET    /marketplace/promos              — qaynoq aksiyalar (cross-tenant, featured)
 
+Endpointlar (V2C — Kuryer marketplace yetkazish):
+  GET    /marketplace/orders/deliveries   — kuryer o'z tayinlangan yetkazishlari (delivering)
+  POST   /marketplace/orders/{id}/proof-photo — kuryer proof rasm yuklash (MinIO)
+
 XAVFSIZLIK (MP3):
   - ship: FAQAT supplier korxona (admin/accountant) — marketplace:edit.
   - deliver: FAQAT tayinlangan kuryer — marketplace:edit (courier roli).
   - accept: FAQAT buyer korxona (admin/store) — marketplace:edit.
   - inventory: buyer korxona foydalanuvchisi — marketplace:view.
   - 3-korxona → 404.
+
+XAVFSIZLIK (V2C — Kuryer):
+  - deliveries: FAQAT joriy kuryer (courier_id == me), status delivering — marketplace:view.
+  - proof-photo: FAQAT tayinlangan kuryer O'Z buyurtmasi uchun — marketplace:edit.
+  - Boshqa kuryer yoki rol → 403/404.
 
 XAVFSIZLIK (MP5):
   - banner browse: barcha (marketplace:view) — cross-tenant, faqat aktiv+valid.
@@ -388,6 +397,90 @@ async def list_incoming_orders(
         limit=limit,
         offset=(page - 1) * limit,
     )
+
+
+@router.get(
+    "/orders/deliveries",
+    response_model=PaginatedMarketplaceOrders,
+    summary="Kuryer o'z marketplace yetkazishlari (delivering)",
+    description=(
+        "Joriy kuryerga tayinlangan va hali yetkazilmagan marketplace buyurtmalar. "
+        "courier_id == current_user.id va status == delivering filtri. "
+        "Faqat courier roli foydalanuvchisi uchun."
+    ),
+    responses={
+        200: {"description": "Kuryer yetkazishlari ro'yxati (paginated)"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+    },
+)
+async def list_courier_deliveries(
+    page: int = Query(1, ge=1, description="Sahifa raqami"),
+    limit: int = Query(20, ge=1, le=100, description="Sahifa hajmi"),
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.VIEW),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedMarketplaceOrders:
+    """
+    Joriy kuryer o'ziga tayinlangan marketplace yetkazishlarini ko'radi.
+
+    XAVFSIZLIK:
+      - courier_id == current_user.id (server-avtoritar, klient bera olmaydi).
+      - Faqat status == 'delivering' yetkazishlar.
+    """
+    orders, total = await service.list_courier_deliveries(
+        db,
+        courier_user=current_user,
+        page=page,
+        limit=limit,
+    )
+    return PaginatedMarketplaceOrders(
+        items=[_build_order_out(o) for o in orders],
+        total=total,
+        limit=limit,
+        offset=(page - 1) * limit,
+    )
+
+
+@router.post(
+    "/orders/{order_id}/proof-photo",
+    response_model=MarketplaceOrderOut,
+    summary="Kuryer proof rasmi yuklash (MinIO → deliver)",
+    description=(
+        "Kuryer delivery isboti rasmi yuklaydi (JPEG/PNG/WebP, max 5MB). "
+        "Magic bytes validatsiya — faqat rasm formatlari. "
+        "Rasm MinIO ga yuklanadi, URL saqlandi, buyurtma delivered holatiga o'tkaziladi. "
+        "Faqat tayinlangan kuryer (courier_id == me) uchun ishlaydi."
+    ),
+    responses={
+        200: {"description": "Rasm yuklandi, buyurtma delivered holatga o'tdi"},
+        403: {"description": "Kuryer tayinlanmagan yoki ruxsat yo'q"},
+        404: {"description": "Buyurtma topilmadi"},
+        422: {"description": "Noto'g'ri rasm formati, hajmi yoki holat o'tishi"},
+    },
+)
+async def upload_proof_photo(
+    order_id: uuid.UUID,
+    file: UploadFile,
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+    storage: StorageBackend = Depends(get_storage),
+) -> MarketplaceOrderOut:
+    """
+    Kuryer proof rasmi yuklash + buyurtmani delivered qilish.
+
+    XAVFSIZLIK:
+      - Faqat tayinlangan kuryer (order.courier_id == current_user.id).
+      - Magic-byte validatsiya (JPEG/PNG/WebP, 5MB) — storage ichida.
+      - Rasm yuklangandan keyin deliver_order chaqiriladi atomik.
+    """
+    proof_url = await storage.upload_product_photo(file)
+    order = await service.deliver_order(
+        db,
+        order_id=order_id,
+        courier_user=current_user,
+        proof_photo_url=proof_url,
+    )
+    await db.commit()
+    return _build_order_out(order)
 
 
 @router.get(

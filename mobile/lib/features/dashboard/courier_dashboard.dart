@@ -34,6 +34,7 @@ class CourierDashboard extends ConsumerWidget {
     final activeCountAsync = ref.watch(activeDeliveriesCountProvider);
     final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
     final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+    final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -105,6 +106,14 @@ class CourierDashboard extends ConsumerWidget {
                   label: 'Yetkazishlar',
                   color: Colors.blue,
                   onTap: () => context.go('/home/deliveries'),
+                ),
+              if (hasMarketplace)
+                _QuickAction(
+                  icon: Icons.storefront,
+                  label: 'MP Yetkazish',
+                  color: Colors.teal,
+                  onTap: () =>
+                      context.go('/home/courier/mp-deliveries'),
                 ),
               if (hasAttendance)
                 _QuickAction(

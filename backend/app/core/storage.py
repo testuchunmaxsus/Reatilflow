@@ -34,6 +34,7 @@ from typing import Any
 from fastapi import UploadFile
 
 from app.core.errors import AppError
+from app.core.uuid7 import uuid7
 
 logger = logging.getLogger(__name__)
 

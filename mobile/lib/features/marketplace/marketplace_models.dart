@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 // Marketplace — modellar va javob tiplari.
 //
 // Backend endpointlari:
-//   GET  /marketplace/banners?limit=5          → MarketplaceBanner ro'yxati
-//   GET  /marketplace/promos?limit=20          → MarketplacePromo ro'yxati
-//   GET  /marketplace/products                 → MarketplaceProduct ro'yxati
-//   POST /marketplace/orders                   → MarketplaceOrder
-//   GET  /marketplace/orders/outgoing          → MarketplaceOrder ro'yxati
-//   GET  /marketplace/orders/{id}              → MarketplaceOrder
-//   PATCH /marketplace/orders/{id}/accept      → MarketplaceOrder
+//   GET  /marketplace/banners?limit=5                    → MarketplaceBanner ro'yxati
+//   GET  /marketplace/promos?limit=20                    → MarketplacePromo ro'yxati
+//   GET  /marketplace/products                           → MarketplaceProduct ro'yxati
+//   POST /marketplace/orders                             → MarketplaceOrder
+//   GET  /marketplace/orders/outgoing                    → MarketplaceOrder ro'yxati
+//   GET  /marketplace/orders/deliveries                  → MarketplaceOrder ro'yxati (kuryer)
+//   GET  /marketplace/orders/{id}                        → MarketplaceOrder
+//   PATCH /marketplace/orders/{id}/accept                → MarketplaceOrder
+//   POST  /marketplace/orders/{id}/proof-photo           → MarketplaceOrder (deliver)
 
 // ---------------------------------------------------------------------------
 // Banner
@@ -291,6 +293,9 @@ class MarketplaceOrder {
     this.confirmedAt,
     this.deliveredAt,
     this.acceptedAt,
+    this.courierId,
+    this.buyerEnterpriseId,
+    this.buyerStoreId,
   });
 
   factory MarketplaceOrder.fromJson(Map<String, dynamic> json) {
@@ -321,6 +326,9 @@ class MarketplaceOrder {
       acceptedAt: json['accepted_at'] != null
           ? DateTime.tryParse(json['accepted_at'] as String)
           : null,
+      courierId: json['courier_id'] as String?,
+      buyerEnterpriseId: json['buyer_enterprise_id'] as String?,
+      buyerStoreId: json['buyer_store_id'] as String?,
     );
   }
 
@@ -338,8 +346,20 @@ class MarketplaceOrder {
   final DateTime? deliveredAt;
   final DateTime? acceptedAt;
 
+  /// Tayinlangan kuryer UUID (MP3 ship dan keyin to'ldiriladi).
+  final String? courierId;
+
+  /// Xaridor korxona UUID.
+  final String? buyerEnterpriseId;
+
+  /// Xaridor do'kon UUID.
+  final String? buyerStoreId;
+
   /// Qabul qilish tugmasi ko'rsatilishi kerakmi?
   bool get canAccept => status == MarketplaceOrderStatus.delivered;
+
+  /// Kuryer deliver qila oladimi? (delivering holat)
+  bool get canDeliver => status == MarketplaceOrderStatus.delivering;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -356,6 +376,25 @@ class MarketplaceOrder {
           'delivered_at': deliveredAt!.toIso8601String(),
         if (acceptedAt != null)
           'accepted_at': acceptedAt!.toIso8601String(),
+        if (courierId != null) 'courier_id': courierId,
+        if (buyerEnterpriseId != null) 'buyer_enterprise_id': buyerEnterpriseId,
+        if (buyerStoreId != null) 'buyer_store_id': buyerStoreId,
+      };
+}
+
+// ---------------------------------------------------------------------------
+// Kuryer yetkazish so'rovi
+
+/// POST /marketplace/orders/{id}/proof-photo javob uchun wrapper emas —
+/// to'g'ridan-to'g'ri MarketplaceOrder qaytadi (endpoint).
+/// Bu placeholder — deliver action uchun multipart yuboriladi.
+class MarketplaceDeliverRequest {
+  const MarketplaceDeliverRequest({this.proofPhotoUrl});
+
+  final String? proofPhotoUrl;
+
+  Map<String, dynamic> toJson() => {
+        if (proofPhotoUrl != null) 'proof_photo_url': proofPhotoUrl,
       };
 }
 

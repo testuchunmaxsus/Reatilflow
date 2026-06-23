@@ -160,6 +160,7 @@ class _CourierNavBar extends ConsumerWidget {
 
     final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
     final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+    final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
 
     final tabs = <_NavTab>[
       const _NavTab(
@@ -174,6 +175,13 @@ class _CourierNavBar extends ConsumerWidget {
           matchPrefix: '/home/deliveries',
           icon: Icons.local_shipping,
           label: 'Yetkazishlar',
+        ),
+      if (hasMarketplace)
+        const _NavTab(
+          route: '/home/courier/mp-deliveries',
+          matchPrefix: '/home/courier/mp-deliveries',
+          icon: Icons.storefront,
+          label: 'MP Yetkazish',
         ),
       if (hasAttendance)
         const _NavTab(

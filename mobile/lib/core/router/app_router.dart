@@ -12,6 +12,7 @@ import '../../features/dashboard/courier_dashboard.dart';
 import '../../features/delivery/delivery_detail_screen.dart';
 import '../../features/delivery/delivery_list_screen.dart';
 import '../../features/home/home_shell.dart';
+import '../../features/marketplace/courier_mp_deliveries_screen.dart';
 import '../../features/marketplace/marketplace_accept_screen.dart';
 import '../../features/marketplace/marketplace_browse_screen.dart';
 import '../../features/marketplace/marketplace_cart_screen.dart';
@@ -43,6 +44,11 @@ const String routeAttendance = '/home/attendance';
 // Courier routes
 const String routeDeliveries = '/home/deliveries';
 const String routeDeliveryDetail = '/home/deliveries/:deliveryId';
+
+// Courier Marketplace routes
+const String routeCourierMpDeliveries = '/home/courier/mp-deliveries';
+const String routeCourierMpDeliveryDetail =
+    '/home/courier/mp-deliveries/:orderId';
 
 // Store POS routes
 const String routePosSale = '/home/pos/sale';
@@ -197,6 +203,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: ':deliveryId',
                 builder: (context, state) => DeliveryDetailScreen(
                   deliveryId: state.pathParameters['deliveryId']!,
+                ),
+              ),
+            ],
+          ),
+
+          // --- Kuryer: Marketplace Yetkazish ---
+          GoRoute(
+            path: routeCourierMpDeliveries,
+            builder: (context, state) =>
+                const CourierMpDeliveriesScreen(),
+            routes: [
+              GoRoute(
+                path: ':orderId',
+                builder: (context, state) =>
+                    CourierMpDeliveryDetailScreen(
+                  orderId: state.pathParameters['orderId']!,
                 ),
               ),
             ],

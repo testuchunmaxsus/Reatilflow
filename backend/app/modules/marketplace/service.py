@@ -1237,6 +1237,52 @@ async def _get_buyer_order(
     return order
 
 
+# ─── MP_V2C: Kuryer yetkazish ro'yxati ───────────────────────────────────────
+
+
+async def list_courier_deliveries(
+    db: AsyncSession,
+    courier_user: AppUser,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[MarketplaceOrder], int]:
+    """
+    Joriy kuryerga tayinlangan marketplace buyurtmalar ro'yxati.
+
+    XAVFSIZLIK:
+      - courier_id == courier_user.id — faqat O'Z yetkazishlari.
+      - status == 'delivering' — faqat faol yetkazishlar.
+
+    Args:
+        db:            AsyncSession
+        courier_user:  Joriy kuryer foydalanuvchisi
+        page:          Sahifa (1-bazali)
+        limit:         Sahifa hajmi
+
+    Returns:
+        (orders, total)
+    """
+    offset = (page - 1) * limit
+    base = select(MarketplaceOrder).where(
+        MarketplaceOrder.courier_id == courier_user.id,
+        MarketplaceOrder.status == "delivering",
+    )
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    total_result = await db.execute(count_stmt)
+    total: int = total_result.scalar_one()
+
+    stmt = (
+        base
+        .order_by(MarketplaceOrder.updated_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    orders = list(result.scalars().all())
+    return orders, total
+
+
 # ─── StoreInventory o'qish ────────────────────────────────────────────────────
 
 

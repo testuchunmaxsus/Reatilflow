@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+
 import '../../data/remote/api_client.dart';
 import 'marketplace_models.dart';
 
@@ -108,6 +112,48 @@ class MarketplaceRepository {
     final response = await _api.dio.patch<Map<String, dynamic>>(
       '/marketplace/orders/$orderId/accept',
       data: request.toJson(),
+    );
+    return MarketplaceOrder.fromJson(response.data!);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Kuryer marketplace yetkazish (V2C)
+
+  /// GET /marketplace/orders/deliveries — kuryer o'ziga tayinlangan buyurtmalar.
+  ///
+  /// Faqat delivering holat, courier_id == joriy foydalanuvchi.
+  /// Courier roli uchun modul-gated.
+  Future<List<MarketplaceOrder>> getMarketplaceDeliveries() async {
+    final response =
+        await _api.dio.get<dynamic>('/marketplace/orders/deliveries');
+    final list = _toList(response.data);
+    return list
+        .map((e) =>
+            MarketplaceOrder.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// POST /marketplace/orders/{id}/proof-photo — kuryer rasm yuklaydi + deliver.
+  ///
+  /// [orderId] — yetkaziladigan buyurtma UUID.
+  /// [imageFile] — kameradan olingan fayl.
+  ///
+  /// Backend: rasm MinIO ga yuklanadi, buyurtma delivering → delivered.
+  Future<MarketplaceOrder> uploadProofAndDeliver({
+    required String orderId,
+    required File imageFile,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        imageFile.path,
+        filename: 'proof_${orderId.substring(0, 8)}.jpg',
+      ),
+    });
+
+    final response = await _api.dio.post<Map<String, dynamic>>(
+      '/marketplace/orders/$orderId/proof-photo',
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
     );
     return MarketplaceOrder.fromJson(response.data!);
   }
