@@ -22,6 +22,7 @@ Endpointlar (MP3 — Yetkazish):
 
 Endpointlar (MP5 — Banner + Qaynoq aksiyalar):
   GET    /marketplace/banners              — aktiv bannerlar (cross-tenant browse, limit=5)
+  GET    /marketplace/banners/mine        — O'Z korxona bannerlari (barcha holat, admin boshqaruv)
   POST   /marketplace/banners             — banner yaratish (korxona admin)
   PATCH  /marketplace/banners/{id}        — banner tahrirlash (o'z korxona yoki superadmin)
   DELETE /marketplace/banners/{id}        — banner o'chirish (o'z korxona yoki superadmin)
@@ -76,6 +77,7 @@ from app.modules.marketplace.schemas import (
     MarketplacePromoOut,
     MarketplaceShipIn,
     MarketplaceSupplierOut,
+    PaginatedBanners,
     PaginatedMarketplace,
     PaginatedMarketplaceOrders,
     PaginatedStoreInventory,
@@ -235,11 +237,27 @@ async def list_suppliers(
 # ─── MP2: Buyurtma endpointlari ───────────────────────────────────────────────
 
 
-def _build_order_out(order) -> MarketplaceOrderOut:
-    """MarketplaceOrder ORM → MarketplaceOrderOut Pydantic sxemasi (MP2 + MP3)."""
+def _build_order_out(order, *, enrich: bool = False) -> MarketplaceOrderOut:
+    """
+    MarketplaceOrder ORM → MarketplaceOrderOut Pydantic sxemasi (MP2 + MP3).
+
+    enrich=True: buyer_store_name, supplier_name, courier_name va har line uchun
+    product_name populate qilinadi. Bu relationship'lar lazy="select" bo'lganligi uchun
+    FAQAT selectinload orqali eager yuklangan bo'lsa chaqirish xavfsiz.
+
+    enrich=False (default): nom maydonlari None — mutatsiya endpointlari uchun
+    (confirm/reject/ship/deliver/accept). Bu holatda relationship'larga tegmaslik shart.
+
+    ⚠️ MissingGreenlet xavfi: enrich=True bo'lsa service'da selectinload
+    ishlatilgan bo'lishi SHART (list_incoming/list_outgoing enrich=True uzatadi).
+    """
+    from app.modules.marketplace.schemas import MarketplaceOrderLineOut
+
     lines_out = []
     for line in (order.lines or []):
-        from app.modules.marketplace.schemas import MarketplaceOrderLineOut
+        product_name: str | None = None
+        if enrich and line.product is not None:
+            product_name = localized_name(line.product) or line.product.name_uz
         lines_out.append(
             MarketplaceOrderLineOut(
                 id=line.id,
@@ -247,8 +265,28 @@ def _build_order_out(order) -> MarketplaceOrderOut:
                 qty=line.qty,
                 unit_price=line.unit_price,
                 line_total=line.line_total,
+                product_name=product_name,
             )
         )
+
+    # Nom maydonlari — faqat enrich=True bo'lganda
+    buyer_store_name: str | None = None
+    supplier_name: str | None = None
+    courier_name: str | None = None
+
+    if enrich:
+        buyer_store = getattr(order, "buyer_store", None)
+        if buyer_store is not None:
+            buyer_store_name = buyer_store.name
+
+        supplier_enterprise = getattr(order, "supplier_enterprise", None)
+        if supplier_enterprise is not None:
+            supplier_name = supplier_enterprise.name
+
+        courier = getattr(order, "courier", None)
+        if courier is not None:
+            courier_name = courier.full_name
+
     return MarketplaceOrderOut(
         id=order.id,
         buyer_enterprise_id=order.buyer_enterprise_id,
@@ -267,6 +305,10 @@ def _build_order_out(order) -> MarketplaceOrderOut:
         lines=lines_out,
         created_at=order.created_at,
         updated_at=order.updated_at,
+        # Nom maydonlari (enrich=True bo'lsa populated)
+        buyer_store_name=buyer_store_name,
+        supplier_name=supplier_name,
+        courier_name=courier_name,
     )
 
 
@@ -350,9 +392,10 @@ async def list_outgoing_orders(
         status=status,
         page=page,
         limit=limit,
+        enrich=True,
     )
     return PaginatedMarketplaceOrders(
-        items=[_build_order_out(o) for o in orders],
+        items=[_build_order_out(o, enrich=True) for o in orders],
         total=total,
         limit=limit,
         offset=(page - 1) * limit,
@@ -390,9 +433,10 @@ async def list_incoming_orders(
         status=status,
         page=page,
         limit=limit,
+        enrich=True,
     )
     return PaginatedMarketplaceOrders(
-        items=[_build_order_out(o) for o in orders],
+        items=[_build_order_out(o, enrich=True) for o in orders],
         total=total,
         limit=limit,
         offset=(page - 1) * limit,
@@ -855,6 +899,50 @@ async def list_banners(
     """
     banners = await service.list_active_banners(db, limit=limit)
     return [_build_banner_out(b) for b in banners]
+
+
+@router.get(
+    "/banners/mine",
+    response_model=PaginatedBanners,
+    summary="Mening bannerlarim (korxona admin, BARCHA holat)",
+    description=(
+        "Joriy korxona O'Z barcha bannerlarini qaytaradi — aktiv, nofaol va muddati o'tgan. "
+        "Bu endpoint cross-tenant GET /marketplace/banners'dan farqli: "
+        "faqat enterprise-scoped, BARCHA holatlar ko'rinadi (admin boshqaruvi uchun). "
+        "Tartib: priority DESC, created_at DESC. "
+        "Superadmin (enterprise_id=None) → bo'sh sahifa qaytadi."
+    ),
+    responses={
+        200: {"description": "Korxona O'Z bannerlari (paginated, barcha holat)"},
+        403: {"description": "marketplace moduli yoqilmagan yoki ruxsat yo'q"},
+    },
+)
+async def list_own_banners(
+    page: int = Query(1, ge=1, description="Sahifa raqami (1-bazali)"),
+    limit: int = Query(20, ge=1, le=100, description="Sahifa hajmi"),
+    current_user: AppUser = require_permission(Module.MARKETPLACE, Action.VIEW),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedBanners:
+    """
+    Korxona O'Z bannerlarini ko'radi — BARCHA holat (aktiv, nofaol, muddati o'tgan).
+
+    XAVFSIZLIK:
+      - enterprise_id = current_user.enterprise_id — server avtoritar, boshqa korxona oqmaydi.
+      - Superadmin (enterprise_id=None) → bo'sh sahifa (korxona kontekstisiz ma'nosiz).
+      - is_active filtri YO'Q — admin o'z nofaol bannerini ham ko'rishi kerak.
+    """
+    banners, total = await service.list_own_banners(
+        db,
+        enterprise_id=current_user.enterprise_id,
+        page=page,
+        limit=limit,
+    )
+    return PaginatedBanners(
+        items=[_build_banner_out(b) for b in banners],
+        total=total,
+        limit=limit,
+        offset=(page - 1) * limit,
+    )
 
 
 @router.post(

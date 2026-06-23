@@ -84,6 +84,7 @@ from decimal import Decimal
 
 from sqlalchemy import String, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import AppError
 from app.core.uuid7 import uuid7
@@ -561,6 +562,7 @@ async def list_outgoing(
     status: str | None = None,
     page: int = 1,
     limit: int = 20,
+    enrich: bool = False,
 ) -> tuple[list[MarketplaceOrder], int]:
     """
     Xaridor korxona chiquvchi buyurtmalari (o'zi jo'natgan).
@@ -573,27 +575,40 @@ async def list_outgoing(
         status:              Holat filtri (ixtiyoriy)
         page:                Sahifa (1-bazali)
         limit:               Sahifa hajmi
+        enrich:              True bo'lsa related nom ma'lumotlari eager yuklanadi
+                             (buyer_store, supplier_enterprise, courier, lines.product).
+                             MissingGreenlet xavfidan saqlanish uchun — faqat ro'yxatda.
 
     Returns:
         (orders, total)
     """
     offset = (page - 1) * limit
-    base = select(MarketplaceOrder).where(
-        MarketplaceOrder.buyer_enterprise_id == buyer_enterprise_id,
-    )
+    base_filter = [MarketplaceOrder.buyer_enterprise_id == buyer_enterprise_id]
     if status:
-        base = base.where(MarketplaceOrder.status == status)
+        base_filter.append(MarketplaceOrder.status == status)
 
-    count_stmt = select(func.count()).select_from(base.subquery())
+    count_stmt = select(func.count()).select_from(
+        select(MarketplaceOrder.id).where(*base_filter).subquery()
+    )
     total_result = await db.execute(count_stmt)
     total: int = total_result.scalar_one()
 
     stmt = (
-        base
+        select(MarketplaceOrder)
+        .where(*base_filter)
         .order_by(MarketplaceOrder.created_at.desc())
         .offset(offset)
         .limit(limit)
     )
+
+    if enrich:
+        stmt = stmt.options(
+            selectinload(MarketplaceOrder.buyer_store),
+            selectinload(MarketplaceOrder.supplier_enterprise),
+            selectinload(MarketplaceOrder.courier),
+            selectinload(MarketplaceOrder.lines).selectinload(MarketplaceOrderLine.product),
+        )
+
     result = await db.execute(stmt)
     orders = list(result.scalars().all())
     return orders, total
@@ -605,6 +620,7 @@ async def list_incoming(
     status: str | None = None,
     page: int = 1,
     limit: int = 20,
+    enrich: bool = False,
 ) -> tuple[list[MarketplaceOrder], int]:
     """
     Supplier korxona kiruvchi buyurtmalari (o'ziga kelgan).
@@ -617,27 +633,40 @@ async def list_incoming(
         status:                Holat filtri (ixtiyoriy)
         page:                  Sahifa (1-bazali)
         limit:                 Sahifa hajmi
+        enrich:                True bo'lsa related nom ma'lumotlari eager yuklanadi
+                               (buyer_store, supplier_enterprise, courier, lines.product).
+                               MissingGreenlet xavfidan saqlanish uchun — faqat ro'yxatda.
 
     Returns:
         (orders, total)
     """
     offset = (page - 1) * limit
-    base = select(MarketplaceOrder).where(
-        MarketplaceOrder.supplier_enterprise_id == supplier_enterprise_id,
-    )
+    base_filter = [MarketplaceOrder.supplier_enterprise_id == supplier_enterprise_id]
     if status:
-        base = base.where(MarketplaceOrder.status == status)
+        base_filter.append(MarketplaceOrder.status == status)
 
-    count_stmt = select(func.count()).select_from(base.subquery())
+    count_stmt = select(func.count()).select_from(
+        select(MarketplaceOrder.id).where(*base_filter).subquery()
+    )
     total_result = await db.execute(count_stmt)
     total: int = total_result.scalar_one()
 
     stmt = (
-        base
+        select(MarketplaceOrder)
+        .where(*base_filter)
         .order_by(MarketplaceOrder.created_at.desc())
         .offset(offset)
         .limit(limit)
     )
+
+    if enrich:
+        stmt = stmt.options(
+            selectinload(MarketplaceOrder.buyer_store),
+            selectinload(MarketplaceOrder.supplier_enterprise),
+            selectinload(MarketplaceOrder.courier),
+            selectinload(MarketplaceOrder.lines).selectinload(MarketplaceOrderLine.product),
+        )
+
     result = await db.execute(stmt)
     orders = list(result.scalars().all())
     return orders, total
@@ -1375,6 +1404,54 @@ async def list_active_banners(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def list_own_banners(
+    db: AsyncSession,
+    enterprise_id: uuid.UUID | None,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[AdBanner], int]:
+    """
+    Korxona O'Z bannerlarini qaytaradi — BARCHA holatlarda (aktiv, nofaol, muddati o'tgan).
+
+    Admin boshqaruvi uchun: cross-tenant list_active_banners'dan farqli, bu enterprise-scoped.
+    Superadmin (enterprise_id=None) → bo'sh sahifa (korxona ma'lumotisiz boshqarib bo'lmaydi).
+
+    Tartib: priority DESC, created_at DESC.
+
+    Args:
+        db:            AsyncSession
+        enterprise_id: Korxona UUID (None=superadmin → bo'sh ro'yxat)
+        page:          Sahifa (1-bazali)
+        limit:         Sahifa hajmi
+
+    Returns:
+        (banners, total)
+    """
+    if enterprise_id is None:
+        return [], 0
+
+    offset = (page - 1) * limit
+
+    base_filter = [AdBanner.enterprise_id == enterprise_id]
+
+    count_stmt = select(func.count()).select_from(
+        select(AdBanner.id).where(*base_filter).subquery()
+    )
+    total_result = await db.execute(count_stmt)
+    total: int = total_result.scalar_one()
+
+    stmt = (
+        select(AdBanner)
+        .where(*base_filter)
+        .order_by(AdBanner.priority.desc(), AdBanner.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    banners = list(result.scalars().all())
+    return banners, total
 
 
 async def create_banner(

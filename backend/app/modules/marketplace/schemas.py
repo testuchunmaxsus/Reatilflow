@@ -10,8 +10,8 @@ MP1 sxemalar:
 MP2 sxemalar:
   MarketplaceOrderLineIn    — buyurtma yaratish: bitta qator kiritish
   MarketplaceOrderCreateIn  — buyurtma yaratish so'rovi tanasi
-  MarketplaceOrderLineOut   — buyurtma qatori javobi
-  MarketplaceOrderOut       — buyurtma javobi (lines bilan)
+  MarketplaceOrderLineOut   — buyurtma qatori javobi (product_name bilan)
+  MarketplaceOrderOut       — buyurtma javobi (lines + nom maydonlar bilan)
   PaginatedMarketplaceOrders — paginated buyurtmalar ro'yxati
   MarketplaceOrderRejectIn  — reject so'rovi tanasi (reason)
 
@@ -27,6 +27,7 @@ MP5 sxemalar:
   AdBannerCreate            — banner yaratish so'rovi tanasi
   AdBannerPatch             — banner tahrirlash (PATCH) tanasi
   AdBannerOut               — banner javobi
+  PaginatedBanners          — paginated banner ro'yxati (admin /banners/mine uchun)
   MarketplacePromoOut       — qaynoq aksiya javobi (cross-tenant, featured)
   PromoMarketplaceToggle    — PATCH /promos/{id}/marketplace-featured tanasi
 """
@@ -192,13 +193,22 @@ class MarketplaceOrderRejectIn(BaseModel):
 
 
 class MarketplaceOrderLineOut(BaseModel):
-    """Buyurtma qatori javobi."""
+    """
+    Buyurtma qatori javobi.
+
+    product_name — faqat list_incoming/list_outgoing'da populate qilinadi (enrich=True).
+    Mutatsiya endpointlari (confirm/reject/ship/deliver/accept) da None qaytadi.
+    """
 
     id: uuid.UUID
     product_id: uuid.UUID
     qty: Decimal
     unit_price: Decimal = Field(..., description="Server-avtoritar narx")
     line_total: Decimal
+    product_name: str | None = Field(
+        None,
+        description="Mahsulot nomi (faqat ro'yxat endpointlarida: list_incoming/outgoing)",
+    )
 
     model_config = {"from_attributes": True}
 
@@ -209,6 +219,12 @@ class MarketplaceOrderOut(BaseModel):
 
     Ikkita korxona uchun: buyer va supplier ma'lumotlari.
     MP3 maydonlari: courier_id, delivered_at, proof_photo_url, accepted_at.
+
+    Nom maydonlari (faqat list_incoming/list_outgoing da, enrich=True):
+      buyer_store_name  — buyer do'kon nomi (buyer_store.name)
+      supplier_name     — supplier korxona nomi (supplier_enterprise.name)
+      courier_name      — kuryer to'liq ismi (courier.full_name)
+    Mutatsiya endpointlari (confirm/reject/ship/deliver/accept) da bular None.
     """
 
     id: uuid.UUID
@@ -228,6 +244,19 @@ class MarketplaceOrderOut(BaseModel):
     lines: list[MarketplaceOrderLineOut] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    # Nom maydonlari (enrich=True bo'lganda populate qilinadi)
+    buyer_store_name: str | None = Field(
+        None,
+        description="Buyer do'kon nomi (faqat ro'yxat endpointlarida populate qilinadi)",
+    )
+    supplier_name: str | None = Field(
+        None,
+        description="Supplier korxona nomi (faqat ro'yxat endpointlarida populate qilinadi)",
+    )
+    courier_name: str | None = Field(
+        None,
+        description="Kuryer to'liq ismi (faqat ro'yxat endpointlarida populate qilinadi)",
+    )
 
     model_config = {"from_attributes": True}
 
@@ -430,6 +459,19 @@ class AdBannerOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PaginatedBanners(BaseModel):
+    """
+    Paginated banner ro'yxati javobi — GET /marketplace/banners/mine uchun.
+
+    Admin o'z korxona bannerlarini (BARCHA holat: aktiv, nofaol, muddati o'tgan) ko'radi.
+    """
+
+    items: list[AdBannerOut]
+    total: int = Field(..., description="Jami bannerlar soni (filtersiz)")
+    limit: int = Field(..., description="So'rovdagi limit")
+    offset: int = Field(..., description="So'rovdagi offset = (page-1)*limit")
 
 
 # ─── MP5: Qaynoq aksiya sxemalari ────────────────────────────────────────────
