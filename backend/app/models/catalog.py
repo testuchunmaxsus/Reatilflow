@@ -168,6 +168,19 @@ class Product(TimestampMixin, Base):
         comment="JSON: filiallar ro'yxati (NULL = barcha filiallar)",
     )
 
+    # ─── Marketplace maydonlari (MP1) ────────────────────────────────────────
+    marketplace_published: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Marketplace'da ko'rinadimi (MP1 opt-in bayroq)",
+    )
+    marketplace_price: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+        comment="Marketplace ulgurji narxi (NULL bo'lsa segment narx ishlatiladi)",
+    )
+
     # ─── MT1: enterprise_id ──────────────────────────────────────────────────
     enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),

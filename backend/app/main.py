@@ -35,6 +35,7 @@ from app.modules.attendance.router import router as attendance_router
 from app.modules.contracts.router import router as contracts_router
 from app.modules.tickets.router import router as tickets_router
 from app.modules.promo.router import router as promo_router
+from app.modules.marketplace.router import router as marketplace_router
 from app.modules.pos.router import router as pos_router
 from app.modules.stats.router import router as stats_router
 from app.modules.delivery.router import router as delivery_router
@@ -449,6 +450,14 @@ app.include_router(
     prefix="/promos",
     tags=["promo"],
     dependencies=[require_module("promo")],
+)
+
+# MP1: Marketplace katalog — gated
+app.include_router(
+    marketplace_router,
+    prefix="/marketplace",
+    tags=["marketplace"],
+    dependencies=[require_module("marketplace")],
 )
 
 # POS: Chakana sotuv — gated

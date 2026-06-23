@@ -55,9 +55,10 @@ class Module(StrEnum):
     CONTRACTS = "contracts"
     PROMO = "promo"
     RBAC = "rbac"
-    ORDERS = "orders"  # T11: Buyurtma yadrosi
-    GPS = "gps"        # T17: GPS Ingest (agent/courier trekking)
-    POS = "pos"        # POS: Chakana sotuv yadrosi
+    ORDERS = "orders"        # T11: Buyurtma yadrosi
+    GPS = "gps"              # T17: GPS Ingest (agent/courier trekking)
+    POS = "pos"              # POS: Chakana sotuv yadrosi
+    MARKETPLACE = "marketplace"  # MP1: B2B Marketplace katalog
 
 
 class Action(StrEnum):
@@ -103,6 +104,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.GPS,         Action.VIEW)
         # POS: administrator barcha sotuvlarni ko'radi
         | _p(Module.POS,         Action.VIEW, Action.CREATE)
+        # MP1: administrator marketplace browse + o'z mahsulotini publish qiladi
+        | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT)
     ),
 
     # ─── Savdo agenti ──────────────────────────────────────────────────────────
@@ -135,6 +138,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.ORDERS,      Action.VIEW, Action.CREATE, Action.EDIT)
         # T17: GPS — agent o'z trekini ingest qiladi va ko'radi (row-level scope)
         | _p(Module.GPS,         Action.CREATE, Action.VIEW)
+        # MP1: agent marketplace browse qiladi
+        | _p(Module.MARKETPLACE, Action.VIEW)
     ),
 
     # ─── Kuryer (yetkazib beruvchi) ────────────────────────────────────────────
@@ -161,6 +166,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.STATS,      Action.VIEW)
         # T17: GPS — kuryer o'z trekini ingest qiladi va ko'radi (row-level scope)
         | _p(Module.GPS,        Action.CREATE, Action.VIEW)
+        # MP1: kuryer marketplace browse qiladi
+        | _p(Module.MARKETPLACE, Action.VIEW)
         # POS: agent — ruxsati yo'q (pos checkout faqat store roli uchun)
     ),
 
@@ -195,6 +202,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.ORDERS,      Action.VIEW)
         # POS: buxgalter sotuvlarni ko'ra oladi
         | _p(Module.POS,         Action.VIEW)
+        # MP1: buxgalter marketplace browse qiladi
+        | _p(Module.MARKETPLACE, Action.VIEW)
     ),
 
     # ─── Do'kon (mijoz) ────────────────────────────────────────────────────────
@@ -223,6 +232,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.ORDERS,   Action.VIEW)
         # POS: do'kon (kassir) sotuv yaratadi va ko'radi
         | _p(Module.POS,      Action.VIEW, Action.CREATE)
+        # MP1: do'kon marketplace browse qiladi
+        | _p(Module.MARKETPLACE, Action.VIEW)
     ),
 
     # ─── Superadmin (platforma egasi) ─────────────────────────────────────────

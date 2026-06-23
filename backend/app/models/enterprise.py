@@ -39,6 +39,7 @@ ALL_MODULE_KEYS: list[str] = [
     "stats",
     "push",
     "pos",
+    "marketplace",  # MP1: B2B marketplace katalog
 ]
 
 # Default korxona UUID (jonli ma'lumot backfill uchun — migratsiya 0020)

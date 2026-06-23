@@ -441,6 +441,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Неверный параметр группировки: допустимы только 'day', 'week', 'month'",
     },
 
+    # ── Marketplace (MP1) ────────────────────────────────────────────────────
+    "marketplace.product_not_found": {
+        "uz": "Marketplace mahsuloti topilmadi",
+        "ru": "Товар на маркетплейсе не найден",
+    },
+    "marketplace.not_published": {
+        "uz": "Mahsulot marketplace'da nashr qilinmagan",
+        "ru": "Товар не опубликован на маркетплейсе",
+    },
+
     # ── Umumiy ──────────────────────────────────────────────────────────────
     "common.not_found": {
         "uz": "So'ralgan resurs topilmadi",

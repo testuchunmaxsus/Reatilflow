@@ -50,6 +50,7 @@ from app.modules.catalog.schemas import (
     ProductOut,
     ProductUpdate,
 )
+from app.modules.marketplace.schemas import MarketplacePublishRequest
 from app.modules.rbac.dependency import require_permission
 from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
@@ -339,6 +340,50 @@ async def get_price_history(
 
 
 # ─── Photo upload ─────────────────────────────────────────────────────────────
+
+
+@router.patch(
+    "/products/{product_id}/marketplace",
+    response_model=ProductOut,
+    summary="Mahsulotni marketplace'ga publish/unpublish qilish",
+    description=(
+        "Korxona O'Z mahsulotini marketplace'ga publish yoki unpublish qiladi. "
+        "Faqat 'administrator' roli. "
+        "enterprise_id server tomonidan aniqlanadi — boshqa korxona mahsulotini "
+        "o'zgartirib bo'lmaydi (404 qaytadi). "
+        "marketplace_price=null bo'lsa segment narx ishlatiladi."
+    ),
+    responses={
+        200: {"description": "Yangilangan mahsulot"},
+        404: {"description": "Mahsulot topilmadi yoki boshqa korxona mahsuloti"},
+        403: {"description": "Faqat administrator roli"},
+    },
+)
+async def toggle_marketplace_publish(
+    product_id: uuid.UUID,
+    body: MarketplacePublishRequest,
+    lang: str | None = Query(None, description="Til: uz | ru"),
+    current_user: AppUser = require_permission(Module.CATALOG, Action.EDIT),
+    db: AsyncSession = Depends(get_db),
+) -> ProductOut:
+    """
+    Korxona O'Z mahsulotini marketplace'ga publish/unpublish qiladi.
+
+    enterprise_id JWT token'dan server-avtoritar olinadi.
+    Faqat o'z korxonasiga tegishli mahsulot — boshqasini o'zgartirib bo'lmaydi.
+    """
+    from app.modules.marketplace.service import toggle_marketplace
+    enterprise_id = get_current_enterprise_id(current_user)
+    product = await toggle_marketplace(
+        db,
+        product_id=product_id,
+        enterprise_id=enterprise_id,
+        published=body.marketplace_published,
+        marketplace_price=body.marketplace_price,
+    )
+    await db.commit()
+    await db.refresh(product)
+    return _product_out(product, lang)
 
 
 @router.post(

@@ -177,6 +177,14 @@ class ProductOut(BaseModel):
     photo_url: str | None
     is_active: bool
     branch_scope: str | None
+    marketplace_published: bool = Field(
+        False,
+        description="Marketplace'da ko'rinadimi (MP1)",
+    )
+    marketplace_price: Decimal | None = Field(
+        None,
+        description="Marketplace ulgurji narxi (None=segment narx)",
+    )
     version: int
     created_at: datetime
     updated_at: datetime
