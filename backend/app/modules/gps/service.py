@@ -236,6 +236,7 @@ async def ingest(
         gp = GpsPoint(
             id=uuid7(),
             user_id=user_id,
+            enterprise_id=user.enterprise_id,  # MT: tenant scoping (xarita filtri uchun)
             delivery_id=point.delivery_id,
             lat=point.lat,
             lng=point.lng,
@@ -278,6 +279,7 @@ async def ingest(
                 {
                     "id": str(gp.id),
                     "user_id": str(gp.user_id),
+                    "enterprise_id": str(gp.enterprise_id) if gp.enterprise_id else None,
                     "delivery_id": str(gp.delivery_id) if gp.delivery_id else None,
                     "lat": gp.lat,
                     "lng": gp.lng,
@@ -391,6 +393,12 @@ async def get_track(
 
     # Shartlar
     conditions = []
+
+    # MT: faqat foydalanuvchining korxonasi nuqtalari (tenant izolyatsiya +
+    # admin'ning date-only so'rovida cross-tenant leak'ni yopadi).
+    # user.enterprise_id None bo'lsa (test/superadmin) — filtr qo'llanmaydi.
+    if user.enterprise_id is not None:
+        conditions.append(GpsPoint.enterprise_id == user.enterprise_id)
 
     if scope_user_id is not None:
         conditions.append(GpsPoint.user_id == scope_user_id)

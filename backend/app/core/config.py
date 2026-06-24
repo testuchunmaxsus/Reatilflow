@@ -42,9 +42,11 @@ class Settings(BaseSettings):
     database_replica_url: str | None = None
 
     # ─── TimescaleDB ────────────────────────────────────────────
-    timescale_url: str = (
-        "postgresql+asyncpg://retail_gps_user:devpassword_ts@localhost:5434/retail_gps"
-    )
+    # Alohida TimescaleDB ixtiyoriy. Belgilanmasa (TIMESCALE_URL env yo'q) — asosiy
+    # DB'ga fallback qilamiz: gps_point 0011 migratsiyada asosiy OLTP bazada ham
+    # yaratiladi (timescaledb extension bo'lmasa oddiy jadval). Prod'da alohida
+    # Timescale instance bo'lsa — TIMESCALE_URL bering.
+    timescale_url: str | None = None
 
     # ─── Redis ─────────────────────────────────────────────────
     redis_url: str = "redis://:devpassword_redis@localhost:6379/0"
@@ -273,6 +275,11 @@ class Settings(BaseSettings):
 
         self.database_url = _to_asyncpg(self.database_url) or self.database_url
         self.database_replica_url = _to_asyncpg(self.database_replica_url)
+        # TimescaleDB alohida sozlanmagan bo'lsa — asosiy DB'ga fallback
+        # (gps_point 0011 da asosiy bazada ham mavjud). Aks holda gps endpointlari
+        # ulanib bo'lmaydigan localhost'ga urinib 500 beradi.
+        if not self.timescale_url:
+            self.timescale_url = self.database_url
         self.timescale_url = _to_asyncpg(self.timescale_url) or self.timescale_url
         return self
 

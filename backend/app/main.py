@@ -223,10 +223,21 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     """
     logger.exception("Unhandled 500", exc_info=exc)
     message = translate("common.internal_error")
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content=error_envelope("common.internal_error", message, None),
     )
+    # Bu handler Starlette'ning ServerErrorMiddleware'ida (eng TASHQI qatlam) ishlaydi —
+    # CORSMiddleware'dan TASHQARIDA. Shuning uchun CORS sarlavhalari qo'shilmaydi va
+    # brauzer haqiqiy 500 o'rniga "No Access-Control-Allow-Origin / CORS xatosi" ko'rsatadi.
+    # Ularni qo'lda qo'shamiz (origin ruxsat etilgan ro'yxatda bo'lsa).
+    origin = request.headers.get("origin")
+    allowed = settings.cors_origins_list
+    if origin and ("*" in allowed or origin in allowed):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+    return response
 
 
 # ─── Health / Readiness endpointlar ─────────────────────────────────────────

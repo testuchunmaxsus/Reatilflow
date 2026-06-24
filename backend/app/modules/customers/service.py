@@ -525,7 +525,13 @@ async def assign_agent(
     if existing is not None:
         return existing
 
-    link = AgentStore(agent_id=agent_id, store_id=store_id)
+    # MT2: agent_store.enterprise_id NOT NULL (0020) — store'ning korxonasidan olamiz
+    # (agent ham shu korxonada, apply_enterprise_filter buni kafolatlaydi).
+    link = AgentStore(
+        agent_id=agent_id,
+        store_id=store_id,
+        enterprise_id=store.enterprise_id,
+    )
     db.add(link)
     await db.flush()
 

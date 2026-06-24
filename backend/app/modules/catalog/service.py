@@ -683,6 +683,7 @@ async def set_price(
         currency=data.currency,
         changed_by=actor_id,
         changed_at=_now(),
+        enterprise_id=product.enterprise_id,
     )
     db.add(history)
 
@@ -694,6 +695,7 @@ async def set_price(
         currency=data.currency,
         valid_from=data.valid_from,
         valid_to=None,
+        enterprise_id=product.enterprise_id,
     )
     db.add(new_price)
     await db.flush()

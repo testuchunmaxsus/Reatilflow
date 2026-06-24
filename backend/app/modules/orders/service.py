@@ -154,6 +154,7 @@ async def _record_movement_tx(
     ref_type: str = "order",
     ref_id: uuid.UUID | None = None,
     movement_type: str = "out",
+    enterprise_id: uuid.UUID | None = None,
 ) -> StockMovement:
     """
     Tranzaksiya ichida ombor harakatini qayd etadi.
@@ -190,6 +191,7 @@ async def _record_movement_tx(
             qty_reserved=Decimal("0"),
             version=1,
             updated_at=_now(),
+            enterprise_id=enterprise_id,
         )
         db.add(balance)
         await db.flush()
@@ -216,6 +218,7 @@ async def _record_movement_tx(
         moved_at=_now(),
         client_uuid=None,
         created_at=_now(),
+        enterprise_id=enterprise_id,
     )
     db.add(movement)
     await db.flush()
@@ -245,6 +248,7 @@ async def _record_entry_tx(
     ref_type: str = "order",
     ref_id: uuid.UUID | None = None,
     entry_type: str = "debit",
+    enterprise_id: uuid.UUID | None = None,
 ) -> LedgerEntry:
     """
     Tranzaksiya ichida ledger yozuvini qayd etadi.
@@ -279,6 +283,7 @@ async def _record_entry_tx(
             currency=currency,
             last_recalc_at=_now(),
             version=1,
+            enterprise_id=enterprise_id,
         )
         db.add(acct_balance)
         await db.flush()
@@ -295,6 +300,7 @@ async def _record_entry_tx(
         created_by=actor_id,
         client_uuid=None,
         created_at=_now(),
+        enterprise_id=enterprise_id,
     )
     db.add(entry)
     await db.flush()
@@ -686,6 +692,7 @@ async def create_order(
             segment_id=seg_id,
             discount=server_discount,
             line_total=line_total,
+            enterprise_id=enterprise_id,
         )
         db.add(ol)
     await db.flush()
@@ -702,6 +709,7 @@ async def create_order(
             ref_type="order",
             ref_id=order.id,
             movement_type="out",
+            enterprise_id=enterprise_id,
         )
 
     # ── 11. LedgerEntry debit (do'kon qarzi) ─────────────────────────────
@@ -715,6 +723,7 @@ async def create_order(
             ref_type="order",
             ref_id=order.id,
             entry_type="debit",
+            enterprise_id=enterprise_id,
         )
 
     # ── 12. Audit + Outbox ────────────────────────────────────────────────
@@ -841,6 +850,7 @@ async def update_status(
                 ref_type="order_cancel",
                 ref_id=order.id,
                 movement_type="in",
+                enterprise_id=order.enterprise_id,
             )
 
         # Teskari ledger (credit — qarzni qaytar)
@@ -854,6 +864,7 @@ async def update_status(
                 ref_type="order_cancel",
                 ref_id=order.id,
                 entry_type="credit",
+                enterprise_id=order.enterprise_id,
             )
 
     order.status = data.status
@@ -1130,6 +1141,7 @@ async def create_template(
             template_id=template.id,
             product_id=line_in.product_id,
             qty=line_in.qty,
+            enterprise_id=template.enterprise_id,
         )
         db.add(tl)
     await db.flush()

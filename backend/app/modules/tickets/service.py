@@ -435,6 +435,7 @@ async def add_message(
         author_id=actor_id,
         body=data.body,
         attachment_url=data.attachment_url,
+        enterprise_id=ticket.enterprise_id,
     )
     db.add(msg)
     await db.flush()

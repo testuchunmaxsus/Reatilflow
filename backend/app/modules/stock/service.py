@@ -213,7 +213,7 @@ async def record_movement(
     await db.flush()
 
     # ── 4. StockBalance yangilash ───────────────────────────────────────────
-    balance = await _get_or_create_balance(db, data.product_id, data.warehouse_id)
+    balance = await _get_or_create_balance(db, data.product_id, data.warehouse_id, enterprise_id)
 
     # Qoldiq hisoblash
     if data.type == "in":
@@ -291,6 +291,7 @@ async def _get_or_create_balance(
     db: AsyncSession,
     product_id: uuid.UUID,
     warehouse_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None = None,
 ) -> StockBalance:
     """
     StockBalance yozuvini oladi yoki yaratadi (with_for_update qulfi bilan).
@@ -316,6 +317,7 @@ async def _get_or_create_balance(
             qty_reserved=Decimal("0"),
             version=1,
             updated_at=_now(),
+            enterprise_id=enterprise_id,
         )
         db.add(balance)
         await db.flush()

@@ -193,7 +193,7 @@ async def record_entry(
 
     # ── 4. AccountBalance yangilash ──────────────────────────────────────────
     # MUHIM: primary DB sessiyasi (ADR §3.4 — replica kechikishidan saqlanish).
-    balance = await _get_or_create_account_balance(db, data.store_id, data.currency)
+    balance = await _get_or_create_account_balance(db, data.store_id, data.currency, enterprise_id)
 
     # Valyuta nomuvofiqligi tekshiruvi: bir do'konda faqat YAGONA valyuta.
     # Retail asosan UZS; boshqa valyuta kelsa — jim aralashuvni oldini olish uchun xato.
@@ -251,6 +251,7 @@ async def _get_or_create_account_balance(
     db: AsyncSession,
     store_id: uuid.UUID,
     currency: str,
+    enterprise_id: uuid.UUID | None = None,
 ) -> AccountBalance:
     """
     AccountBalance yozuvini oladi yoki yaratadi (with_for_update qulfi bilan).
@@ -276,6 +277,7 @@ async def _get_or_create_account_balance(
             currency=currency,
             last_recalc_at=_now(),
             version=1,
+            enterprise_id=enterprise_id,
         )
         db.add(balance)
         await db.flush()
