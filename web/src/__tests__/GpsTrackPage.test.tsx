@@ -27,6 +27,8 @@ vi.mock("leaflet", () => ({
         mergeOptions: vi.fn(),
       },
     },
+    divIcon: vi.fn(() => ({ options: {}, _initHooksCalled: true })),
+    icon: vi.fn(() => ({ options: {}, _initHooksCalled: true })),
   },
   Icon: {
     Default: {
@@ -34,6 +36,8 @@ vi.mock("leaflet", () => ({
       mergeOptions: vi.fn(),
     },
   },
+  divIcon: vi.fn(() => ({ options: {}, _initHooksCalled: true })),
+  icon: vi.fn(() => ({ options: {}, _initHooksCalled: true })),
 }));
 
 vi.mock("react-leaflet", () => ({
@@ -99,6 +103,7 @@ vi.mock("@/api/client", async (importOriginal) => {
     apiClient: {
       get: vi.fn((path: string) => {
         if (path.startsWith("/gps/track")) return Promise.resolve(trackResponse);
+        if (path.startsWith("/users")) return Promise.resolve({ items: [], total: 0, limit: 100, offset: 0 });
         return Promise.resolve({});
       }),
       post: vi.fn(() => Promise.resolve({})),
@@ -182,16 +187,17 @@ describe("GpsTrackPage — smoke test", () => {
     });
   });
 
-  it("nuqtalar jadvalda ko'rsatiladi", async () => {
+  it("fleet mode: faol hodimlar jadvali ko'rsatiladi", async () => {
+    // Default (user_id yo'q) — fleet mode. Kenglik jadvali emas,
+    // fleet summary jadvali ko'rinadi: "Faol hodimlar" sarlavhasi bilan.
     renderPage();
     await waitFor(() => {
-      // Kenglik ustuni sarlavhasi
-      const latHeaders = screen.getAllByText(/Kenglik/i);
-      expect(latHeaders.length).toBeGreaterThan(0);
+      expect(screen.getByText(/Faol hodimlar/i)).toBeInTheDocument();
     });
-    // Koordinata qiymatlari jadvalda bo'lishi kerak
+    // Foydalanuvchi IDsi bir nechta joyda (popup + jadval) ko'rsatilishi mumkin
     await waitFor(() => {
-      expect(screen.getByText(/41\.299496/)).toBeInTheDocument();
+      const items = screen.getAllByText(/user-001/i);
+      expect(items.length).toBeGreaterThan(0);
     });
   });
 
