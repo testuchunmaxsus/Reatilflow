@@ -26,22 +26,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/AuthContext";
 import { useAttendanceList } from "@/api/attendanceApi";
+import { usePagination } from "@/hooks/usePagination";
+import { formatDuration } from "@/utils/date";
 import type { AttendanceOut } from "./types";
-
-const PAGE_SIZE = 20;
-
-// ─── Davomiylik hisoblash ─────────────────────────────────────────────────────
-
-function formatDuration(checkIn: string, checkOut: string | null): string {
-  if (!checkOut) return "—";
-  const diffMs =
-    new Date(checkOut).getTime() - new Date(checkIn).getTime();
-  if (diffMs <= 0) return "—";
-  const totalMin = Math.floor(diffMs / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return `${h}:${String(m).padStart(2, "0")}`;
-}
 
 // ─── Jadval qatori ───────────────────────────────────────────────────────────
 
@@ -100,11 +87,10 @@ export function AttendanceListPage() {
   const isAdmin =
     user?.role === "administrator" || user?.role === "accountant";
 
-  const [page, setPage]         = useState(1);
+  const { page, setPage, offset, pageSize, getTotalPages, resetPage } =
+    usePagination(20);
   const [userIdFilter, setUserIdFilter] = useState("");
   const [dateFilter, setDateFilter]     = useState<Date | null>(null);
-
-  const offset = (page - 1) * PAGE_SIZE;
 
   // Sana ISO formatga (YYYY-MM-DD)
   const dateStr = dateFilter
@@ -114,14 +100,14 @@ export function AttendanceListPage() {
   const { data, isLoading, isError, error } = useAttendanceList({
     user_id: isAdmin && userIdFilter.trim() ? userIdFilter.trim() : undefined,
     date:    dateStr,
-    limit:   PAGE_SIZE,
+    limit:   pageSize,
     offset,
   });
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   const handleFilterChange = () => {
-    setPage(1);
+    resetPage();
   };
 
   return (
@@ -157,7 +143,7 @@ export function AttendanceListPage() {
           value={dateFilter}
           onChange={(v) => {
             setDateFilter(v);
-            setPage(1);
+            resetPage();
           }}
           clearable
           w={180}
@@ -169,7 +155,7 @@ export function AttendanceListPage() {
             onClick={() => {
               setUserIdFilter("");
               setDateFilter(null);
-              setPage(1);
+              resetPage();
             }}
           >
             {t("contracts.filter.clear", { defaultValue: "Tozalash" })}

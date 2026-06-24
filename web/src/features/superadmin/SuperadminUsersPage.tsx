@@ -28,8 +28,7 @@ import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useSuperadminUsers, useEnterprises } from "./api/superadminApi";
 import { formatDate } from "@/utils/date";
-
-const PAGE_SIZE = 20;
+import { usePagination } from "@/hooks/usePagination";
 
 // ─── Rol rangi ────────────────────────────────────────────────────────────────
 
@@ -62,11 +61,10 @@ function maskPhone(phone: string): string {
 export function SuperadminUsersPage() {
   const { t } = useTranslation();
 
-  const [page, setPage] = useState(1);
+  const { page, setPage, offset, pageSize, getTotalPages } =
+    usePagination(20);
   const [enterpriseFilter, setEnterpriseFilter] = useState<string>("");
   const [roleFilter, setRoleFilter] = useState<string>("");
-
-  const offset = (page - 1) * PAGE_SIZE;
 
   // Korxonalar ro'yxati (filter Select uchun)
   const { data: enterprisesData } = useEnterprises({ limit: 200, offset: 0 });
@@ -74,21 +72,21 @@ export function SuperadminUsersPage() {
   const { data, isLoading, isError, error } = useSuperadminUsers({
     enterprise_id: enterpriseFilter,
     role: roleFilter,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   const handleEnterpriseChange = useCallback((val: string | null) => {
     setEnterpriseFilter(val ?? "");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const handleRoleChange = useCallback((val: string | null) => {
     setRoleFilter(val ?? "");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const enterpriseOptions = (enterprisesData?.items ?? []).map((ent) => ({
     value: ent.id,

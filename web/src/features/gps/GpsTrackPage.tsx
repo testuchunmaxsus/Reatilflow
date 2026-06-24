@@ -33,6 +33,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet"
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useGpsTrack } from "./api/gpsApi";
+import { formatDateTime } from "@/utils/date";
 import type { GpsPoint } from "./types";
 
 // ─── Leaflet default icon tuzatish (Vite PNG yo'llari muammosi) ──────────────
@@ -68,20 +69,6 @@ function isValidCoord(lat: number | string | null | undefined, lng: number | str
   const la = toFloat(lat);
   const ln = toFloat(lng);
   return Number.isFinite(la) && Number.isFinite(ln) && (la !== 0 || ln !== 0);
-}
-
-// ─── Vaqt formatlash ─────────────────────────────────────────────────────────
-
-function fmtTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
 }
 
 // ─── Fallback: oddiy jadval + OSM havola ─────────────────────────────────────
@@ -149,7 +136,7 @@ function GpsMapFallback({ points }: FallbackProps) {
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm" c="dimmed">
-                    {fmtTime(p.recorded_at)}
+                    {formatDateTime(p.recorded_at)}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -244,7 +231,7 @@ function GpsLeafletMap({ points }: MapViewProps) {
         <Marker position={[toFloat(validPoints[0].lat), toFloat(validPoints[0].lng)]}>
           <Popup>
             {t("gps.map.track_history", { defaultValue: "Harakat tarixi" })}{" "}
-            — {fmtTime(validPoints[0].recorded_at)}
+            — {formatDateTime(validPoints[0].recorded_at)}
           </Popup>
         </Marker>
         {/* Oxirgi nuqta (joriy joylashuv) — faqat validPoints.length > 1 */}
@@ -256,7 +243,7 @@ function GpsLeafletMap({ points }: MapViewProps) {
               {t("gps.map.current_location", {
                 defaultValue: "Joriy joylashuv",
               })}{" "}
-              — {fmtTime(lastPoint.recorded_at)}
+              — {formatDateTime(lastPoint.recorded_at)}
             </Popup>
           </Marker>
         )}
@@ -429,7 +416,7 @@ export function GpsTrackPage() {
                         </Table.Td>
                         <Table.Td>
                           <Text size="xs" c="dimmed">
-                            {fmtTime(p.recorded_at)}
+                            {formatDateTime(p.recorded_at)}
                           </Text>
                         </Table.Td>
                       </Table.Tr>

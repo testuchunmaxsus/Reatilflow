@@ -7,6 +7,13 @@
  * (masalan, 20-iyun → "2026-06-19"). DATE maydonlari (promo/shartnoma muddati)
  * uchun bu noto'g'ri. Quyidagi funksiyalar MAHALLIY sana komponentlari bilan
  * ishlaydi — timezone siljishisiz.
+ *
+ * Eksport qilingan funksiyalar:
+ *   formatDate       — ISO → "DD.MM.YYYY" (ru-RU)
+ *   toLocalYMD       — Date → "YYYY-MM-DD" (mahalliy)
+ *   parseYMD         — "YYYY-MM-DD" → mahalliy Date | null
+ *   formatDuration   — check_in/check_out davomiyligi "H:MM"
+ *   formatDateTime   — ISO → "HH:MM:SS" vaqt satri
  */
 
 /**
@@ -44,4 +51,40 @@ export function parseYMD(s: string | null | undefined): Date | null {
     return Number.isNaN(fallback.getTime()) ? null : fallback;
   }
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/**
+ * Ish vaqti davomiyligini formatlaydi.
+ * Masalan: check_in="...T09:00Z", check_out="...T18:00Z" → "9:00"
+ * check_out null yoki noto'g'ri bo'lsa → "—"
+ */
+export function formatDuration(
+  checkIn: string,
+  checkOut: string | null,
+): string {
+  if (!checkOut) return "—";
+  const diffMs =
+    new Date(checkOut).getTime() - new Date(checkIn).getTime();
+  if (diffMs <= 0) return "—";
+  const totalMin = Math.floor(diffMs / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * ISO vaqt satrini "HH:MM:SS" formatida qaytaradi.
+ * Masalan: "2026-06-24T08:00:00Z" → "08:00:00" (mahalliy vaqt)
+ * Xato bo'lsa — asl satrni qaytaradi.
+ */
+export function formatDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
 }

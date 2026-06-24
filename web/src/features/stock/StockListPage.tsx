@@ -32,9 +32,8 @@ import { useTranslation } from "react-i18next";
 import { Can } from "@/rbac/Can";
 import { useStockMovements, useStockBalance } from "./api/stockApi";
 import { CreateMovementModal } from "./components/CreateMovementModal";
+import { usePagination } from "@/hooks/usePagination";
 import type { MovementType } from "./types";
-
-const PAGE_SIZE = 20;
 
 // ─── Harakat turi badge rangi ─────────────────────────────────────────────────
 
@@ -64,8 +63,8 @@ export function StockListPage() {
   const [typeFilter, setTypeFilter] = useState<MovementType | null>(null);
 
   // Sahifalash
-  const [page, setPage] = useState(1);
-  const offset = (page - 1) * PAGE_SIZE;
+  const { page, setPage, offset, pageSize, getTotalPages, resetPage } =
+    usePagination(20);
 
   // Qoldiq tekshirish uchun maydonlar
   const [balanceProductId, setBalanceProductId] = useState("");
@@ -82,7 +81,7 @@ export function StockListPage() {
   // Harakatlar ro'yxati so'rovi
   const { data, isLoading, isError, error } = useStockMovements({
     movement_type: typeFilter,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
@@ -93,7 +92,7 @@ export function StockListPage() {
     balanceQuery !== null,
   );
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   function handleBalanceSearch() {
     const uuidRegex =
@@ -209,7 +208,7 @@ export function StockListPage() {
           value={typeFilter ?? ""}
           onChange={(v) => {
             setTypeFilter((v as MovementType) || null);
-            setPage(1);
+            resetPage();
           }}
           w={180}
           clearable

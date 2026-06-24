@@ -39,10 +39,9 @@ import {
 } from "./api/superadminApi";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { useApiError } from "@/hooks/useApiError";
+import { usePagination } from "@/hooks/usePagination";
 import type { SuperadminBannerOut } from "./types";
 import { formatDate } from "@/utils/date";
-
-const PAGE_SIZE = 20;
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -67,7 +66,8 @@ export function SuperadminBannersPage() {
   const { t } = useTranslation();
   const { showError } = useApiError();
 
-  const [page, setPage] = useState(1);
+  const { page, setPage, offset, pageSize, getTotalPages } =
+    usePagination(20);
   const [enterpriseFilter, setEnterpriseFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "true" | "false">("");
 
@@ -75,8 +75,6 @@ export function SuperadminBannersPage() {
     useDisclosure(false);
   const [deletingBanner, setDeletingBanner] =
     useState<SuperadminBannerOut | null>(null);
-
-  const offset = (page - 1) * PAGE_SIZE;
 
   const isActiveParam =
     statusFilter === "true"
@@ -88,7 +86,7 @@ export function SuperadminBannersPage() {
   const { data, isLoading, isError, error } = useSuperadminBanners({
     enterprise_id: enterpriseFilter,
     is_active: isActiveParam,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
@@ -96,17 +94,17 @@ export function SuperadminBannersPage() {
   const toggleMutation = useToggleBannerActive();
   const deleteMutation = useDeleteBanner();
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   const handleEnterpriseChange = useCallback((val: string | null) => {
     setEnterpriseFilter(val ?? "");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const handleStatusChange = useCallback((val: string | null) => {
     setStatusFilter((val ?? "") as "" | "true" | "false");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const handleToggle = async (banner: SuperadminBannerOut) => {
     try {

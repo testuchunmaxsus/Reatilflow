@@ -43,6 +43,8 @@ import { useTranslation } from "react-i18next";
 
 import { Can } from "@/rbac/Can";
 import { useApiError } from "@/hooks/useApiError";
+import { usePagination } from "@/hooks/usePagination";
+import { formatDate } from "@/utils/date";
 import {
   useLedger,
   useBalance,
@@ -50,8 +52,6 @@ import {
   useApproveLedgerEntry,
 } from "./api/financeApi";
 import type { LedgerFilters, LedgerEntryCreate } from "./types";
-
-const PAGE_SIZE = 20;
 
 // ─── Yordamchi: miqdor formatlash ─────────────────────────────────────────────
 
@@ -66,18 +66,6 @@ function formatAmount(amount: string, currency: string): string {
     " " +
     currency
   );
-}
-
-// ─── Yordamchi: sana formatlash ───────────────────────────────────────────────
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString("uz-UZ", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
 }
 
 // ─── Yozuv turi badge ─────────────────────────────────────────────────────────
@@ -229,8 +217,10 @@ export function FinanceLedgerPage() {
 
   // Filtrlar
   const [typeFilter, setTypeFilter] = useState<"debit" | "credit" | "">("");
-  const [page, setPage] = useState(1);
-  const offset = (page - 1) * PAGE_SIZE;
+
+  // Sahifalash
+  const { page, setPage, offset, pageSize, getTotalPages, resetPage } =
+    usePagination(20);
 
   // Balans uchun store_id (ixtiyoriy filtr)
   const [balanceStoreId, setBalanceStoreId] = useState("");
@@ -241,7 +231,7 @@ export function FinanceLedgerPage() {
 
   const filters: LedgerFilters = {
     ...(typeFilter ? { entry_type: typeFilter } : {}),
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   };
 
@@ -263,7 +253,7 @@ export function FinanceLedgerPage() {
     }
   };
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   const typeFilterOptions = [
     {
@@ -357,7 +347,7 @@ export function FinanceLedgerPage() {
             value={typeFilter}
             onChange={(v) => {
               setTypeFilter((v ?? "") as "debit" | "credit" | "");
-              setPage(1);
+              resetPage();
             }}
             w={180}
             aria-label={t("finance.filter.type", { defaultValue: "Tur filtri" })}
@@ -369,7 +359,7 @@ export function FinanceLedgerPage() {
               size="sm"
               onClick={() => {
                 setTypeFilter("");
-                setPage(1);
+                resetPage();
               }}
             >
               {t("contracts.filter.clear", { defaultValue: "Tozalash" })}

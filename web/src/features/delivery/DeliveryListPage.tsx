@@ -30,8 +30,7 @@ import { useDeliveries } from "./api/deliveryApi";
 import type { Delivery } from "./types";
 // FIX #11: umumiy komponent — DeliveryDetailPage ham shu fayldan import qiladi
 import { DeliveryStatusBadge } from "./components/DeliveryStatusBadge";
-
-const PAGE_SIZE = 20;
+import { usePagination } from "@/hooks/usePagination";
 
 // ─── Sana formatlash ─────────────────────────────────────────────────────────
 
@@ -47,16 +46,17 @@ export function DeliveryListPage() {
   const navigate = useNavigate();
 
   const [statusFilter, setStatusFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const offset = (page - 1) * PAGE_SIZE;
+
+  const { page, setPage, offset, pageSize, getTotalPages, resetPage } =
+    usePagination(20);
 
   const { data, isLoading, isError, error } = useDeliveries({
     status: statusFilter || undefined,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   const statusOptions = [
     { value: "", label: t("delivery.filter.all_statuses", { defaultValue: "Barcha holatlar" }) },
@@ -82,7 +82,7 @@ export function DeliveryListPage() {
           value={statusFilter}
           onChange={(v) => {
             setStatusFilter(v ?? "");
-            setPage(1);
+            resetPage();
           }}
           w={200}
           aria-label={t("delivery.filter.all_statuses", { defaultValue: "Barcha holatlar" })}

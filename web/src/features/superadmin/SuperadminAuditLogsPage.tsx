@@ -33,8 +33,7 @@ import { useAuditLogs } from "./api/superadminApi";
 import { useEnterprises } from "./api/superadminApi";
 import type { AuditLogOut } from "./types";
 import { formatDate } from "@/utils/date";
-
-const PAGE_SIZE = 20;
+import { usePagination } from "@/hooks/usePagination";
 
 // ─── Action badge rangi ───────────────────────────────────────────────────────
 
@@ -107,7 +106,8 @@ function JsonViewModal({ opened, onClose, log }: JsonViewModalProps) {
 export function SuperadminAuditLogsPage() {
   const { t } = useTranslation();
 
-  const [page, setPage] = useState(1);
+  const { page, setPage, offset, pageSize, getTotalPages } =
+    usePagination(20);
   const [actionFilter, setActionFilter] = useState("");
   const [entityTypeFilter, setEntityTypeFilter] = useState("");
   const [enterpriseFilter, setEnterpriseFilter] = useState("");
@@ -116,35 +116,33 @@ export function SuperadminAuditLogsPage() {
     useDisclosure(false);
   const [selectedLog, setSelectedLog] = useState<AuditLogOut | null>(null);
 
-  const offset = (page - 1) * PAGE_SIZE;
-
   const { data, isLoading, isError, error } = useAuditLogs({
     action: actionFilter,
     entity_type: entityTypeFilter,
     enterprise_id: enterpriseFilter,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
   // Korxonalar filtri uchun
   const { data: enterprisesData } = useEnterprises({ limit: 100, offset: 0 });
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   const handleActionChange = useCallback((val: string | null) => {
     setActionFilter(val ?? "");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const handleEntityTypeChange = useCallback((val: string | null) => {
     setEntityTypeFilter(val ?? "");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const handleEnterpriseChange = useCallback((val: string | null) => {
     setEnterpriseFilter(val ?? "");
     setPage(1);
-  }, []);
+  }, [setPage]);
 
   const handleViewJson = (log: AuditLogOut) => {
     setSelectedLog(log);

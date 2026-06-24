@@ -36,8 +36,7 @@ import { useTranslation } from "react-i18next";
 import { Can } from "@/rbac/Can";
 import { usePosSales, usePosSummary } from "./api/posApi";
 import { toLocalYMD } from "@/utils/date";
-
-const PAGE_SIZE = 20;
+import { usePagination } from "@/hooks/usePagination";
 
 // ─── Kunlik summary kartasi ────────────────────────────────────────────────────
 
@@ -81,8 +80,8 @@ export function PosSalesListPage({ storeId, onNewSale }: PosSalesListPageProps) 
   const [storeIdFilter, setStoreIdFilter] = useState(storeId ?? "");
 
   // Sahifalash
-  const [page, setPage] = useState(1);
-  const offset = (page - 1) * PAGE_SIZE;
+  const { page, setPage, offset, pageSize, getTotalPages, resetPage } =
+    usePagination(20);
 
   // API
   // FIX #1: toLocalYMD — UTC emas, mahalliy sana (UZ UTC+5 tongida noto'g'ri kun muammosi yo'q)
@@ -99,11 +98,11 @@ export function PosSalesListPage({ storeId, onNewSale }: PosSalesListPageProps) 
     // FIX #1: mahalliy sana chegaralari — backend YYYY-MM-DD kutadi
     date_from: dateFrom ? toLocalYMD(dateFrom) : undefined,
     date_to: dateTo ? toLocalYMD(dateTo) : undefined,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
-  const totalPages = salesData ? Math.ceil(salesData.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(salesData?.total);
 
   // Naqd/karta summary
   const cashEntry = summary?.by_payment.find(
@@ -172,7 +171,7 @@ export function PosSalesListPage({ storeId, onNewSale }: PosSalesListPageProps) 
           label={t("orders.filter.from", "Dan")}
           placeholder="YYYY-MM-DD"
           value={dateFrom}
-          onChange={setDateFrom}
+          onChange={(v) => { setDateFrom(v); resetPage(); }}
           clearable
           w={160}
         />
@@ -180,7 +179,7 @@ export function PosSalesListPage({ storeId, onNewSale }: PosSalesListPageProps) 
           label={t("orders.filter.to", "Gacha")}
           placeholder="YYYY-MM-DD"
           value={dateTo}
-          onChange={setDateTo}
+          onChange={(v) => { setDateTo(v); resetPage(); }}
           clearable
           w={160}
         />
@@ -191,7 +190,7 @@ export function PosSalesListPage({ storeId, onNewSale }: PosSalesListPageProps) 
             value={storeIdFilter}
             onChange={(e) => {
               setStoreIdFilter(e.currentTarget.value);
-              setPage(1);
+              resetPage();
             }}
             w={220}
           />

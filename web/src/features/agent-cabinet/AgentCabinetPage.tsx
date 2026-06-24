@@ -38,7 +38,6 @@ import {
   IconPhone,
   IconMapPin,
 } from "@tabler/icons-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDisclosure } from "@mantine/hooks";
 import { useForm } from "@mantine/form";
@@ -46,9 +45,8 @@ import { notifications } from "@mantine/notifications";
 import { Can } from "@/rbac/Can";
 import { useAgentProfile, useUpdateAgentProfile, useAgentStores } from "./api/agentCabinetApi";
 import { useApiError } from "@/hooks/useApiError";
+import { usePagination } from "@/hooks/usePagination";
 import type { AgentProfileUpdate } from "./types";
-
-const PAGE_SIZE = 20;
 
 // ─── Profil kartasi ───────────────────────────────────────────────────────────
 
@@ -242,15 +240,14 @@ function EditProfileModal({ opened, onClose }: EditProfileModalProps) {
 
 function StoresSection() {
   const { t } = useTranslation();
-  const [page, setPage] = useState(1);
-  const offset = (page - 1) * PAGE_SIZE;
+  const { page, setPage, offset, pageSize, getTotalPages } = usePagination(20);
 
   const { data, isLoading, isError } = useAgentStores({
-    limit: PAGE_SIZE,
+    limit: pageSize,
     offset,
   });
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const totalPages = getTotalPages(data?.total);
 
   return (
     <Stack gap="sm">
