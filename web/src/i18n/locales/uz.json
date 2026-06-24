@@ -49,7 +49,11 @@
     "settings": "Sozlamalar",
     "superadmin": "Superadmin panel",
     "enterprises": "Korxonalar",
-    "marketplace": "Marketplace"
+    "marketplace": "Marketplace",
+    "finance": "Moliya",
+    "pos": "Kassa",
+    "delivery": "Yetkazish",
+    "agent_cabinet": "Agent kabineti"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -597,10 +601,13 @@
     "actions": {
       "create": "Korxona qo'shish",
       "suspend": "To'xtatib qo'yish",
-      "activate": "Faollashtirish"
+      "activate": "Faollashtirish",
+      "export_csv": "CSV eksport"
     },
     "nav": {
-      "dashboard": "Bosh sahifa"
+      "dashboard": "Bosh sahifa",
+      "audit_logs": "Audit log",
+      "banners": "Bannerlar"
     },
     "dashboard": {
       "title": "Superadmin paneli",
@@ -625,17 +632,6 @@
     "status": {
       "active": "Faol",
       "suspended": "To'xtatilgan"
-    },
-    "form": {
-      "create_title": "Yangi korxona",
-      "edit_title": "Korxonani tahrirlash",
-      "name": "Korxona nomi",
-      "name_placeholder": "Nomini kiriting",
-      "name_required": "Korxona nomi majburiy",
-      "inn": "INN (soliq raqami)",
-      "inn_placeholder": "9 ta raqam",
-      "modules": "Yoqilgan modullar",
-      "first_admin_section": "Birinchi administrator"
     },
     "suspend": {
       "title": "Korxonani to'xtatish",
@@ -689,6 +685,92 @@
       "all_enterprises": "Barcha korxonalar",
       "enterprise_filter": "Korxona bo'yicha filtrlash",
       "enterprise_column": "Korxona"
+    },
+    "bulk": {
+      "selected_count": "{{count}} ta tanlangan",
+      "suspend": "To'xtatish",
+      "activate": "Faollashtirish",
+      "delete": "O'chirish",
+      "clear": "Bekor qilish",
+      "select_all": "Barchasini tanlash",
+      "select_row": "{{name}} ni tanlash",
+      "delete_title": "Tanlangan korxonalarni o'chirish",
+      "delete_confirm": "{{count}} ta korxonani o'chirishni tasdiqlaysizmi? 422 xatoli (himoyalangan) korxonalar o'tkazib yuboriladi.",
+      "suspended_count": "{{count}} ta korxona to'xtatildi",
+      "activated_count": "{{count}} ta korxona faollashtirildi",
+      "deleted_count": "{{count}} ta korxona o'chirildi"
+    },
+    "audit": {
+      "title": "Audit log",
+      "empty": "Audit yozuvlari topilmadi",
+      "view_json": "JSON ko'rish",
+      "json_modal_title": "O'zgarishlar",
+      "before": "Oldin",
+      "after": "Keyin",
+      "no_json": "JSON ma'lumot mavjud emas",
+      "filter": {
+        "all_actions": "Barcha amallar",
+        "action": "Amal bo'yicha",
+        "all_entity_types": "Barcha ob'ektlar",
+        "entity_type": "Ob'ekt turi bo'yicha",
+        "all_enterprises": "Barcha korxonalar",
+        "enterprise": "Korxona bo'yicha"
+      },
+      "table": {
+        "at": "Vaqt",
+        "action": "Amal",
+        "entity_type": "Ob'ekt turi",
+        "entity_id": "Ob'ekt ID",
+        "enterprise": "Korxona"
+      }
+    },
+    "banners": {
+      "title": "Banner moderatsiya",
+      "empty": "Bannerlar topilmadi",
+      "status": {
+        "active": "Faol",
+        "inactive": "Nofaol"
+      },
+      "filter": {
+        "all_enterprises": "Barcha korxonalar",
+        "enterprise": "Korxona bo'yicha",
+        "all_statuses": "Barcha holatlar",
+        "status": "Holat bo'yicha"
+      },
+      "table": {
+        "image": "Rasm",
+        "title": "Sarlavha",
+        "enterprise": "Korxona",
+        "status": "Holat",
+        "priority": "Ustuvorlik",
+        "valid_from": "Boshlanishi",
+        "valid_to": "Tugashi"
+      },
+      "actions": {
+        "activate": "Faollashtirish",
+        "deactivate": "O'chirish"
+      },
+      "messages": {
+        "activated": "\"{{name}}\" banneri faollashtirildi",
+        "deactivated": "\"{{name}}\" banneri o'chirildi",
+        "deleted": "\"{{name}}\" banneri o'chirildi"
+      },
+      "delete": {
+        "title": "Bannerni o'chirish",
+        "confirm": "\"{{name}}\" bannerni o'chirishni tasdiqlaysizmi?"
+      }
+    },
+    "form": {
+      "create_title": "Yangi korxona",
+      "edit_title": "Korxonani tahrirlash",
+      "name": "Korxona nomi",
+      "name_placeholder": "Nomini kiriting",
+      "name_required": "Korxona nomi majburiy",
+      "inn": "INN (soliq raqami)",
+      "inn_placeholder": "9 ta raqam",
+      "modules": "Yoqilgan modullar",
+      "first_admin_section": "Birinchi administrator",
+      "generate_password": "Parol generatsiya qilish"
     }
   },
   "marketplace": {
@@ -838,6 +920,409 @@
         "stock": "Ombor",
         "rbac": "RBAC / Audit"
       }
+    }
+  },
+  "finance": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "title": "Moliya",
+    "actions": {
+      "create": "Yozuv qo'shish"
+    },
+    "filter": {
+      "all_types": "Barcha turlar",
+      "type": "Tur bo'yicha",
+      "from": "Dan",
+      "to": "Gacha"
+    },
+    "table": {
+      "date": "Sana",
+      "store": "Do'kon",
+      "entry_type": "Tur",
+      "debit": "Debit",
+      "credit": "Kredit",
+      "balance": "Balans",
+      "description": "Izoh",
+      "status": "Holat",
+      "actions": "Amallar",
+      "empty": "Moliyaviy yozuvlar topilmadi"
+    },
+    "entry_type": {
+      "debit": "Debit",
+      "credit": "Kredit"
+    },
+    "status": {
+      "pending": "Kutilmoqda",
+      "approved": "Tasdiqlangan",
+      "rejected": "Rad etilgan"
+    },
+    "form": {
+      "create_title": "Yangi yozuv",
+      "edit_title": "Yozuvni tahrirlash",
+      "store_id": "Do'kon",
+      "store_id_placeholder": "Do'kon UUID",
+      "store_id_required": "Do'kon majburiy",
+      "entry_type": "Yozuv turi",
+      "entry_type_required": "Yozuv turi majburiy",
+      "amount": "Summa (UZS)",
+      "amount_placeholder": "Summani kiriting",
+      "amount_required": "Summa majburiy",
+      "amount_positive": "Summa musbat bo'lishi kerak",
+      "date": "Sana",
+      "date_required": "Sana majburiy",
+      "description": "Izoh",
+      "description_placeholder": "Izoh kiriting"
+    },
+    "ledger": {
+      "title": "Bosh daftar (Ledger)",
+      "empty": "Yozuvlar topilmadi",
+      "opening_balance": "Kirish qoldig'i",
+      "closing_balance": "Yopish qoldig'i",
+      "total_debit": "Jami debit",
+      "total_credit": "Jami kredit"
+    },
+    "approve": {
+      "title": "Yozuvni tasdiqlash",
+      "confirm": "Bu moliyaviy yozuvni tasdiqlashni xohlaysizmi?"
+    },
+    "reject": {
+      "title": "Yozuvni rad etish",
+      "confirm": "Bu moliyaviy yozuvni rad etishni xohlaysizmi?"
+    },
+    "messages": {
+      "created": "Yozuv muvaffaqiyatli yaratildi",
+      "updated": "Yozuv muvaffaqiyatli yangilandi",
+      "approved": "Yozuv tasdiqlandi",
+      "rejected": "Yozuv rad etildi",
+      "deleted": "Yozuv o'chirildi"
+    },
+    "delete": {
+      "title": "Yozuvni o'chirish",
+      "confirm": "Bu yozuvni o'chirishni tasdiqlaysizmi?"
+    }
+  },
+  "pos": {
+    "title": "POS — Savdo kassasi",
+    "actions": {
+      "new_sale": "Yangi sotuv",
+      "daily_report": "Kunlik hisobot",
+      "inventory": "Inventar",
+      "expiry_scan": "Muddat tekshirish"
+    },
+    "cart": {
+      "title": "Savat",
+      "empty": "Savat bo'sh",
+      "product": "Mahsulot",
+      "qty": "Miqdor",
+      "unit_price": "Narx",
+      "line_total": "Jami",
+      "remove": "O'chirish",
+      "total": "Umumiy summa",
+      "checkout": "To'lov",
+      "clear": "Tozalash"
+    },
+    "product": {
+      "search_placeholder": "Mahsulot nomi yoki barcode...",
+      "scan_barcode": "Barkod skanerlash",
+      "not_found": "Mahsulot topilmadi",
+      "add_to_cart": "Savatga qo'shish",
+      "out_of_stock": "Stokda yo'q",
+      "expiry_blocked": "Muddati o'tgan — sotish taqiqlangan"
+    },
+    "payment": {
+      "title": "To'lov",
+      "method": "To'lov usuli",
+      "cash": "Naqd",
+      "card": "Karta",
+      "transfer": "O'tkazma",
+      "amount_due": "To'lanishi kerak",
+      "amount_paid": "To'langan",
+      "change": "Qaytim",
+      "confirm": "To'lovni tasdiqlash",
+      "success": "Sotuv muvaffaqiyatli amalga oshirildi"
+    },
+    "receipt": {
+      "title": "Chek",
+      "sale_number": "Sotuv raqami",
+      "date": "Sana",
+      "cashier": "Kassir",
+      "items": "Mahsulotlar",
+      "subtotal": "Oraliq summa",
+      "discount": "Chegirma",
+      "total": "Jami",
+      "payment_method": "To'lov usuli",
+      "print": "Chop etish",
+      "close": "Yopish"
+    },
+    "daily_report": {
+      "title": "Kunlik hisobot",
+      "date": "Sana",
+      "total_sales": "Jami sotuvlar",
+      "total_amount": "Umumiy summa",
+      "cash_amount": "Naqd",
+      "card_amount": "Karta",
+      "transfer_amount": "O'tkazma",
+      "items_sold": "Sotilgan mahsulotlar",
+      "empty": "Bugun sotuvlar yo'q"
+    },
+    "inventory": {
+      "title": "Inventar",
+      "product": "Mahsulot",
+      "sku": "SKU",
+      "qty_in_stock": "Stokdagi miqdor",
+      "unit": "O'lchov",
+      "expiry_date": "Muddat",
+      "status": "Holat",
+      "empty": "Inventar ma'lumotlari topilmadi",
+      "status_ok": "Yaxshi",
+      "status_expiring": "Muddat yaqin",
+      "status_expired": "Muddati o'tgan"
+    },
+    "expiry": {
+      "title": "Muddat tekshirish",
+      "scan_hint": "Barkodni skanerlang yoki mahsulotni tanlang",
+      "days_left": "Qolgan kun: {{days}}",
+      "expired": "Muddati o'tgan!",
+      "expiring_soon": "Muddat yaqin — {{days}} kun qoldi",
+      "ok": "Muddat yaxshi",
+      "blocked_message": "Bu mahsulot muddati o'tganligi sababli sotuvga chiqarilmagan"
+    },
+    "messages": {
+      "sale_completed": "Sotuv yakunlandi",
+      "sale_canceled": "Sotuv bekor qilindi",
+      "item_added": "Mahsulot savatga qo'shildi",
+      "item_removed": "Mahsulot savatdan olib tashlandi"
+    }
+  },
+  "delivery": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "title": "Yetkazish",
+    "actions": {
+      "assign_courier": "Kuryer tayinlash",
+      "view_route": "Marshrutni ko'rish",
+      "upload_proof": "Isbot rasmini yuklash"
+    },
+    "filter": {
+      "all_statuses": "Barcha holatlar",
+      "status": "Holat bo'yicha",
+      "courier": "Kuryer bo'yicha",
+      "from": "Dan",
+      "to": "Gacha"
+    },
+    "table": {
+      "order_number": "Buyurtma",
+      "store": "Do'kon",
+      "courier": "Kuryer",
+      "status": "Holat",
+      "assigned_at": "Tayinlangan",
+      "delivered_at": "Yetkazilgan",
+      "address": "Manzil",
+      "actions": "Amallar",
+      "empty": "Yetkazishlar topilmadi"
+    },
+    "status": {
+      "assigned": "Tayinlangan",
+      "started": "Yo'lda",
+      "delivering": "Yetkazilmoqda",
+      "delivered": "Yetkazildi",
+      "failed": "Muvaffaqiyatsiz"
+    },
+    "assign": {
+      "title": "Kuryer tayinlash",
+      "courier_label": "Kuryer",
+      "courier_placeholder": "Kuryerni tanlang",
+      "courier_required": "Kuryer majburiy",
+      "submit": "Tayinlash",
+      "success": "Kuryer muvaffaqiyatli tayinlandi"
+    },
+    "proof": {
+      "title": "Isbot rasmini yuklash",
+      "hint": "Yetkazish isboti uchun rasm yuklang (JPEG, PNG, WebP, maks 10 MB)",
+      "choose_file": "Rasm tanlash",
+      "upload": "Yuklash",
+      "success": "Isbot rasmi muvaffaqiyatli yuklandi",
+      "invalid_format": "Noto'g'ri format. Faqat JPEG, PNG, WebP.",
+      "too_large": "Fayl hajmi 10 MB dan oshmasligi kerak"
+    },
+    "route": {
+      "title": "Marshrut",
+      "stops": "Bekatlar",
+      "no_route": "Marshrut ma'lumotlari mavjud emas",
+      "distance": "Masofa",
+      "km": "km",
+      "stop_number": "Bekat #{{n}}"
+    },
+    "messages": {
+      "status_updated": "Holat «{{status}}» ga o'zgartirildi",
+      "proof_uploaded": "Isbot rasmi yuklandi"
+    }
+  },
+  "agentCabinet": {
+    "title": "Agent kabineti",
+    "profile": {
+      "title": "Profil",
+      "full_name": "To'liq ismi",
+      "phone": "Telefon",
+      "role": "Rol",
+      "branch": "Filial",
+      "status": "Holat",
+      "edit": "Profilni tahrirlash"
+    },
+    "stores": {
+      "title": "Biriktirilgan do'konlar",
+      "empty": "Biriktirilgan do'konlar topilmadi",
+      "store_name": "Do'kon nomi",
+      "phone": "Telefon",
+      "address": "Manzil",
+      "credit_limit": "Kredit limiti",
+      "last_order": "Oxirgi buyurtma",
+      "actions": "Amallar",
+      "view_orders": "Buyurtmalarni ko'rish",
+      "new_order": "Yangi buyurtma"
+    },
+    "stats": {
+      "title": "Mening statistikam",
+      "total_orders": "Jami buyurtmalar",
+      "total_amount": "Umumiy summa",
+      "this_month": "Bu oy",
+      "stores_count": "Do'konlar soni"
+    },
+    "messages": {
+      "profile_updated": "Profil muvaffaqiyatli yangilandi"
+    }
+  },
+  "attendance": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "title": "Davomat",
+    "actions": {
+      "check_in": "Kirish",
+      "check_out": "Chiqish",
+      "export": "Eksport"
+    },
+    "filter": {
+      "all_users": "Barcha xodimlar",
+      "user": "Xodim bo'yicha",
+      "from": "Dan",
+      "to": "Gacha"
+    },
+    "table": {
+      "employee": "Xodim",
+      "role": "Rol",
+      "date": "Sana",
+      "check_in": "Kirish vaqti",
+      "check_out": "Chiqish vaqti",
+      "duration": "Davomiylik",
+      "status": "Holat",
+      "empty": "Davomat yozuvlari topilmadi"
+    },
+    "status": {
+      "present": "Keldi",
+      "absent": "Kelmadi",
+      "late": "Kech keldi",
+      "half_day": "Yarim kun"
+    },
+    "summary": {
+      "title": "Davomat xulosasi",
+      "total_days": "Jami ish kunlari",
+      "present_days": "Kelgan kunlar",
+      "absent_days": "Kelmagan kunlar",
+      "late_days": "Kech kelgan kunlar",
+      "avg_hours": "O'rtacha soat"
+    },
+    "messages": {
+      "checked_in": "Kirish qayd etildi",
+      "checked_out": "Chiqish qayd etildi"
+    }
+  },
+  "stock": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "title": "Ombor",
+    "actions": {
+      "receive": "Qabul qilish",
+      "transfer": "Ko'chirish",
+      "write_off": "Hisobdan chiqarish",
+      "export": "Eksport"
+    },
+    "filter": {
+      "all_products": "Barcha mahsulotlar",
+      "product": "Mahsulot bo'yicha",
+      "low_stock": "Kam stok",
+      "from": "Dan",
+      "to": "Gacha"
+    },
+    "table": {
+      "product": "Mahsulot",
+      "sku": "SKU",
+      "qty": "Miqdor",
+      "unit": "O'lchov",
+      "warehouse": "Ombor",
+      "batch": "Partiya",
+      "expiry_date": "Muddat",
+      "status": "Holat",
+      "actions": "Amallar",
+      "empty": "Ombor ma'lumotlari topilmadi"
+    },
+    "status": {
+      "in_stock": "Stokda bor",
+      "low_stock": "Kam stok",
+      "out_of_stock": "Stokda yo'q",
+      "expired": "Muddati o'tgan"
+    },
+    "movement": {
+      "title": "Ombor harakatlari",
+      "type": "Harakat turi",
+      "receive": "Kirish",
+      "transfer": "Ko'chirish",
+      "write_off": "Hisobdan chiqarish",
+      "sale": "Sotuv",
+      "qty": "Miqdor",
+      "date": "Sana",
+      "user": "Foydalanuvchi",
+      "note": "Izoh",
+      "empty": "Harakat yozuvlari topilmadi"
+    },
+    "messages": {
+      "received": "Mahsulotlar qabul qilindi",
+      "transferred": "Ko'chirish amalga oshirildi",
+      "written_off": "Hisobdan chiqarildi"
+    }
+  },
+  "gps": {
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "title": "GPS kuzatuv",
+    "filter": {
+      "all_users": "Barcha foydalanuvchilar",
+      "user": "Foydalanuvchi bo'yicha",
+      "from": "Dan",
+      "to": "Gacha",
+      "role": "Rol bo'yicha"
+    },
+    "table": {
+      "user": "Foydalanuvchi",
+      "role": "Rol",
+      "last_seen": "Oxirgi ko'rinish",
+      "lat": "Kenglik",
+      "lng": "Uzunlik",
+      "accuracy": "Aniqlik (m)",
+      "address": "Manzil",
+      "empty": "GPS ma'lumotlari topilmadi"
+    },
+    "map": {
+      "title": "Xarita",
+      "no_data": "Xarita uchun ma'lumot yo'q",
+      "current_location": "Joriy joylashuv",
+      "track_history": "Harakat tarixi"
+    },
+    "history": {
+      "title": "Harakat tarixi",
+      "date": "Sana",
+      "start": "Boshlash",
+      "end": "Tugash",
+      "distance": "Masofa",
+      "km": "km",
+      "empty": "Harakat tarixi topilmadi"
+    },
+    "messages": {
+      "location_updated": "Joylashuv yangilandi"
     }
   },
   "customers": {

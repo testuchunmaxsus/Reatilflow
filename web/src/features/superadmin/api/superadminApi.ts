@@ -28,6 +28,10 @@ import type {
   EnterpriseCreate,
   EnterpriseUpdate,
   EnterpriseListFilters,
+  AuditLogPaginated,
+  AuditLogFilters,
+  SuperadminBannerPaginated,
+  SuperadminBannerFilters,
 } from "../types";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
@@ -170,6 +174,82 @@ export function useResetAdminPassword(enterpriseId: string) {
         `/superadmin/enterprises/${enterpriseId}/reset-admin-password`,
         body,
       ),
+  });
+}
+
+// ─── Audit log ────────────────────────────────────────────────────────────────
+
+export const auditLogKeys = {
+  all: ["superadmin-audit-logs"] as const,
+  list: (filters: AuditLogFilters) =>
+    [...auditLogKeys.all, "list", filters] as const,
+};
+
+export function useAuditLogs(filters: AuditLogFilters = {}) {
+  const { action = "", entity_type = "", entity_id = "", enterprise_id = "", limit = 20, offset = 0 } = filters;
+  const params = new URLSearchParams();
+  if (action) params.set("action", action);
+  if (entity_type) params.set("entity_type", entity_type);
+  if (entity_id) params.set("entity_id", entity_id);
+  if (enterprise_id) params.set("enterprise_id", enterprise_id);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+
+  return useQuery({
+    queryKey: auditLogKeys.list(filters),
+    queryFn: () =>
+      apiClient.get<AuditLogPaginated>(
+        `/superadmin/audit-logs?${params.toString()}`,
+      ),
+    placeholderData: (prev) => prev,
+  });
+}
+
+// ─── Superadmin bannerlar ─────────────────────────────────────────────────────
+
+export const superadminBannerKeys = {
+  all: ["superadmin-banners"] as const,
+  list: (filters: SuperadminBannerFilters) =>
+    [...superadminBannerKeys.all, "list", filters] as const,
+};
+
+export function useSuperadminBanners(filters: SuperadminBannerFilters = {}) {
+  const { enterprise_id = "", is_active = null, limit = 20, offset = 0 } = filters;
+  const params = new URLSearchParams();
+  if (enterprise_id) params.set("enterprise_id", enterprise_id);
+  if (is_active !== null && is_active !== undefined) params.set("is_active", String(is_active));
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+
+  return useQuery({
+    queryKey: superadminBannerKeys.list(filters),
+    queryFn: () =>
+      apiClient.get<SuperadminBannerPaginated>(
+        `/superadmin/banners?${params.toString()}`,
+      ),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useToggleBannerActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      apiClient.patch<void>(`/marketplace/banners/${id}`, { is_active }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: superadminBannerKeys.all });
+    },
+  });
+}
+
+export function useDeleteBanner() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete<void>(`/marketplace/banners/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: superadminBannerKeys.all });
+    },
   });
 }
 

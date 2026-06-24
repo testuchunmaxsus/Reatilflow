@@ -133,3 +133,66 @@ export interface EnterpriseListFilters {
   limit?: number;
   offset?: number;
 }
+
+// ─── Audit log ────────────────────────────────────────────────────────────────
+
+export interface AuditLogOut {
+  id: string;
+  actor_id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  before_json: Record<string, unknown> | null;
+  after_json: Record<string, unknown> | null;
+  ip: string | null;
+  at: string;
+  enterprise_id: string | null;
+}
+
+export interface AuditLogPaginated {
+  items: AuditLogOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AuditLogFilters {
+  action?: string;
+  entity_type?: string;
+  entity_id?: string;
+  enterprise_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// ─── Superadmin banner ────────────────────────────────────────────────────────
+
+export interface SuperadminBannerOut {
+  id: string;
+  enterprise_id: string;
+  enterprise_name: string;
+  title: string;
+  image_url: string | null;
+  target_url: string | null;
+  target_product_id: string | null;
+  is_active: boolean;
+  priority: number;
+  valid_from: string | null;
+  valid_to: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SuperadminBannerPaginated {
+  items: SuperadminBannerOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SuperadminBannerFilters {
+  enterprise_id?: string;
+  is_active?: boolean | null;
+  limit?: number;
+  offset?: number;
+}

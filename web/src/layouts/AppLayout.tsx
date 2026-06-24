@@ -39,6 +39,10 @@ import {
   IconTag,
   IconSettings,
   IconShoppingBag,
+  IconCash,
+  IconReceipt,
+  IconTruck,
+  IconBriefcase,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -135,6 +139,33 @@ function useNavItems(): NavItem[] {
       icon: IconShoppingBag,
       requiredPermission: "catalog:view",
       requiredModule: "marketplace",
+    },
+    {
+      label: t("nav.finance"),
+      path: "/finance",
+      icon: IconCash,
+      requiredPermission: "finance:view",
+      requiredModule: "finance",
+    },
+    {
+      label: t("nav.pos"),
+      path: "/pos",
+      icon: IconReceipt,
+      requiredPermission: "pos:view",
+      requiredModule: "pos",
+    },
+    {
+      label: t("nav.delivery"),
+      path: "/delivery",
+      icon: IconTruck,
+      requiredPermission: "delivery:view",
+      requiredModule: "delivery",
+    },
+    {
+      label: t("nav.agent_cabinet"),
+      path: "/agent-cabinet",
+      icon: IconBriefcase,
+      requiredPermission: "agent_cabinet:view",
     },
     {
       label: t("nav.settings"),

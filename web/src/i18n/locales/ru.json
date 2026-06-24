@@ -49,7 +49,11 @@
     "settings": "Настройки",
     "superadmin": "Панель суперадмина",
     "enterprises": "Организации",
-    "marketplace": "Маркетплейс"
+    "marketplace": "Маркетплейс",
+    "finance": "Финансы",
+    "pos": "Касса",
+    "delivery": "Доставка",
+    "agent_cabinet": "Кабинет агента"
   },
   "common": {
     "loading": "Загрузка...",
@@ -597,10 +601,13 @@
     "actions": {
       "create": "Добавить организацию",
       "suspend": "Приостановить",
-      "activate": "Активировать"
+      "activate": "Активировать",
+      "export_csv": "Экспорт CSV"
     },
     "nav": {
-      "dashboard": "Главная"
+      "dashboard": "Главная",
+      "audit_logs": "Журнал аудита",
+      "banners": "Баннеры"
     },
     "dashboard": {
       "title": "Панель суперадмина",
@@ -625,17 +632,6 @@
     "status": {
       "active": "Активна",
       "suspended": "Приостановлена"
-    },
-    "form": {
-      "create_title": "Новая организация",
-      "edit_title": "Редактировать организацию",
-      "name": "Название организации",
-      "name_placeholder": "Введите название",
-      "name_required": "Название организации обязательно",
-      "inn": "ИНН (налоговый номер)",
-      "inn_placeholder": "9 цифр",
-      "modules": "Включённые модули",
-      "first_admin_section": "Первый администратор"
     },
     "suspend": {
       "title": "Приостановить организацию",
@@ -689,6 +685,92 @@
       "all_enterprises": "Все организации",
       "enterprise_filter": "Фильтр по организации",
       "enterprise_column": "Организация"
+    },
+    "bulk": {
+      "selected_count": "Выбрано: {{count}}",
+      "suspend": "Приостановить",
+      "activate": "Активировать",
+      "delete": "Удалить",
+      "clear": "Отменить",
+      "select_all": "Выбрать всё",
+      "select_row": "Выбрать {{name}}",
+      "delete_title": "Удалить выбранные организации",
+      "delete_confirm": "Вы уверены, что хотите удалить {{count}} организаций? Защищённые (422) будут пропущены.",
+      "suspended_count": "Приостановлено: {{count}}",
+      "activated_count": "Активировано: {{count}}",
+      "deleted_count": "Удалено: {{count}}"
+    },
+    "audit": {
+      "title": "Журнал аудита",
+      "empty": "Записи аудита не найдены",
+      "view_json": "Просмотр JSON",
+      "json_modal_title": "Изменения",
+      "before": "До",
+      "after": "После",
+      "no_json": "JSON данные отсутствуют",
+      "filter": {
+        "all_actions": "Все действия",
+        "action": "По действию",
+        "all_entity_types": "Все объекты",
+        "entity_type": "По типу объекта",
+        "all_enterprises": "Все организации",
+        "enterprise": "По организации"
+      },
+      "table": {
+        "at": "Время",
+        "action": "Действие",
+        "entity_type": "Тип объекта",
+        "entity_id": "ID объекта",
+        "enterprise": "Организация"
+      }
+    },
+    "banners": {
+      "title": "Модерация баннеров",
+      "empty": "Баннеры не найдены",
+      "status": {
+        "active": "Активен",
+        "inactive": "Неактивен"
+      },
+      "filter": {
+        "all_enterprises": "Все организации",
+        "enterprise": "По организации",
+        "all_statuses": "Все статусы",
+        "status": "По статусу"
+      },
+      "table": {
+        "image": "Изображение",
+        "title": "Заголовок",
+        "enterprise": "Организация",
+        "status": "Статус",
+        "priority": "Приоритет",
+        "valid_from": "Начало",
+        "valid_to": "Конец"
+      },
+      "actions": {
+        "activate": "Активировать",
+        "deactivate": "Деактивировать"
+      },
+      "messages": {
+        "activated": "Баннер «{{name}}» активирован",
+        "deactivated": "Баннер «{{name}}» деактивирован",
+        "deleted": "Баннер «{{name}}» удалён"
+      },
+      "delete": {
+        "title": "Удалить баннер",
+        "confirm": "Вы уверены, что хотите удалить баннер «{{name}}»?"
+      }
+    },
+    "form": {
+      "create_title": "Новая организация",
+      "edit_title": "Редактировать организацию",
+      "name": "Название организации",
+      "name_placeholder": "Введите название",
+      "name_required": "Название организации обязательно",
+      "inn": "ИНН (налоговый номер)",
+      "inn_placeholder": "9 цифр",
+      "modules": "Включённые модули",
+      "first_admin_section": "Первый администратор",
+      "generate_password": "Сгенерировать пароль"
     }
   },
   "marketplace": {
@@ -838,6 +920,409 @@
         "stock": "Склад",
         "rbac": "RBAC / Аудит"
       }
+    }
+  },
+  "finance": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "title": "Финансы",
+    "actions": {
+      "create": "Добавить запись"
+    },
+    "filter": {
+      "all_types": "Все типы",
+      "type": "По типу",
+      "from": "С",
+      "to": "По"
+    },
+    "table": {
+      "date": "Дата",
+      "store": "Магазин",
+      "entry_type": "Тип",
+      "debit": "Дебит",
+      "credit": "Кредит",
+      "balance": "Баланс",
+      "description": "Описание",
+      "status": "Статус",
+      "actions": "Действия",
+      "empty": "Финансовые записи не найдены"
+    },
+    "entry_type": {
+      "debit": "Дебит",
+      "credit": "Кредит"
+    },
+    "status": {
+      "pending": "Ожидает",
+      "approved": "Подтверждена",
+      "rejected": "Отклонена"
+    },
+    "form": {
+      "create_title": "Новая запись",
+      "edit_title": "Редактировать запись",
+      "store_id": "Магазин",
+      "store_id_placeholder": "UUID магазина",
+      "store_id_required": "Магазин обязателен",
+      "entry_type": "Тип записи",
+      "entry_type_required": "Тип записи обязателен",
+      "amount": "Сумма (UZS)",
+      "amount_placeholder": "Введите сумму",
+      "amount_required": "Сумма обязательна",
+      "amount_positive": "Сумма должна быть положительной",
+      "date": "Дата",
+      "date_required": "Дата обязательна",
+      "description": "Описание",
+      "description_placeholder": "Введите описание"
+    },
+    "ledger": {
+      "title": "Главная книга (Ledger)",
+      "empty": "Записи не найдены",
+      "opening_balance": "Входящий остаток",
+      "closing_balance": "Исходящий остаток",
+      "total_debit": "Итого дебит",
+      "total_credit": "Итого кредит"
+    },
+    "approve": {
+      "title": "Подтвердить запись",
+      "confirm": "Вы хотите подтвердить эту финансовую запись?"
+    },
+    "reject": {
+      "title": "Отклонить запись",
+      "confirm": "Вы хотите отклонить эту финансовую запись?"
+    },
+    "messages": {
+      "created": "Запись успешно создана",
+      "updated": "Запись успешно обновлена",
+      "approved": "Запись подтверждена",
+      "rejected": "Запись отклонена",
+      "deleted": "Запись удалена"
+    },
+    "delete": {
+      "title": "Удалить запись",
+      "confirm": "Вы уверены, что хотите удалить эту запись?"
+    }
+  },
+  "pos": {
+    "title": "POS — Касса продаж",
+    "actions": {
+      "new_sale": "Новая продажа",
+      "daily_report": "Дневной отчёт",
+      "inventory": "Инвентарь",
+      "expiry_scan": "Проверка сроков"
+    },
+    "cart": {
+      "title": "Корзина",
+      "empty": "Корзина пуста",
+      "product": "Товар",
+      "qty": "Кол-во",
+      "unit_price": "Цена",
+      "line_total": "Сумма",
+      "remove": "Удалить",
+      "total": "Итого",
+      "checkout": "Оплата",
+      "clear": "Очистить"
+    },
+    "product": {
+      "search_placeholder": "Название товара или штрихкод...",
+      "scan_barcode": "Сканировать штрихкод",
+      "not_found": "Товар не найден",
+      "add_to_cart": "Добавить в корзину",
+      "out_of_stock": "Нет в наличии",
+      "expiry_blocked": "Срок истёк — продажа запрещена"
+    },
+    "payment": {
+      "title": "Оплата",
+      "method": "Способ оплаты",
+      "cash": "Наличные",
+      "card": "Карта",
+      "transfer": "Перевод",
+      "amount_due": "К оплате",
+      "amount_paid": "Оплачено",
+      "change": "Сдача",
+      "confirm": "Подтвердить оплату",
+      "success": "Продажа успешно завершена"
+    },
+    "receipt": {
+      "title": "Чек",
+      "sale_number": "Номер продажи",
+      "date": "Дата",
+      "cashier": "Кассир",
+      "items": "Товары",
+      "subtotal": "Промежуточный итог",
+      "discount": "Скидка",
+      "total": "Итого",
+      "payment_method": "Способ оплаты",
+      "print": "Печать",
+      "close": "Закрыть"
+    },
+    "daily_report": {
+      "title": "Дневной отчёт",
+      "date": "Дата",
+      "total_sales": "Всего продаж",
+      "total_amount": "Общая сумма",
+      "cash_amount": "Наличные",
+      "card_amount": "Карта",
+      "transfer_amount": "Переводы",
+      "items_sold": "Проданные товары",
+      "empty": "Сегодня продаж нет"
+    },
+    "inventory": {
+      "title": "Инвентарь",
+      "product": "Товар",
+      "sku": "SKU",
+      "qty_in_stock": "Количество на складе",
+      "unit": "Ед. изм.",
+      "expiry_date": "Срок годности",
+      "status": "Статус",
+      "empty": "Данные инвентаря не найдены",
+      "status_ok": "В порядке",
+      "status_expiring": "Срок истекает",
+      "status_expired": "Срок истёк"
+    },
+    "expiry": {
+      "title": "Проверка сроков",
+      "scan_hint": "Отсканируйте штрихкод или выберите товар",
+      "days_left": "Осталось дней: {{days}}",
+      "expired": "Срок годности истёк!",
+      "expiring_soon": "Срок истекает — осталось {{days}} дн.",
+      "ok": "Срок годности в норме",
+      "blocked_message": "Этот товар заблокирован для продажи из-за истёкшего срока"
+    },
+    "messages": {
+      "sale_completed": "Продажа завершена",
+      "sale_canceled": "Продажа отменена",
+      "item_added": "Товар добавлен в корзину",
+      "item_removed": "Товар удалён из корзины"
+    }
+  },
+  "delivery": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "title": "Доставка",
+    "actions": {
+      "assign_courier": "Назначить курьера",
+      "view_route": "Просмотр маршрута",
+      "upload_proof": "Загрузить фото-доказательство"
+    },
+    "filter": {
+      "all_statuses": "Все статусы",
+      "status": "По статусу",
+      "courier": "По курьеру",
+      "from": "С",
+      "to": "По"
+    },
+    "table": {
+      "order_number": "Заказ",
+      "store": "Магазин",
+      "courier": "Курьер",
+      "status": "Статус",
+      "assigned_at": "Назначено",
+      "delivered_at": "Доставлено",
+      "address": "Адрес",
+      "actions": "Действия",
+      "empty": "Доставки не найдены"
+    },
+    "status": {
+      "assigned": "Назначен",
+      "started": "В пути",
+      "delivering": "Доставляется",
+      "delivered": "Доставлен",
+      "failed": "Не доставлен"
+    },
+    "assign": {
+      "title": "Назначить курьера",
+      "courier_label": "Курьер",
+      "courier_placeholder": "Выберите курьера",
+      "courier_required": "Курьер обязателен",
+      "submit": "Назначить",
+      "success": "Курьер успешно назначен"
+    },
+    "proof": {
+      "title": "Загрузить фото-доказательство",
+      "hint": "Загрузите фото для подтверждения доставки (JPEG, PNG, WebP, макс 10 МБ)",
+      "choose_file": "Выбрать фото",
+      "upload": "Загрузить",
+      "success": "Фото-доказательство успешно загружено",
+      "invalid_format": "Недопустимый формат. Только JPEG, PNG, WebP.",
+      "too_large": "Размер файла не должен превышать 10 МБ"
+    },
+    "route": {
+      "title": "Маршрут",
+      "stops": "Остановки",
+      "no_route": "Данные маршрута отсутствуют",
+      "distance": "Расстояние",
+      "km": "км",
+      "stop_number": "Остановка #{{n}}"
+    },
+    "messages": {
+      "status_updated": "Статус изменён на «{{status}}»",
+      "proof_uploaded": "Фото-доказательство загружено"
+    }
+  },
+  "agentCabinet": {
+    "title": "Кабинет агента",
+    "profile": {
+      "title": "Профиль",
+      "full_name": "Полное имя",
+      "phone": "Телефон",
+      "role": "Роль",
+      "branch": "Филиал",
+      "status": "Статус",
+      "edit": "Редактировать профиль"
+    },
+    "stores": {
+      "title": "Привязанные магазины",
+      "empty": "Привязанные магазины не найдены",
+      "store_name": "Название магазина",
+      "phone": "Телефон",
+      "address": "Адрес",
+      "credit_limit": "Кредитный лимит",
+      "last_order": "Последний заказ",
+      "actions": "Действия",
+      "view_orders": "Просмотр заказов",
+      "new_order": "Новый заказ"
+    },
+    "stats": {
+      "title": "Моя статистика",
+      "total_orders": "Всего заказов",
+      "total_amount": "Общая сумма",
+      "this_month": "В этом месяце",
+      "stores_count": "Количество магазинов"
+    },
+    "messages": {
+      "profile_updated": "Профиль успешно обновлён"
+    }
+  },
+  "attendance": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "title": "Посещаемость",
+    "actions": {
+      "check_in": "Отметить приход",
+      "check_out": "Отметить уход",
+      "export": "Экспорт"
+    },
+    "filter": {
+      "all_users": "Все сотрудники",
+      "user": "По сотруднику",
+      "from": "С",
+      "to": "По"
+    },
+    "table": {
+      "employee": "Сотрудник",
+      "role": "Роль",
+      "date": "Дата",
+      "check_in": "Время прихода",
+      "check_out": "Время ухода",
+      "duration": "Продолжительность",
+      "status": "Статус",
+      "empty": "Записи посещаемости не найдены"
+    },
+    "status": {
+      "present": "Присутствовал",
+      "absent": "Отсутствовал",
+      "late": "Опоздал",
+      "half_day": "Половина дня"
+    },
+    "summary": {
+      "title": "Сводка посещаемости",
+      "total_days": "Всего рабочих дней",
+      "present_days": "Дней присутствия",
+      "absent_days": "Дней отсутствия",
+      "late_days": "Дней опоздания",
+      "avg_hours": "Среднее кол-во часов"
+    },
+    "messages": {
+      "checked_in": "Приход отмечен",
+      "checked_out": "Уход отмечен"
+    }
+  },
+  "stock": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "title": "Склад",
+    "actions": {
+      "receive": "Принять",
+      "transfer": "Перемещение",
+      "write_off": "Списание",
+      "export": "Экспорт"
+    },
+    "filter": {
+      "all_products": "Все товары",
+      "product": "По товару",
+      "low_stock": "Мало на складе",
+      "from": "С",
+      "to": "По"
+    },
+    "table": {
+      "product": "Товар",
+      "sku": "SKU",
+      "qty": "Количество",
+      "unit": "Ед. изм.",
+      "warehouse": "Склад",
+      "batch": "Партия",
+      "expiry_date": "Срок годности",
+      "status": "Статус",
+      "actions": "Действия",
+      "empty": "Данные склада не найдены"
+    },
+    "status": {
+      "in_stock": "В наличии",
+      "low_stock": "Мало на складе",
+      "out_of_stock": "Нет в наличии",
+      "expired": "Срок истёк"
+    },
+    "movement": {
+      "title": "Движение по складу",
+      "type": "Тип движения",
+      "receive": "Приход",
+      "transfer": "Перемещение",
+      "write_off": "Списание",
+      "sale": "Продажа",
+      "qty": "Количество",
+      "date": "Дата",
+      "user": "Пользователь",
+      "note": "Примечание",
+      "empty": "Записи движений не найдены"
+    },
+    "messages": {
+      "received": "Товары приняты",
+      "transferred": "Перемещение выполнено",
+      "written_off": "Списание выполнено"
+    }
+  },
+  "gps": {
+    "access_denied": "Нет прав для просмотра этой страницы",
+    "title": "GPS-мониторинг",
+    "filter": {
+      "all_users": "Все пользователи",
+      "user": "По пользователю",
+      "from": "С",
+      "to": "По",
+      "role": "По роли"
+    },
+    "table": {
+      "user": "Пользователь",
+      "role": "Роль",
+      "last_seen": "Последняя активность",
+      "lat": "Широта",
+      "lng": "Долгота",
+      "accuracy": "Точность (м)",
+      "address": "Адрес",
+      "empty": "GPS данные не найдены"
+    },
+    "map": {
+      "title": "Карта",
+      "no_data": "Нет данных для карты",
+      "current_location": "Текущее местоположение",
+      "track_history": "История перемещений"
+    },
+    "history": {
+      "title": "История перемещений",
+      "date": "Дата",
+      "start": "Начало",
+      "end": "Конец",
+      "distance": "Расстояние",
+      "km": "км",
+      "empty": "История перемещений не найдена"
+    },
+    "messages": {
+      "location_updated": "Местоположение обновлено"
     }
   },
   "customers": {

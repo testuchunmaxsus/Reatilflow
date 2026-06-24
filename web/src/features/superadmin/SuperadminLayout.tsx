@@ -30,6 +30,8 @@ import {
   IconChevronDown,
   IconLanguage,
   IconUsers,
+  IconFileText,
+  IconPhoto,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -159,6 +161,20 @@ export function SuperadminLayout() {
             to="/superadmin/users"
             label={t("nav.users")}
             leftSection={<IconUsers size={18} />}
+            mb={2}
+          />
+          <MantineNavLink
+            component={NavLink}
+            to="/superadmin/audit-logs"
+            label={t("superadmin.nav.audit_logs")}
+            leftSection={<IconFileText size={18} />}
+            mb={2}
+          />
+          <MantineNavLink
+            component={NavLink}
+            to="/superadmin/banners"
+            label={t("superadmin.nav.banners")}
+            leftSection={<IconPhoto size={18} />}
             mb={2}
           />
         </ScrollArea>

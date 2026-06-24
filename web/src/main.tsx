@@ -12,7 +12,7 @@
 
 import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { MantineProvider, createTheme, Center, Loader } from "@mantine/core";
@@ -26,7 +26,7 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
 
-import { AuthProvider } from "@/auth/AuthContext";
+import { AuthProvider, useAuth } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/auth/LoginPage";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -72,6 +72,16 @@ const SuperadminUsersPage = lazy(() =>
     default: m.SuperadminUsersPage,
   })),
 );
+const SuperadminAuditLogsPage = lazy(() =>
+  import("@/features/superadmin/SuperadminAuditLogsPage").then((m) => ({
+    default: m.SuperadminAuditLogsPage,
+  })),
+);
+const SuperadminBannersPage = lazy(() =>
+  import("@/features/superadmin/SuperadminBannersPage").then((m) => ({
+    default: m.SuperadminBannersPage,
+  })),
+);
 // Enterprise settings
 import { EnterpriseSettingsPage } from "@/features/enterprise-settings/EnterpriseSettingsPage";
 // Marketplace
@@ -79,6 +89,79 @@ import { MarketplaceLayout } from "@/features/marketplace/MarketplaceLayout";
 import { IncomingOrdersPage } from "@/features/marketplace/IncomingOrdersPage";
 import { OutgoingOrdersPage } from "@/features/marketplace/OutgoingOrdersPage";
 import { BannersPage } from "@/features/marketplace/BannersPage";
+// Finance — code-split
+const FinanceLedgerPage = lazy(() =>
+  import("@/features/finance/FinanceLedgerPage").then((m) => ({
+    default: m.FinanceLedgerPage,
+  })),
+);
+// POS — code-split
+const PosSalesListPage = lazy(() =>
+  import("@/features/pos/PosSalesListPage").then((m) => ({
+    default: m.PosSalesListPage,
+  })),
+);
+const PosSalePage = lazy(() =>
+  import("@/features/pos/PosSalePage").then((m) => ({
+    default: m.PosSalePage,
+  })),
+);
+// Delivery — code-split
+const DeliveryListPage = lazy(() =>
+  import("@/features/delivery/DeliveryListPage").then((m) => ({
+    default: m.DeliveryListPage,
+  })),
+);
+const DeliveryDetailPage = lazy(() =>
+  import("@/features/delivery/DeliveryDetailPage").then((m) => ({
+    default: m.DeliveryDetailPage,
+  })),
+);
+const CourierDashboardPage = lazy(() =>
+  import("@/features/delivery/CourierDashboardPage").then((m) => ({
+    default: m.CourierDashboardPage,
+  })),
+);
+// Agent cabinet — code-split
+const AgentCabinetPage = lazy(() =>
+  import("@/features/agent-cabinet/AgentCabinetPage").then((m) => ({
+    default: m.AgentCabinetPage,
+  })),
+);
+
+// ─── POS wrapper komponentlari ───────────────────────────────────────────
+
+/**
+ * PosSalePage storeId: string (required) qabul qiladi.
+ * branch_id ni foydalanuvchi kontekstidan olib beramiz.
+ * store roli uchun branch_id avtomatik to'ldiriladi;
+ * boshqa rollar uchun "unknown" — sahifaning o'zi boshqaradi.
+ */
+function PosSalePageWrapper() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const storeId = user?.branch_id ?? "unknown";
+  return (
+    <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+      <PosSalePage
+        storeId={storeId}
+        onSaleComplete={() => navigate("/pos", { replace: true })}
+      />
+    </Suspense>
+  );
+}
+
+/**
+ * PosSalesListPage onNewSale callback ni route navigate ga ulaydi.
+ */
+function PosSalesListPageConnected() {
+  const navigate = useNavigate();
+  return (
+    <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+      <PosSalesListPage onNewSale={() => navigate("/pos/sell")} />
+    </Suspense>
+  );
+}
 
 // ─── TanStack Query ───────────────────────────────────────────────────────
 
@@ -179,6 +262,24 @@ function App() {
                         </Suspense>
                       }
                     />
+                    {/* Audit log */}
+                    <Route
+                      path="audit-logs"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminAuditLogsPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* Bannerlar moderatsiya */}
+                    <Route
+                      path="banners"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminBannersPage />
+                        </Suspense>
+                      }
+                    />
                     <Route path="*" element={<Navigate to="/superadmin" replace />} />
                   </Route>
                 </Route>
@@ -219,6 +320,55 @@ function App() {
                       <Route path="outgoing" element={<OutgoingOrdersPage />} />
                       <Route path="banners" element={<BannersPage />} />
                     </Route>
+                    {/* /finance — moliyaviy daftar */}
+                    <Route
+                      path="finance"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <FinanceLedgerPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /pos — POS sotuvlar ro'yxati */}
+                    <Route path="pos" element={<PosSalesListPageConnected />} />
+                    {/* /pos/sell — POS checkout (store roli uchun branch_id avtomatik) */}
+                    <Route path="pos/sell" element={<PosSalePageWrapper />} />
+                    {/* /delivery — yetkazishlar ro'yxati */}
+                    <Route
+                      path="delivery"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <DeliveryListPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /delivery/courier — kuryer dashboard */}
+                    <Route
+                      path="delivery/courier"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <CourierDashboardPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /delivery/:id — yetkazish tafsiloti */}
+                    <Route
+                      path="delivery/:id"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <DeliveryDetailPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /agent-cabinet — agent shaxsiy kabineti */}
+                    <Route
+                      path="agent-cabinet"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <AgentCabinetPage />
+                        </Suspense>
+                      }
+                    />
                     {/* /settings — korxona modullari sozlamalari */}
                     <Route path="settings" element={<EnterpriseSettingsPage />} />
                     {/* Noma'lum yo'l — bosh sahifaga */}

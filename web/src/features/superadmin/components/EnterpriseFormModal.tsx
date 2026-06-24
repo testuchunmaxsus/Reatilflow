@@ -11,8 +11,11 @@
  */
 
 import {
+  ActionIcon,
+  Box,
   Button,
   Checkbox,
+  CopyButton,
   Group,
   Modal,
   PasswordInput,
@@ -22,7 +25,9 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { IconRefresh, IconCheck, IconCopy } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
@@ -30,6 +35,19 @@ import { useCreateEnterprise, useUpdateEnterprise } from "../api/superadminApi";
 import { useApiError } from "@/hooks/useApiError";
 import type { SuperadminEnterpriseOut } from "../types";
 import { ALL_MODULE_KEYS_FRONTEND } from "../constants";
+
+// ─── Kuchli tasodifiy parol generatsiya (14 belgi) ───────────────────────────
+
+const PASSWORD_CHARS =
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+function generateStrongPassword(length = 14): string {
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  return Array.from(array)
+    .map((b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length])
+    .join("");
+}
 
 interface EnterpriseFormModalProps {
   opened: boolean;
@@ -279,12 +297,60 @@ export function EnterpriseFormModal({
                 required
                 {...createForm.getInputProps("admin_phone")}
               />
-              <PasswordInput
-                label={t("users.form.password")}
-                placeholder={t("users.form.password_placeholder")}
-                required
-                {...createForm.getInputProps("admin_password")}
-              />
+              <Stack gap={4}>
+                <Group gap="xs" align="flex-end">
+                  <Box style={{ flex: 1 }}>
+                    <PasswordInput
+                      label={t("users.form.password")}
+                      placeholder={t("users.form.password_placeholder")}
+                      required
+                      {...createForm.getInputProps("admin_password")}
+                    />
+                  </Box>
+                  <Tooltip label={t("superadmin.form.generate_password")}>
+                    <ActionIcon
+                      variant="default"
+                      size="lg"
+                      mb={1}
+                      onClick={() => {
+                        const pwd = generateStrongPassword();
+                        createForm.setFieldValue("admin_password", pwd);
+                      }}
+                      aria-label={t("superadmin.form.generate_password")}
+                    >
+                      <IconRefresh size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                  {createForm.values.admin_password && (
+                    <CopyButton value={createForm.values.admin_password} timeout={2000}>
+                      {({ copied, copy }) => (
+                        <Tooltip
+                          label={
+                            copied
+                              ? t("superadmin.reset_password.copied")
+                              : t("superadmin.reset_password.copy")
+                          }
+                        >
+                          <ActionIcon
+                            variant="default"
+                            size="lg"
+                            mb={1}
+                            onClick={copy}
+                            color={copied ? "teal" : undefined}
+                            aria-label={t("superadmin.reset_password.copy")}
+                          >
+                            {copied ? (
+                              <IconCheck size={16} />
+                            ) : (
+                              <IconCopy size={16} />
+                            )}
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                    </CopyButton>
+                  )}
+                </Group>
+              </Stack>
               <Select
                 label={t("users.form.locale")}
                 data={[

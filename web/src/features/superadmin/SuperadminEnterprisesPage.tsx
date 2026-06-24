@@ -3,9 +3,12 @@
  *
  * Xususiyatlar:
  * - Qidiruv (name/INN) + status filter (active/suspended/hammasi)
- * - Jadval: nom, INN, status, modullar soni, yaratilgan vaqt, amallar
+ * - Jadval: checkbox, nom, INN, status, modullar soni, yaratilgan vaqt, amallar
+ * - Bulk amallar: Suspend / Activate / O'chirish (tanlanganlar uchun)
+ *   422 xatoni yutib, qolganlarini bajarishda davom etadi
+ * - CSV export: joriy ro'yxatni client-side Blob sifatida yuklab olish
  * - Yaratish tugmasi → EnterpriseFormModal (yaratish)
- * - Tahrirlash → EnterpriseFormModal (tahrirlash, nom + modullar)
+ * - Tahrirlash → EnterpriseFormModal (tahrirlash)
  * - Suspend / Activate tugmalari (tasdiqlash bilan)
  * - O'chirish tugmasi + ConfirmDeleteModal (DELETE)
  * - Qator bosilsa → /superadmin/enterprises/:id tafsilot sahifasi
@@ -18,6 +21,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Group,
   Loader,
   Pagination,
@@ -36,6 +40,7 @@ import {
   IconPlayerPlay,
   IconTrash,
   IconSearch,
+  IconDownload,
 } from "@tabler/icons-react";
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -71,6 +76,38 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── CSV eksport ──────────────────────────────────────────────────────────────
+
+function exportCsv(items: SuperadminEnterpriseOut[], t: (key: string) => string) {
+  const header = [
+    t("superadmin.table.name"),
+    "INN",
+    t("superadmin.table.status"),
+    t("superadmin.table.modules_count"),
+    t("superadmin.table.created_at"),
+  ].join(",");
+
+  const rows = items.map((ent) => {
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    return [
+      escape(ent.name),
+      escape(ent.inn ?? ""),
+      escape(ent.status),
+      String(ent.enabled_modules.length),
+      escape(formatDate(ent.created_at)),
+    ].join(",");
+  });
+
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `enterprises_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Komponent ────────────────────────────────────────────────────────────────
 
 export function SuperadminEnterprisesPage() {
@@ -81,6 +118,11 @@ export function SuperadminEnterprisesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+
+  // Bulk select holati
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpened, { open: openBulkDelete, close: closeBulkDelete }] =
+    useDisclosure(false);
 
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -106,16 +148,41 @@ export function SuperadminEnterprisesPage() {
   const deleteMutation = useDeleteEnterprise();
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const items = data?.items ?? [];
+
+  // Barcha/hech biri tanlangan holati
+  const allSelected =
+    items.length > 0 && items.every((e) => selectedIds.has(e.id));
+  const someSelected = items.some((e) => selectedIds.has(e.id));
+
+  const handleToggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((e) => e.id)));
+    }
+  };
+
+  const handleToggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Qidiruv o'zgarganda sahifani 1 ga qaytarish
   const handleSearchChange = useCallback((val: string) => {
     setSearch(val);
     setPage(1);
+    setSelectedIds(new Set());
   }, []);
 
   const handleStatusChange = useCallback((val: string | null) => {
     setStatusFilter(val ?? "");
     setPage(1);
+    setSelectedIds(new Set());
   }, []);
 
   const handleCreateClick = () => {
@@ -192,14 +259,95 @@ export function SuperadminEnterprisesPage() {
     void navigate(`/superadmin/enterprises/${ent.id}`);
   };
 
+  // ─── Bulk amallar ──────────────────────────────────────────────────────────
+
+  const handleBulkSuspend = async () => {
+    const ids = Array.from(selectedIds);
+    let successCount = 0;
+    for (const id of ids) {
+      try {
+        await suspendMutation.mutateAsync(id);
+        successCount++;
+      } catch {
+        // 422 va boshqa xatolar yutiladi — qolganlarini bajarishda davom etamiz
+      }
+    }
+    setSelectedIds(new Set());
+    if (successCount > 0) {
+      notifications.show({
+        color: "orange",
+        message: t("superadmin.bulk.suspended_count", { count: successCount }),
+      });
+    }
+  };
+
+  const handleBulkActivate = async () => {
+    const ids = Array.from(selectedIds);
+    let successCount = 0;
+    for (const id of ids) {
+      try {
+        await activateMutation.mutateAsync(id);
+        successCount++;
+      } catch {
+        // xato yutiladi
+      }
+    }
+    setSelectedIds(new Set());
+    if (successCount > 0) {
+      notifications.show({
+        color: "green",
+        message: t("superadmin.bulk.activated_count", { count: successCount }),
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    let successCount = 0;
+    for (const id of ids) {
+      try {
+        await deleteMutation.mutateAsync(id);
+        successCount++;
+      } catch {
+        // 422 (default korxona) va boshqa xatolar yutiladi
+      }
+    }
+    setSelectedIds(new Set());
+    closeBulkDelete();
+    if (successCount > 0) {
+      notifications.show({
+        color: "red",
+        message: t("superadmin.bulk.deleted_count", { count: successCount }),
+      });
+    }
+  };
+
+  const handleCsvExport = () => {
+    exportCsv(items, t);
+  };
+
+  const selectedCount = selectedIds.size;
+
   return (
     <Stack gap="md">
       {/* Sarlavha */}
       <Group justify="space-between">
         <Title order={3}>{t("nav.enterprises")}</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={handleCreateClick}>
-          {t("superadmin.actions.create")}
-        </Button>
+        <Group gap="sm">
+          {items.length > 0 && (
+            <Button
+              variant="default"
+              leftSection={<IconDownload size={16} />}
+              onClick={handleCsvExport}
+              size="sm"
+            >
+              {t("superadmin.actions.export_csv")}
+            </Button>
+          )}
+          <Button leftSection={<IconPlus size={16} />} onClick={handleCreateClick}>
+            {t("superadmin.actions.create")}
+          </Button>
+        </Group>
       </Group>
 
       {/* Filtrlar */}
@@ -225,6 +373,57 @@ export function SuperadminEnterprisesPage() {
         />
       </Group>
 
+      {/* Bulk panel — tanlanganlar mavjud bo'lganda */}
+      {selectedCount > 0 && (
+        <Group
+          gap="sm"
+          p="xs"
+          bg="blue.0"
+          style={{ borderRadius: 8, border: "1px solid var(--mantine-color-blue-2)" }}
+        >
+          <Text size="sm" fw={500}>
+            {t("superadmin.bulk.selected_count", { count: selectedCount })}
+          </Text>
+          <Button
+            size="xs"
+            color="orange"
+            variant="light"
+            leftSection={<IconPlayerPause size={14} />}
+            onClick={() => { void handleBulkSuspend(); }}
+            loading={suspendMutation.isPending}
+          >
+            {t("superadmin.bulk.suspend")}
+          </Button>
+          <Button
+            size="xs"
+            color="green"
+            variant="light"
+            leftSection={<IconPlayerPlay size={14} />}
+            onClick={() => { void handleBulkActivate(); }}
+            loading={activateMutation.isPending}
+          >
+            {t("superadmin.bulk.activate")}
+          </Button>
+          <Button
+            size="xs"
+            color="red"
+            variant="light"
+            leftSection={<IconTrash size={14} />}
+            onClick={openBulkDelete}
+          >
+            {t("superadmin.bulk.delete")}
+          </Button>
+          <Button
+            size="xs"
+            variant="subtle"
+            color="gray"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            {t("superadmin.bulk.clear")}
+          </Button>
+        </Group>
+      )}
+
       {/* Jadval */}
       {isLoading ? (
         <Group justify="center" py="xl">
@@ -237,15 +436,23 @@ export function SuperadminEnterprisesPage() {
             {error instanceof Error ? error.message : t("errors.unknown")}
           </Text>
         </Box>
-      ) : !data?.items.length ? (
+      ) : !items.length ? (
         <Box py="xl" ta="center">
           <Text c="dimmed">{t("superadmin.table.empty")}</Text>
         </Box>
       ) : (
-        <Table.ScrollContainer minWidth={800}>
+        <Table.ScrollContainer minWidth={840}>
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
+                <Table.Th w={40}>
+                  <Checkbox
+                    checked={allSelected}
+                    indeterminate={someSelected && !allSelected}
+                    onChange={handleToggleAll}
+                    aria-label={t("superadmin.bulk.select_all")}
+                  />
+                </Table.Th>
                 <Table.Th>{t("superadmin.table.name")}</Table.Th>
                 <Table.Th>{t("superadmin.table.inn")}</Table.Th>
                 <Table.Th>{t("superadmin.table.status")}</Table.Th>
@@ -255,12 +462,21 @@ export function SuperadminEnterprisesPage() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {data.items.map((ent) => (
+              {items.map((ent) => (
                 <Table.Tr
                   key={ent.id}
                   style={{ cursor: "pointer" }}
                   onClick={() => handleRowClick(ent)}
                 >
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(ent.id)}
+                      onChange={() => handleToggleRow(ent.id)}
+                      aria-label={t("superadmin.bulk.select_row", {
+                        name: ent.name,
+                      })}
+                    />
+                  </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>
                       {ent.name}
@@ -379,6 +595,16 @@ export function SuperadminEnterprisesPage() {
             ? t("superadmin.delete.confirm", { name: deletingEnterprise.name })
             : ""
         }
+        loading={deleteMutation.isPending}
+      />
+
+      {/* Bulk o'chirish tasdiqlash */}
+      <ConfirmDeleteModal
+        opened={bulkDeleteOpened}
+        onClose={closeBulkDelete}
+        onConfirm={() => { void handleBulkDelete(); }}
+        title={t("superadmin.bulk.delete_title")}
+        message={t("superadmin.bulk.delete_confirm", { count: selectedCount })}
         loading={deleteMutation.isPending}
       />
     </Stack>
