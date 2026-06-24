@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/status_badge.dart';
 import 'pos_models.dart';
 import 'pos_providers.dart';
 
@@ -30,6 +36,7 @@ class _PosInventoryScreenState extends ConsumerState<PosInventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final inventoryState = ref.watch(inventoryNotifierProvider);
     final filtered = ref.watch(filteredInventoryProvider);
 
@@ -56,16 +63,23 @@ class _PosInventoryScreenState extends ConsumerState<PosInventoryScreen> {
       ),
       body: Column(
         children: [
-          // Ogohlantirish paneli (expired / near_expiry bo'lsa)
-          if (expiredCount > 0 || nearExpiryCount > 0)
-            _ExpiryWarningBanner(
+          // Statistika + ogohlantirish
+          if (inventoryState is InventoryLoaded) ...[
+            _InventoryStatsBanner(
+              totalCount: inventoryState.items.length,
               expiredCount: expiredCount,
               nearExpiryCount: nearExpiryCount,
             ),
+          ],
 
           // Qidiruv
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
@@ -79,12 +93,10 @@ class _PosInventoryScreenState extends ConsumerState<PosInventoryScreen> {
                           ref
                               .read(inventorySearchProvider.notifier)
                               .clear();
+                          setState(() {});
                         },
                       )
                     : null,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
               ),
               onChanged: (v) {
                 setState(() {});
@@ -96,20 +108,28 @@ class _PosInventoryScreenState extends ConsumerState<PosInventoryScreen> {
           // Ro'yxat
           Expanded(
             child: switch (inventoryState) {
-              InventoryLoading() =>
-                const Center(child: CircularProgressIndicator()),
+              InventoryLoading() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
               InventoryError(:final message) => _ErrorView(
                   message: message,
                   onRetry: () =>
                       ref.read(inventoryNotifierProvider.notifier).load(),
                 ),
               InventoryLoaded() => filtered.isEmpty
-                  ? const Center(
-                      child: Text('Mahsulot topilmadi',
-                          style: TextStyle(color: Colors.grey)),
+                  ? EmptyState(
+                      icon: Icons.search_off,
+                      title: 'Mahsulot topilmadi',
+                      message: _searchCtrl.text.isNotEmpty
+                          ? '"${_searchCtrl.text}" bo\'yicha natija yo\'q'
+                          : 'Inventar bo\'sh',
+                      compact: true,
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                        vertical: AppSpacing.sm,
+                      ),
                       itemCount: filtered.length,
                       itemBuilder: (ctx, i) =>
                           _InventoryCard(item: filtered[i]),
@@ -123,49 +143,101 @@ class _PosInventoryScreenState extends ConsumerState<PosInventoryScreen> {
 }
 
 // ---------------------------------------------------------------------------
+// Statistika banner
 
-class _ExpiryWarningBanner extends StatelessWidget {
-  const _ExpiryWarningBanner({
+class _InventoryStatsBanner extends StatelessWidget {
+  const _InventoryStatsBanner({
+    required this.totalCount,
     required this.expiredCount,
     required this.nearExpiryCount,
   });
+  final int totalCount;
   final int expiredCount;
   final int nearExpiryCount;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+
+    // Xavfsiz holat — ogohlantirish yo'q
+    if (expiredCount == 0 && nearExpiryCount == 0) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
+          0,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: appColors.successContainer.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(
+            color: appColors.success.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline,
+                size: AppSpacing.iconSm,
+                color: appColors.success),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Jami $totalCount mahsulot — hammasi muddatda',
+              style: tt.bodySmall?.copyWith(
+                color: appColors.success,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Ogohlantirish holati
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Colors.red.shade50,
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        0,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: appColors.dangerContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: appColors.danger.withValues(alpha: 0.4),
+        ),
+      ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
-          const SizedBox(width: 8),
+          Icon(Icons.warning_amber_rounded,
+              size: AppSpacing.iconMd, color: appColors.danger),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  if (expiredCount > 0)
-                    TextSpan(
-                      text: '$expiredCount ta muddati o\'tgan',
-                      style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13),
-                    ),
-                  if (expiredCount > 0 && nearExpiryCount > 0)
-                    const TextSpan(text: '  ·  '),
-                  if (nearExpiryCount > 0)
-                    TextSpan(
-                      text: '$nearExpiryCount ta muddat yaqin',
-                      style: TextStyle(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13),
-                    ),
-                ],
-              ),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                if (expiredCount > 0)
+                  StatusBadge(
+                    status: '$expiredCount ta muddati o\'tgan',
+                    variant: StatusVariant.danger,
+                    size: StatusBadgeSize.small,
+                  ),
+                if (nearExpiryCount > 0)
+                  StatusBadge(
+                    status: '$nearExpiryCount ta muddat yaqin',
+                    variant: StatusVariant.warning,
+                    size: StatusBadgeSize.small,
+                  ),
+              ],
             ),
           ),
         ],
@@ -174,45 +246,69 @@ class _ExpiryWarningBanner extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Inventar kartasi
+
 class _InventoryCard extends StatelessWidget {
   const _InventoryCard({required this.item});
   final InventoryItem item;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+
     Color? cardColor;
-    Color borderColor = Colors.transparent;
-    IconData leadIcon = Icons.inventory_2_outlined;
-    Color leadColor = Colors.grey;
+    Color? borderColor;
 
     if (item.isExpired) {
-      cardColor = Colors.red.shade50;
-      borderColor = Colors.red.shade300;
-      leadIcon = Icons.block;
-      leadColor = Colors.red;
+      cardColor = appColors.dangerContainer.withValues(alpha: 0.3);
+      borderColor = appColors.danger.withValues(alpha: 0.35);
     } else if (item.isNearExpiry) {
-      cardColor = Colors.orange.shade50;
-      borderColor = Colors.orange.shade300;
-      leadIcon = Icons.warning_amber_rounded;
-      leadColor = Colors.orange.shade700;
+      cardColor = appColors.warningContainer.withValues(alpha: 0.3);
+      borderColor = appColors.warning.withValues(alpha: 0.35);
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-      color: cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(
-            color: borderColor,
-            width: item.hasExpiryWarning ? 1.0 : 0.0),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        color: cardColor,
+        borderColor: borderColor,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(leadIcon, color: leadColor, size: 28),
-            const SizedBox(width: 12),
+            // Icon
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: item.isExpired
+                    ? appColors.dangerContainer
+                    : item.isNearExpiry
+                        ? appColors.warningContainer
+                        : cs.primaryContainer,
+                borderRadius:
+                    BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Icon(
+                item.isExpired
+                    ? Icons.block
+                    : item.isNearExpiry
+                        ? Icons.warning_amber_rounded
+                        : Icons.inventory_2_outlined,
+                size: AppSpacing.iconMd,
+                color: item.isExpired
+                    ? appColors.danger
+                    : item.isNearExpiry
+                        ? appColors.warning
+                        : cs.primary,
+              ),
+            ),
+
+            const SizedBox(width: AppSpacing.md),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,86 +320,102 @@ class _InventoryCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           item.productName,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                          style: tt.titleSmall?.copyWith(
                             color: item.isExpired
-                                ? Colors.red.shade700
-                                : null,
+                                ? appColors.danger
+                                : cs.onSurface,
+                            fontWeight: FontWeight.w600,
                             decoration: item.isExpired
                                 ? TextDecoration.lineThrough
                                 : null,
                           ),
                         ),
                       ),
+                      const SizedBox(width: AppSpacing.xs),
                       if (item.isExpired)
-                        const _Badge(
-                            label: 'YAROQSIZ',
-                            color: Colors.red)
+                        StatusBadge(
+                          status: 'YAROQSIZ',
+                          variant: StatusVariant.danger,
+                          size: StatusBadgeSize.small,
+                        )
                       else if (item.isNearExpiry)
-                        _Badge(
-                            label: item.daysToExpiry != null
-                                ? '${item.daysToExpiry}K QOLDI'
-                                : 'MUDDAT YAQIN',
-                            color: Colors.orange),
+                        StatusBadge(
+                          status: item.daysToExpiry != null
+                              ? '${item.daysToExpiry}K QOLDI'
+                              : 'MUDDAT YAQIN',
+                          variant: StatusVariant.warning,
+                          size: StatusBadgeSize.small,
+                        ),
                     ],
                   ),
 
-                  const SizedBox(height: 4),
-
                   // SKU + birlik
-                  if (item.sku.isNotEmpty)
+                  if (item.sku.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'SKU: ${item.sku}  ·  Birlik: ${item.unit}',
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.grey),
+                      'SKU: ${item.sku}  ·  ${item.unit}',
+                      style: tt.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
+                  ],
 
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.sm),
 
-                  // Miqdor + narx
+                  // Miqdor + narxlar qatori
                   Wrap(
-                    spacing: 16,
+                    spacing: AppSpacing.md,
+                    runSpacing: AppSpacing.xs,
                     children: [
                       _InfoChip(
                         label: 'Qoldiq',
-                        value:
-                            '${_fmtQty(item.qty)} ${item.unit}',
-                        color: item.qty <= 0
-                            ? Colors.red
-                            : Colors.blue,
+                        value: '${_fmtQty(item.qty)} ${item.unit}',
+                        accentColor: item.qty <= 0
+                            ? appColors.danger
+                            : cs.primary,
                       ),
                       _InfoChip(
-                        label: 'Sotuv narxi',
-                        value:
-                            '${item.salePrice.toStringAsFixed(0)} so\'m',
-                        color: Colors.green,
+                        label: 'Sotuv',
+                        value: '${item.salePrice.toStringAsFixed(0)} so\'m',
+                        accentColor: appColors.success,
                       ),
                       _InfoChip(
                         label: 'Tan narxi',
-                        value:
-                            '${item.costPrice.toStringAsFixed(0)} so\'m',
-                        color: Colors.grey,
+                        value: '${item.costPrice.toStringAsFixed(0)} so\'m',
+                        accentColor: cs.onSurfaceVariant,
                       ),
                     ],
                   ),
 
                   // Muddat
                   if (item.expiryDate != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Muddat: ${_fmtDate(item.expiryDate!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: item.isExpired
-                            ? Colors.red
-                            : item.isNearExpiry
-                                ? Colors.orange.shade700
-                                : Colors.grey,
-                        fontWeight: item.hasExpiryWarning
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 12,
+                          color: item.isExpired
+                              ? appColors.danger
+                              : item.isNearExpiry
+                                  ? appColors.warning
+                                  : cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          'Muddat: ${_fmtDate(item.expiryDate!)}',
+                          style: tt.labelSmall?.copyWith(
+                            color: item.isExpired
+                                ? appColors.danger
+                                : item.isNearExpiry
+                                    ? appColors.warning
+                                    : cs.onSurfaceVariant,
+                            fontWeight: item.hasExpiryWarning
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
@@ -322,53 +434,41 @@ class _InventoryCard extends StatelessWidget {
       '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
 }
 
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-            color: color, fontSize: 9, fontWeight: FontWeight.w800,
-            letterSpacing: 0.5),
-      ),
-    );
-  }
-}
-
 class _InfoChip extends StatelessWidget {
-  const _InfoChip(
-      {required this.label, required this.value, required this.color});
+  const _InfoChip({
+    required this.label,
+    required this.value,
+    required this.accentColor,
+  });
   final String label;
   final String value;
-  final Color color;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        Text(value,
-            style: TextStyle(
-                fontSize: 13,
-                color: color,
-                fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+        Text(
+          value,
+          style: tt.labelMedium?.copyWith(
+            color: accentColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
 }
+
+// ---------------------------------------------------------------------------
 
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
@@ -377,26 +477,15 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 12),
-            Text('Xatolik: $message',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Qayta urinish'),
-            ),
-          ],
-        ),
-      ),
+    final appColors = AppTheme.colorsOf(context);
+
+    return EmptyState(
+      icon: Icons.error_outline,
+      title: 'Xatolik yuz berdi',
+      message: message,
+      iconColor: appColors.danger,
+      actionLabel: 'Qayta urinish',
+      onAction: onRetry,
     );
   }
 }

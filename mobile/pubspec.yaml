@@ -41,6 +41,9 @@ dependencies:
   # Enterprise modules keshi (oddiy key-value)
   shared_preferences: ^2.3.0
 
+  # Zamonaviy shriftlar (Manrope — dizayn tizimi uchun)
+  google_fonts: ^6.2.1
+
   # JSON kodlash
   json_annotation: ^4.9.0
 

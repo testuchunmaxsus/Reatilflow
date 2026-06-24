@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/dashboard_header.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/stat_card.dart';
 import '../../data/sync/sync_notifier.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
@@ -10,9 +16,9 @@ import '../home/sync_providers.dart';
 /// Buxgalter uchun bosh ekran — dashboard.
 ///
 /// Ko'rsatiladi:
-///   - Salom (foydalanuvchi ismi)
-///   - Tezkor harakatlar (moliya balans, ledger, davomat)
-///   - Sync holati
+///   - DashboardHeader (salom, ism, rol)
+///   - Moliya umumiy StatCard
+///   - Tezkor harakatlar grid
 class AccountantDashboard extends ConsumerWidget {
   const AccountantDashboard({super.key});
 
@@ -26,85 +32,48 @@ class AccountantDashboard extends ConsumerWidget {
 
     final syncState = ref.watch(syncNotifierProvider);
 
+    final initials = user != null
+        ? user.fullName
+            .trim()
+            .split(' ')
+            .take(2)
+            .map((w) => w.isNotEmpty ? w[0] : '')
+            .join()
+            .toUpperCase()
+        : 'BX';
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Salom
-          if (user != null) ...[
-            Text(
-              'Salom, ${user.fullName}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formattedDate(),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
-            ),
-          ],
-
-          const SizedBox(height: 20),
-
-          // Moliya qisqacha kartasi
-          _FinanceSummaryCard(),
-
-          const SizedBox(height: 12),
-
-          // Sync holat
-          _SyncCard(syncState: syncState, ref: ref),
-
-          const SizedBox(height: 20),
-
-          Text(
-            'Tezkor harakatlar',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+          // Header
+          DashboardHeader(
+            greeting: 'Salom,',
+            name: user?.fullName ?? 'Buxgalter',
+            subtitle: _formattedDate(),
+            role: 'BUXGALTER',
+            avatarInitials: initials,
+            trailing: _SyncStatusButton(syncState: syncState, ref: ref),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.lg),
 
-          // Tezkor harakatlar grid
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.4,
-            children: [
-              _QuickAction(
-                icon: Icons.account_balance_wallet_outlined,
-                label: 'Moliya',
-                color: Colors.indigo,
-                onTap: () => context.go('/home/accountant/finance'),
-              ),
-              _QuickAction(
-                icon: Icons.receipt_long_outlined,
-                label: 'Ledger',
-                color: Colors.teal,
-                onTap: () => context.go('/home/accountant/finance'),
-              ),
-              _QuickAction(
-                icon: Icons.fingerprint,
-                label: 'Davomat',
-                color: Colors.purple,
-                onTap: () => context.go('/home/attendance'),
-              ),
-              _QuickAction(
-                icon: Icons.bar_chart_outlined,
-                label: 'Hisobotlar',
-                color: Colors.orange,
-                onTap: () => context.go('/home/accountant/finance'),
-              ),
-            ],
+          // Moliya statistika kartasi
+          _FinanceStatCard(),
+
+          const SizedBox(height: AppSpacing.lg),
+
+          // Tezkor harakatlar
+          SectionHeader(
+            title: 'Tezkor harakatlar',
+            subtitle: 'Moliya va buxgalteriya',
           ),
+          const SizedBox(height: AppSpacing.sm),
+
+          _AccountantQuickActions(),
+
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
     );
@@ -113,147 +82,168 @@ class AccountantDashboard extends ConsumerWidget {
   String _formattedDate() {
     final now = DateTime.now();
     const months = [
-      'yanvar',
-      'fevral',
-      'mart',
-      'aprel',
-      'may',
-      'iyun',
-      'iyul',
-      'avgust',
-      'sentabr',
-      'oktabr',
-      'noyabr',
-      'dekabr',
+      'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+      'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr',
     ];
     return '${now.day} ${months[now.month - 1]} ${now.year}';
   }
 }
 
-// ---------------------------------------------------------------------------
-
-/// Moliya qisqacha kartasi — balans va ledger-ga yo'naltirish.
-class _FinanceSummaryCard extends StatelessWidget {
+/// Moliya umumiy StatCard.
+class _FinanceStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.go('/home/accountant/finance'),
-      child: Card(
-        color: Colors.indigo.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.indigo.withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.account_balance,
-                  color: Colors.indigo.shade600, size: 36),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Moliya moduli',
-                      style: TextStyle(
-                        color: Colors.indigo.shade700,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const Text(
-                      'Balans va buxgalteriya yozuvlari',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right,
-                  color: Colors.indigo.withValues(alpha: 0.6)),
-            ],
-          ),
-        ),
-      ),
+    final appColors = AppTheme.colorsOf(context);
+
+    return StatCard(
+      icon: Icons.account_balance_rounded,
+      label: 'Moliya moduli',
+      value: 'Balans va yozuvlar',
+      subtitle: 'Ko\'rish uchun bosing',
+      accentColor: appColors.info,
+      onTap: () => Navigator.of(context).pushNamed('/home/accountant/finance'),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-
-class _SyncCard extends StatelessWidget {
-  const _SyncCard({required this.syncState, required this.ref});
+/// Sync holati tugmasi — DashboardHeader trailing uchun.
+class _SyncStatusButton extends StatelessWidget {
+  const _SyncStatusButton({required this.syncState, required this.ref});
   final SyncState syncState;
   final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color, label) = switch (syncState) {
-      SyncState.syncing => (Icons.sync, Colors.blue, 'Sync qilinmoqda...'),
-      SyncState.success =>
-        (Icons.cloud_done, Colors.green, 'Sync muvaffaqiyatli'),
-      SyncState.error => (Icons.sync_problem, Colors.red, 'Sync xatosi'),
-      SyncState.offline => (Icons.cloud_off, Colors.orange, 'Offline rejim'),
-      SyncState.idle => (Icons.cloud_queue, Colors.grey, 'Sync tayyorligida'),
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
+
+    final (icon, color) = switch (syncState) {
+      SyncState.syncing => (Icons.sync, cs.onPrimary),
+      SyncState.success => (Icons.cloud_done, appColors.success),
+      SyncState.error => (Icons.sync_problem, appColors.danger),
+      SyncState.offline => (Icons.cloud_off, appColors.warning),
+      SyncState.idle => (Icons.cloud_queue, cs.onPrimary.withValues(alpha: 0.7)),
     };
 
-    return Card(
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: TextStyle(color: color, fontSize: 14)),
-        trailing: TextButton(
-          onPressed: () =>
-              ref.read(syncNotifierProvider.notifier).triggerSync(),
-          child: const Text('Sync'),
-        ),
-        dense: true,
-      ),
+    return GestureDetector(
+      onTap: () => ref.read(syncNotifierProvider.notifier).triggerSync(),
+      child: syncState == SyncState.syncing
+          ? SizedBox(
+              width: AppSpacing.iconMd,
+              height: AppSpacing.iconMd,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: cs.onPrimary,
+              ),
+            )
+          : Icon(icon, color: color, size: AppSpacing.iconMd),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
+/// Buxgalter tezkor harakatlar gridi.
+class _AccountantQuickActions extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final actions = const <_QuickActionData>[
+      _QuickActionData(
+        icon: Icons.account_balance_wallet_rounded,
+        label: 'Moliya',
+        route: '/home/accountant/finance',
+      ),
+      _QuickActionData(
+        icon: Icons.receipt_long_rounded,
+        label: 'Ledger',
+        route: '/home/accountant/finance',
+      ),
+      _QuickActionData(
+        icon: Icons.fingerprint,
+        label: 'Davomat',
+        route: '/home/attendance',
+      ),
+      _QuickActionData(
+        icon: Icons.bar_chart_rounded,
+        label: 'Hisobotlar',
+        route: '/home/accountant/finance',
+      ),
+    ];
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.sm,
+      crossAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 1.6,
+      children: actions
+          .map((a) => _QuickActionCard(
+                icon: a.icon,
+                label: a.label,
+                onTap: () => context.go(a.route),
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _QuickActionData {
+  const _QuickActionData({
     required this.icon,
     required this.label,
-    required this.color,
-    required this.onTap,
+    required this.route,
   });
-
   final IconData icon;
   final String label;
-  final Color color;
+  final String route;
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 32, color: color),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: AppSpacing.iconLg + AppSpacing.sm,
+            height: AppSpacing.iconLg + AppSpacing.sm,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(icon, color: cs.primary, size: AppSpacing.iconMd),
           ),
-        ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            label,
+            style: tt.labelMedium?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 }
+

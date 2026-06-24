@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
@@ -17,7 +20,6 @@ import 'orders_providers.dart';
 ///   - Lokal unitPrice = 0 (faqat ko'rsatish placeholder).
 ///   - Buyurtma offline saqlanadi → outbox → sync → server narxni hisoblaydi.
 class CreateOrderScreen extends ConsumerStatefulWidget {
-  /// [preselectedStoreId] — do'kon sahifasidan kelinsa avtomatik to'ldiriladi.
   const CreateOrderScreen({super.key, this.preselectedStoreId});
   final String? preselectedStoreId;
 
@@ -50,7 +52,8 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
     setState(() {
       final existing = _lines.indexWhere((l) => l.product.id == product.id);
       if (existing >= 0) {
-        _lines[existing] = _lines[existing].copyWith(qty: _lines[existing].qty + 1);
+        _lines[existing] =
+            _lines[existing].copyWith(qty: _lines[existing].qty + 1);
       } else {
         _lines.add(_LineItem(product: product, qty: 1));
       }
@@ -78,7 +81,6 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
 
     if (user == null || _selectedStore == null || _lines.isEmpty) return;
 
-    // T11 narx himoyasi: faqat product_id + qty — narx YO'Q
     final orderLines = _lines
         .map((l) => OrderLineInput(productId: l.product.id, qty: l.qty))
         .toList();
@@ -94,14 +96,16 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   @override
   Widget build(BuildContext context) {
     final createState = ref.watch(createOrderProvider);
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
 
-    // Muvaffaqiyatli yaratilsa — orqaga qayt
     ref.listen(createOrderProvider, (_, next) {
       if (next is CreateOrderSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Buyurtma saqlandi (offline). Sync qilinadi.'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content:
+                const Text('Buyurtma saqlandi (offline). Sync qilinadi.'),
+            backgroundColor: appColors.success,
           ),
         );
         Navigator.of(context).pop();
@@ -109,7 +113,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Xatolik: ${next.error}'),
-            backgroundColor: Colors.red,
+            backgroundColor: cs.error,
           ),
         );
       }
@@ -128,59 +132,60 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
               child: const Text('Saqlash'),
             ),
           if (isLoading)
-            const Padding(
-              padding: EdgeInsets.all(12),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: cs.primary),
               ),
             ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // T11 narx himoyasi eslatmasi
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: const Row(
+            AppCard(
+              color: appColors.infoContainer.withValues(alpha: 0.3),
+              borderColor: appColors.info.withValues(alpha: 0.3),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue, size: 18),
-                  SizedBox(width: 8),
+                  Icon(Icons.info_outline,
+                      color: appColors.info, size: AppSpacing.iconSm),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'Narx server tomonida hisoblanadi. '
                       'Faqat mahsulot va miqdor kiriting.',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: appColors.info,
+                          ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
             // Do'kon tanlash
-            Text("Do'kon", style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
+            const SectionHeader(title: "Do'kon"),
+            const SizedBox(height: AppSpacing.sm),
             _StoreSelector(
               selected: _selectedStore,
               onSelected: (s) => setState(() => _selectedStore = s),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
             // Buyurtma turi
-            Text('Tur', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
+            const SectionHeader(title: 'Tur'),
+            const SizedBox(height: AppSpacing.sm),
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'bozor', label: Text('Bozor')),
@@ -190,31 +195,24 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
               onSelectionChanged: (s) => setState(() => _mode = s.first),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
             // Mahsulotlar qo'shish
-            Row(
-              children: [
-                Text('Mahsulotlar',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                TextButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: const Text("Qo'shish"),
-                  onPressed: () => _showProductPicker(context),
-                ),
-              ],
+            SectionHeader(
+              title: 'Mahsulotlar',
+              actionLabel: "Qo'shish",
+              onAction: () => _showProductPicker(context),
             ),
+            const SizedBox(height: AppSpacing.sm),
 
-            // Qo'shilgan mahsulotlar
             if (_lines.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(
-                  child: Text(
-                    'Mahsulot qo\'shing',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                child: EmptyState(
+                  icon: Icons.inventory_2_outlined,
+                  title: "Mahsulot qo'shing",
+                  message: "Yuqoridagi \"Qo'shish\" tugmasini bosing.",
+                  compact: true,
                 ),
               )
             else
@@ -229,20 +227,21 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                 ),
               ),
 
-            const SizedBox(height: 8),
-
-            // Jami qator soni
-            if (_lines.isNotEmpty)
+            if (_lines.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
                   'Jami: ${_lines.length} tur mahsulot',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, color: Colors.grey),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ),
+            ],
 
-            const SizedBox(height: 80),
+            const SizedBox(height: 88),
           ],
         ),
       ),
@@ -275,24 +274,55 @@ class _StoreSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     if (selected != null) {
-      return Card(
-        child: ListTile(
-          leading: const Icon(Icons.store),
-          title: Text(selected!.name),
-          subtitle: selected!.address != null ? Text(selected!.address!) : null,
-          trailing: TextButton(
-            child: const Text("O'zgartirish"),
-            onPressed: () => _showStorePicker(context, ref),
-          ),
+      return AppCard(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Icon(Icons.store_outlined,
+                  color: cs.primary, size: AppSpacing.iconSm),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(selected!.name,
+                      style: tt.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  if (selected!.address != null)
+                    Text(selected!.address!,
+                        style: tt.bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => _showStorePicker(context, ref),
+              child: const Text("O'zgartirish"),
+            ),
+          ],
         ),
       );
     }
 
-    return OutlinedButton.icon(
-      onPressed: () => _showStorePicker(context, ref),
-      icon: const Icon(Icons.store_outlined),
-      label: const Text("Do'kon tanlang"),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _showStorePicker(context, ref),
+        icon: const Icon(Icons.store_outlined),
+        label: const Text("Do'kon tanlang"),
+      ),
     );
   }
 
@@ -312,6 +342,8 @@ class _StorePickerSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storesAsync = ref.watch(storesStreamProvider);
+    final cs = Theme.of(context).colorScheme;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       maxChildSize: 0.9,
@@ -320,26 +352,60 @@ class _StorePickerSheet extends ConsumerWidget {
       builder: (_, controller) => Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text("Do'kon tanlang",
-                style: Theme.of(context).textTheme.titleMedium),
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: SectionHeader(title: "Do'kon tanlang"),
           ),
+          Divider(height: 1, color: cs.outlineVariant),
           Expanded(
             child: storesAsync.when(
-              data: (stores) => ListView.builder(
+              data: (stores) => ListView.separated(
                 controller: controller,
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 itemCount: stores.length,
-                itemBuilder: (ctx, i) => ListTile(
-                  leading: const Icon(Icons.store),
-                  title: Text(stores[i].name),
-                  subtitle: stores[i].address != null
-                      ? Text(stores[i].address!)
-                      : null,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: AppSpacing.sm),
+                itemBuilder: (ctx, i) => AppCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md),
                   onTap: () => Navigator.pop(ctx, stores[i]),
+                  child: Row(
+                    children: [
+                      Icon(Icons.store_outlined,
+                          color: cs.onSurfaceVariant,
+                          size: AppSpacing.iconSm),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(stores[i].name,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(
+                                        fontWeight: FontWeight.w600)),
+                            if (stores[i].address != null)
+                              Text(stores[i].address!,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                          color: cs.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Xatolik: $e')),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => EmptyState(
+                icon: Icons.error_outline,
+                title: 'Xatolik',
+                message: e.toString(),
+              ),
             ),
           ),
         ],
@@ -369,6 +435,8 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(filteredProductsProvider);
+    final cs = Theme.of(context).colorScheme;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.8,
       maxChildSize: 0.95,
@@ -377,37 +445,97 @@ class _ProductPickerSheetState extends ConsumerState<_ProductPickerSheet> {
       builder: (_, scrollCtrl) => Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
             child: TextField(
               controller: _controller,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Mahsulot qidirish...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                prefixIcon: Icon(Icons.search_outlined),
               ),
               onChanged: ref.read(productSearchProvider.notifier).setQuery,
             ),
           ),
+          Divider(height: 1, color: cs.outlineVariant),
           Expanded(
             child: productsAsync.when(
-              data: (products) => ListView.builder(
-                controller: scrollCtrl,
-                itemCount: products.length,
-                itemBuilder: (ctx, i) => ListTile(
-                  leading: const Icon(Icons.inventory_2_outlined),
-                  title: Text(products[i].nameUz),
-                  subtitle: products[i].sku != null
-                      ? Text(products[i].sku!)
-                      : null,
-                  trailing: Text(products[i].unit,
-                      style: const TextStyle(fontSize: 12)),
-                  onTap: () => Navigator.pop(ctx, products[i]),
-                ),
+              data: (products) => products.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Mahsulot topilmadi',
+                      compact: true,
+                    )
+                  : ListView.separated(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      itemCount: products.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (ctx, i) => AppCard(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.md),
+                        onTap: () => Navigator.pop(ctx, products[i]),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: cs.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusSm),
+                              ),
+                              child: Icon(Icons.inventory_2_outlined,
+                                  size: AppSpacing.iconSm,
+                                  color: cs.onSurfaceVariant),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    products[i].nameUz,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (products[i].sku != null)
+                                    Text(
+                                      'SKU: ${products[i].sku!}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                              color: cs.onSurfaceVariant),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              products[i].unit,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => EmptyState(
+                icon: Icons.error_outline,
+                title: 'Xatolik',
+                message: e.toString(),
               ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Xatolik: $e')),
             ),
           ),
         ],
@@ -439,60 +567,69 @@ class _LineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(line.product.nameUz,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(
-                    // Narx ko'rsatilmaydi — server hisoblaydi (T11)
-                    'Birlik: ${line.product.unit}  |  Narx: server',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            // Miqdor boshqaruvi
-            Row(
-              mainAxisSize: MainAxisSize.min,
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () => onQtyChanged(line.qty - 1),
-                  iconSize: 20,
+                Text(
+                  line.product.nameUz,
+                  style: tt.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    line.qty % 1 == 0
-                        ? line.qty.toStringAsFixed(0)
-                        : line.qty.toStringAsFixed(1),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () => onQtyChanged(line.qty + 1),
-                  iconSize: 20,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: onRemove,
-                  iconSize: 20,
+                Text(
+                  // Narx ko'rsatilmaydi — server hisoblaydi (T11)
+                  'Birlik: ${line.product.unit}  |  Narx: server',
+                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: () => onQtyChanged(line.qty - 1),
+                iconSize: AppSpacing.iconSm,
+                color: cs.onSurfaceVariant,
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  line.qty % 1 == 0
+                      ? line.qty.toStringAsFixed(0)
+                      : line.qty.toStringAsFixed(1),
+                  textAlign: TextAlign.center,
+                  style: tt.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () => onQtyChanged(line.qty + 1),
+                iconSize: AppSpacing.iconSm,
+                color: cs.primary,
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline,
+                    color: cs.error),
+                onPressed: onRemove,
+                iconSize: AppSpacing.iconSm,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

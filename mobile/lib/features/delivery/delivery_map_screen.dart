@@ -3,6 +3,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import 'delivery_providers.dart';
 
@@ -12,8 +15,6 @@ import 'delivery_providers.dart';
 /// - Boshlash nuqtasi (yashil marker)
 /// - Hozirgi joylashuv (ko'k marker)
 /// - GPS trek polyline (yo'l chizig'i)
-///
-/// delivery_detail_screen'dan `context.push(routeDeliveryMap, extra: delivery)` orqali ochiladi.
 class DeliveryMapScreen extends ConsumerWidget {
   const DeliveryMapScreen({super.key, required this.deliveryId});
 
@@ -23,22 +24,35 @@ class DeliveryMapScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final deliveryAsync = ref.watch(deliveryStreamProvider(deliveryId));
     final gpsPointsAsync = ref.watch(deliveryGpsPointsProvider(deliveryId));
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Xarita — ${deliveryId.substring(0, 8)}...'),
       ),
       body: deliveryAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Xatolik: $e')),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: cs.primary)),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: e.toString(),
+        ),
         data: (delivery) {
           if (delivery == null) {
-            return const Center(child: Text('Yetkazish topilmadi'));
+            return const EmptyState(
+              icon: Icons.local_shipping_outlined,
+              title: 'Yetkazish topilmadi',
+            );
           }
           return gpsPointsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) =>
-                Center(child: Text('GPS ma\'lumot yuklanmadi: $e')),
+            loading: () =>
+                Center(child: CircularProgressIndicator(color: cs.primary)),
+            error: (e, _) => EmptyState(
+              icon: Icons.gps_off,
+              title: "GPS ma'lumot yuklanmadi",
+              message: e.toString(),
+            ),
             data: (points) =>
                 _MapBody(delivery: delivery, gpsPoints: points),
           );
@@ -61,9 +75,9 @@ class _MapBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Markazni hisoblash: birinchi/oxirgi nuqta yoki O'zbekiston (default)
     const defaultCenter = LatLng(41.2995, 69.2401); // Toshkent
     final center = gpsPoints.isNotEmpty ? gpsPoints.last : defaultCenter;
+    final cs = Theme.of(context).colorScheme;
 
     return Stack(
       children: [
@@ -73,45 +87,40 @@ class _MapBody extends StatelessWidget {
             initialZoom: gpsPoints.isNotEmpty ? 15.0 : 12.0,
           ),
           children: [
-            // OpenStreetMap tile layer
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'uz.retail.mobile',
             ),
 
-            // GPS trek polyline
             if (gpsPoints.length >= 2)
               PolylineLayer(
                 polylines: [
                   Polyline(
                     points: gpsPoints,
-                    color: Colors.blue.shade600,
+                    color: cs.primary,
                     strokeWidth: 4,
                   ),
                 ],
               ),
 
-            // Markerlar
             MarkerLayer(
               markers: [
-                // Boshlash nuqtasi (yashil)
                 if (gpsPoints.isNotEmpty)
                   Marker(
                     point: gpsPoints.first,
-                    child: const _MapMarker(
+                    child: _MapMarker(
                       icon: Icons.play_circle_filled,
-                      color: Colors.green,
+                      color: AppTheme.colorsOf(context).success,
                       tooltip: 'Boshlash',
                     ),
                   ),
 
-                // Oxirgi nuqta / joriy joylashuv (ko'k)
                 if (gpsPoints.isNotEmpty)
                   Marker(
                     point: gpsPoints.last,
-                    child: const _MapMarker(
+                    child: _MapMarker(
                       icon: Icons.local_shipping,
-                      color: Colors.blue,
+                      color: cs.primary,
                       tooltip: 'Hozirgi joylashuv',
                     ),
                   ),
@@ -122,36 +131,40 @@ class _MapBody extends StatelessWidget {
 
         // Pastdagi holat paneli
         Positioned(
-          bottom: 16,
-          left: 16,
-          right: 16,
-          child: _StatusPanel(delivery: delivery, pointsCount: gpsPoints.length),
+          bottom: AppSpacing.lg,
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          child:
+              _StatusPanel(delivery: delivery, pointsCount: gpsPoints.length),
         ),
 
-        // GPS nuqtalar yo'q bo'lsa — ma'lumot banneri
+        // GPS nuqtalar yo'q bo'lsa — info banneri
         if (gpsPoints.isEmpty)
           Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade100,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade300),
-              ),
-              child: const Row(
+            top: AppSpacing.lg,
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            child: AppCard(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              color: AppTheme.colorsOf(context)
+                  .warningContainer
+                  .withValues(alpha: 0.5),
+              borderColor: AppTheme.colorsOf(context)
+                  .warning
+                  .withValues(alpha: 0.4),
+              child: Row(
                 children: [
                   Icon(Icons.info_outline,
-                      color: Colors.orange, size: 18),
-                  SizedBox(width: 8),
+                      color: AppTheme.colorsOf(context).warning,
+                      size: AppSpacing.iconSm),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      'GPS ma\'lumotlari hali yig\'ilmagan',
-                      style:
-                          TextStyle(color: Colors.orange, fontSize: 13),
+                      "GPS ma'lumotlari hali yig'ilmagan",
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.colorsOf(context).warning,
+                          ),
                     ),
                   ),
                 ],
@@ -178,16 +191,17 @@ class _MapMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.4),
-              blurRadius: 6,
+              blurRadius: 8,
               spreadRadius: 1,
             ),
           ],
@@ -211,45 +225,50 @@ class _StatusPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 4,
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            const Icon(Icons.timeline, color: Colors.blue, size: 22),
-            const SizedBox(width: 12),
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(Icons.timeline_outlined,
+                color: cs.primary, size: AppSpacing.iconSm),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatusBadge(status: _statusLabel(delivery.status)),
+                const SizedBox(height: 2),
+                Text(
+                  '$pointsCount ta GPS nuqta',
+                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          if (delivery.address != null)
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _statusLabel(delivery.status),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    '$pointsCount ta GPS nuqta',
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.grey),
-                  ),
-                ],
+              child: Text(
+                delivery.address!,
+                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
               ),
             ),
-            if (delivery.address != null)
-              Expanded(
-                child: Text(
-                  delivery.address!,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }

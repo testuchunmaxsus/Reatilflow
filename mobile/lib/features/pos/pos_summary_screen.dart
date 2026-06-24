@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/stat_card.dart';
 import 'pos_models.dart';
 import 'pos_providers.dart';
 
@@ -14,45 +20,33 @@ class PosSummaryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(posSummaryProvider);
     final selectedDate = ref.watch(posSummaryDateProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kunlik hisobot'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Yangilash',
-            onPressed: () => ref.invalidate(posSummaryProvider),
-          ),
-          IconButton(
             icon: const Icon(Icons.calendar_today),
             tooltip: 'Sana tanlash',
             onPressed: () => _pickDate(context, ref, selectedDate),
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Yangilash',
+            onPressed: () => ref.invalidate(posSummaryProvider),
+          ),
         ],
       ),
       body: summaryAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 12),
-                Text('Xatolik: $e',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () => ref.invalidate(posSummaryProvider),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Qayta urinish'),
-                ),
-              ],
-            ),
-          ),
+        loading: () => _SummaryLoadingSkeleton(),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: '$e',
+          iconColor: AppTheme.colorsOf(context).danger,
+          actionLabel: 'Qayta urinish',
+          onAction: () => ref.invalidate(posSummaryProvider),
         ),
         data: (summary) => _SummaryBody(summary: summary),
       ),
@@ -88,82 +82,109 @@ class _SummaryBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sana
-          Row(
-            children: [
-              const Icon(Icons.calendar_today,
-                  size: 18, color: Colors.blue),
-              const SizedBox(width: 8),
-              Text(
-                _formatDate(summary.date),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
+          // Sana banner
+          AppCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            color: cs.primaryContainer,
+            borderColor: cs.primary.withValues(alpha: 0.2),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.15),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: Icon(Icons.calendar_today,
+                      size: AppSpacing.iconSm, color: cs.primary),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Text(
+                  _formatDate(summary.date),
+                  style: tt.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: cs.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
-          // Asosiy statistika
+          // Asosiy statistika — StatCard
           Row(
             children: [
               Expanded(
-                child: _StatCard(
+                child: StatCard(
                   icon: Icons.receipt_long,
                   label: 'Sotuvlar soni',
                   value: '${summary.totalSales} ta',
-                  color: Colors.blue,
+                  accentColor: cs.primary,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: _StatCard(
-                  icon: Icons.attach_money,
+                child: StatCard(
+                  icon: Icons.account_balance_wallet_outlined,
                   label: 'Jami summa',
-                  value: _fmtAmount(summary.totalAmount),
-                  color: Colors.green,
+                  value: _fmtCompact(summary.totalAmount),
+                  subtitle: _fmtAmount(summary.totalAmount),
+                  accentColor: appColors.success,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.xl),
 
           // To'lov usuli bo'yicha
           if (summary.byPaymentMethod.isNotEmpty) ...[
-            Text(
-              "To'lov usullari bo'yicha",
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+            SectionHeader(
+              title: "To'lov usullari bo'yicha",
+              subtitle:
+                  '${summary.byPaymentMethod.length} ta usul',
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.md),
             ...summary.byPaymentMethod.entries.map(
-              (e) => _PaymentMethodRow(
-                method: e.key,
-                data: e.value,
+              (e) => Padding(
+                padding:
+                    const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _PaymentMethodCard(
+                  method: e.key,
+                  data: e.value,
+                ),
               ),
             ),
           ],
 
           if (summary.totalSales == 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(
-                child: Text(
-                  'Bu kun uchun sotuv mavjud emas',
-                  style: TextStyle(color: Colors.grey, fontSize: 15),
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.xxl),
+              child: EmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: 'Sotuv mavjud emas',
+                message: 'Bu kun uchun sotuv amalga oshirilmagan',
+                compact: true,
               ),
             ),
+
+          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
@@ -173,18 +194,8 @@ class _SummaryBody extends StatelessWidget {
     final dt = DateTime.tryParse(dateStr);
     if (dt == null) return dateStr;
     const months = [
-      'yanvar',
-      'fevral',
-      'mart',
-      'aprel',
-      'may',
-      'iyun',
-      'iyul',
-      'avgust',
-      'sentabr',
-      'oktabr',
-      'noyabr',
-      'dekabr',
+      'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+      'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr',
     ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
@@ -198,87 +209,198 @@ class _SummaryBody extends StatelessWidget {
     }
     return "${buf.toString()} so'm";
   }
-}
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: color.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(label,
-                style:
-                    const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: color),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _fmtCompact(double v) {
+    if (v >= 1000000000) {
+      return '${(v / 1000000000).toStringAsFixed(1)} mlrd';
+    }
+    if (v >= 1000000) {
+      return '${(v / 1000000).toStringAsFixed(1)} mln';
+    }
+    if (v >= 1000) {
+      return '${(v / 1000).toStringAsFixed(0)} ming';
+    }
+    return v.toStringAsFixed(0);
   }
 }
 
-class _PaymentMethodRow extends StatelessWidget {
-  const _PaymentMethodRow({required this.method, required this.data});
+// ---------------------------------------------------------------------------
+
+class _PaymentMethodCard extends StatelessWidget {
+  const _PaymentMethodCard({required this.method, required this.data});
   final String method;
   final PosSummaryByMethod data;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, label, color) = _methodInfo(method);
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final (icon, label, accentColor) = _methodInfo(context, method);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-        subtitle: Text('${data.count} ta sotuv'),
-        trailing: Text(
-          '${data.amount.toStringAsFixed(0)} so\'m',
-          style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-              color: color),
-        ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(icon, color: accentColor, size: AppSpacing.iconMd),
+          ),
+
+          const SizedBox(width: AppSpacing.md),
+
+          // Ism + soni
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: tt.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${data.count} ta sotuv',
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Summa
+          Text(
+            _fmtAmount(data.amount),
+            style: tt.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: accentColor,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  (IconData, String, Color) _methodInfo(String method) => switch (method) {
-        'cash' => (Icons.money, 'Naqd pul', Colors.green),
-        'card' => (Icons.credit_card, 'Karta', Colors.blue),
-        'transfer' => (
-            Icons.account_balance,
-            "O'tkazma",
-            Colors.purple
+  String _fmtAmount(double v) {
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)} mln';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)} ming';
+    return '${v.toStringAsFixed(0)} so\'m';
+  }
+
+  (IconData, String, Color) _methodInfo(
+      BuildContext context, String method) {
+    final appColors = AppTheme.colorsOf(context);
+    return switch (method) {
+      'cash' => (Icons.money, 'Naqd pul', appColors.success),
+      'card' => (
+          Icons.credit_card,
+          'Karta',
+          Theme.of(context).colorScheme.primary
+        ),
+      'transfer' => (
+          Icons.account_balance_outlined,
+          "O'tkazma",
+          Theme.of(context).colorScheme.secondary
+        ),
+      _ => (
+          Icons.payment,
+          method,
+          Theme.of(context).colorScheme.onSurfaceVariant
+        ),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loading skeleton
+
+class _SummaryLoadingSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final base = cs.surfaceContainerHighest;
+
+    Widget shimmer(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: base,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
           ),
-        _ => (Icons.payment, method, Colors.grey),
-      };
+        );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sana shimmer
+          AppCard(
+            child: Row(
+              children: [
+                shimmer(36, 36),
+                const SizedBox(width: AppSpacing.md),
+                shimmer(160, 20),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // StatCard skeletonlar
+          Row(
+            children: [
+              Expanded(child: StatCard(
+                icon: Icons.receipt_long,
+                label: '',
+                value: '',
+                isLoading: true,
+              )),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(child: StatCard(
+                icon: Icons.account_balance_wallet_outlined,
+                label: '',
+                value: '',
+                isLoading: true,
+              )),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.xl),
+
+          shimmer(180, 20),
+          const SizedBox(height: AppSpacing.md),
+
+          for (int i = 0; i < 3; i++) ...[
+            AppCard(
+              child: Row(
+                children: [
+                  shimmer(44, 44),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        shimmer(100, 16),
+                        const SizedBox(height: AppSpacing.xs),
+                        shimmer(70, 12),
+                      ],
+                    ),
+                  ),
+                  shimmer(80, 18),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
 }

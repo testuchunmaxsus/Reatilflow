@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../../data/remote/models/auth_models.dart';
 import '../auth/auth_providers.dart';
@@ -12,7 +15,6 @@ import '../stores/stores_providers.dart';
 /// Agent kabineti ekrani — profil + biriktirilgan do'konlar.
 ///
 /// Faqat `agent` roli ko'rishi mumkin.
-/// moduleEnabledProvider gating qo'llanilmaydi — kabinet asosiy funksiya.
 class AgentCabinetScreen extends ConsumerWidget {
   const AgentCabinetScreen({super.key});
 
@@ -35,7 +37,7 @@ class AgentCabinetScreen extends ConsumerWidget {
         title: const Text('Mening kabinetim'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_outlined),
             tooltip: 'Chiqish',
             onPressed: () async {
               await ref.read(authNotifierProvider.notifier).logout();
@@ -45,29 +47,25 @@ class AgentCabinetScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Enterprise ma'lumotlarini yangilash
           await ref.read(enterpriseNotifierProvider.notifier).refresh();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Profil kartasi
               _ProfileCard(user: user),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
 
-              // Modul holati
               _ModulesCard(),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
 
-              // Biriktirilgan do'konlar
               _AttachedStoresSection(agentId: user.id),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xl),
             ],
           ),
         ),
@@ -84,113 +82,80 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Avatar
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                shape: BoxShape.circle,
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Avatar
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [cs.primary, cs.primary.withValues(alpha: 0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Center(
-                child: Text(
-                  _initials(user.fullName),
-                  style: TextStyle(
-                    color: Colors.blue.shade700,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                  ),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                _initials(user.fullName),
+                style: tt.titleMedium?.copyWith(
+                  color: cs.onPrimary,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+          ),
+          const SizedBox(width: AppSpacing.lg),
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.fullName,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  _InfoRow(
-                    icon: Icons.phone_outlined,
-                    value: user.phone,
-                  ),
-                  _InfoRow(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.fullName,
+                  style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                _InfoLine(icon: Icons.phone_outlined, value: user.phone),
+                _InfoLine(
                     icon: Icons.badge_outlined,
-                    value: _roleLabel(user.role),
+                    value: _roleLabel(user.role)),
+                if (user.branchId != null)
+                  _InfoLine(
+                    icon: Icons.business_outlined,
+                    value: 'Filial: ${user.branchId!.substring(0, 8)}...',
                   ),
-                  if (user.branchId != null)
-                    _InfoRow(
-                      icon: Icons.business_outlined,
-                      value: 'Filial: ${user.branchId!.substring(0, 8)}...',
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    StatusBadge(
+                      status: user.isActive ? 'Faol' : 'Nofaol',
+                      variant: user.isActive
+                          ? StatusVariant.success
+                          : StatusVariant.danger,
                     ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: user.isActive
-                              ? Colors.green.withValues(alpha: 0.12)
-                              : Colors.red.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          user.isActive ? 'Faol' : 'Nofaol',
-                          style: TextStyle(
-                            color: user.isActive ? Colors.green : Colors.red,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                    if (user.biometricEnrolled)
+                      StatusBadge(
+                        status: 'Biometrik',
+                        variant: StatusVariant.info,
+                        icon: Icons.fingerprint,
                       ),
-                      if (user.biometricEnrolled) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.fingerprint,
-                                  size: 12, color: Colors.purple),
-                              SizedBox(width: 3),
-                              Text(
-                                'Biometrik',
-                                style: TextStyle(
-                                    color: Colors.purple,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -212,23 +177,25 @@ class _ProfileCard extends StatelessWidget {
       };
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.value});
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({required this.icon, required this.value});
   final IconData icon;
   final String value;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.grey),
-          const SizedBox(width: 6),
+          Icon(icon, size: AppSpacing.iconXs, color: cs.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.xs),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -245,35 +212,30 @@ class _ModulesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final modules = ref.watch(enabledModulesProvider);
+    final cs = Theme.of(context).colorScheme;
 
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(title: 'Faol modullar'),
+          const SizedBox(height: AppSpacing.md),
+          if (modules.isEmpty)
             Text(
-              'Faol modullar',
+              'Modul faollashtirilinmagan',
               style: Theme.of(context)
                   .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+                  .bodyMedium
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            )
+          else
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: modules.map((m) => _ModuleChip(module: m)).toList(),
             ),
-            const SizedBox(height: 12),
-            if (modules.isEmpty)
-              const Text(
-                'Modul faollashtirilinmagan',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: modules.map((m) => _ModuleChip(module: m)).toList(),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -285,38 +247,24 @@ class _ModuleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = _moduleInfo(module);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
-          Text(
-            _moduleLabel(module),
-            style: TextStyle(
-                color: color, fontSize: 12, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
+    final (icon, variant) = _moduleInfo(module);
+    return StatusBadge(
+      status: _moduleLabel(module),
+      variant: variant,
+      icon: icon,
+      size: StatusBadgeSize.medium,
     );
   }
 
-  (IconData, Color) _moduleInfo(String module) => switch (module) {
-        'catalog' => (Icons.inventory_2_outlined, Colors.orange),
-        'orders' => (Icons.receipt_long, Colors.blue),
-        'attendance' => (Icons.fingerprint, Colors.purple),
-        'delivery' => (Icons.local_shipping_outlined, Colors.teal),
-        'pos' => (Icons.point_of_sale, Colors.indigo),
-        'marketplace' => (Icons.storefront_outlined, Colors.pink),
-        'finance' => (Icons.account_balance_wallet_outlined, Colors.green),
-        _ => (Icons.extension_outlined, Colors.grey),
+  (IconData, StatusVariant) _moduleInfo(String module) => switch (module) {
+        'catalog' => (Icons.inventory_2_outlined, StatusVariant.warning),
+        'orders' => (Icons.receipt_long_outlined, StatusVariant.info),
+        'attendance' => (Icons.fingerprint, StatusVariant.neutral),
+        'delivery' => (Icons.local_shipping_outlined, StatusVariant.success),
+        'pos' => (Icons.point_of_sale_outlined, StatusVariant.info),
+        'marketplace' => (Icons.storefront_outlined, StatusVariant.neutral),
+        'finance' => (Icons.account_balance_wallet_outlined, StatusVariant.success),
+        _ => (Icons.extension_outlined, StatusVariant.neutral),
       };
 
   String _moduleLabel(String module) => switch (module) {
@@ -344,42 +292,26 @@ class _AttachedStoresSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'Biriktirilgan do\'konlar',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => context.push('/home/stores'),
-              icon: const Icon(Icons.arrow_forward, size: 16),
-              label: const Text('Hammasi', style: TextStyle(fontSize: 12)),
-            ),
-          ],
+        SectionHeader(
+          title: "Biriktirilgan do'konlar",
+          actionLabel: 'Hammasi',
+          onAction: () => context.push('/home/stores'),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.md),
         storesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text(
-            'Xatolik: $e',
-            style: const TextStyle(color: Colors.red, fontSize: 13),
+          error: (e, _) => EmptyState(
+            icon: Icons.error_outline,
+            title: 'Xatolik',
+            message: e.toString(),
+            compact: true,
           ),
           data: (stores) {
             if (stores.isEmpty) {
-              return const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(
-                    child: Text(
-                      'Biriktirilgan do\'konlar topilmadi',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
+              return const EmptyState(
+                icon: Icons.store_outlined,
+                title: "Biriktirilgan do'konlar topilmadi",
+                compact: true,
               );
             }
             return Column(
@@ -401,29 +333,50 @@ class _StoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.blue.shade50,
-          child: Icon(Icons.store, color: Colors.blue.shade400, size: 20),
-        ),
-        title: Text(
-          store.name,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        subtitle: store.address != null
-            ? Text(
-                store.address!,
-                style: const TextStyle(fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              )
-            : null,
-        trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
-        dense: true,
-        onTap: () => context.push('/home/stores/${store.id}'),
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      onTap: () => context.push('/home/stores/${store.id}'),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(Icons.store_outlined,
+                color: cs.primary, size: AppSpacing.iconSm),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  store.name,
+                  style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (store.address != null)
+                  Text(
+                    store.address!,
+                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right,
+              size: AppSpacing.iconSm, color: cs.onSurfaceVariant),
+        ],
       ),
     );
   }

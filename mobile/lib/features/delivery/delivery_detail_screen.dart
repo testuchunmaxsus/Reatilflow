@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import 'delivery_providers.dart';
 import 'delivery_repository.dart';
@@ -31,9 +34,9 @@ class _DeliveryDetailScreenState
   @override
   void initState() {
     super.initState();
-    // GPS: agar yetkazish allaqachon faol holatda bo'lsa, tracking boshlanadi.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final deliveryAsync = ref.read(deliveryStreamProvider(widget.deliveryId));
+      final deliveryAsync =
+          ref.read(deliveryStreamProvider(widget.deliveryId));
       deliveryAsync.whenData((delivery) {
         if (delivery != null) {
           ref
@@ -50,8 +53,8 @@ class _DeliveryDetailScreenState
         ref.watch(deliveryStreamProvider(widget.deliveryId));
     final actionState =
         ref.watch(deliveryDetailNotifierProvider(widget.deliveryId));
+    final cs = Theme.of(context).colorScheme;
 
-    // Xato yoki muvaffaqiyat xabari
     ref.listen(
       deliveryDetailNotifierProvider(widget.deliveryId),
       (_, next) {
@@ -59,7 +62,7 @@ class _DeliveryDetailScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(next.message),
-              backgroundColor: Colors.red,
+              backgroundColor: cs.error,
             ),
           );
         }
@@ -68,7 +71,7 @@ class _DeliveryDetailScreenState
             SnackBar(
               content: Text(
                   'Holat yangilandi: ${_statusLabel(next.delivery.status)}'),
-              backgroundColor: Colors.green,
+              backgroundColor: AppTheme.colorsOf(context).success,
             ),
           );
         }
@@ -80,12 +83,13 @@ class _DeliveryDetailScreenState
         title: Text('Yetkazish ${widget.deliveryId.substring(0, 8)}...'),
         actions: [
           if (actionState is DeliveryActionLoading)
-            const Padding(
-              padding: EdgeInsets.all(14),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: cs.primary),
               ),
             ),
         ],
@@ -93,7 +97,11 @@ class _DeliveryDetailScreenState
       body: deliveryAsync.when(
         data: (delivery) {
           if (delivery == null) {
-            return const Center(child: Text('Yetkazish topilmadi'));
+            return const EmptyState(
+              icon: Icons.local_shipping_outlined,
+              title: 'Yetkazish topilmadi',
+              message: "Bu yetkazish mavjud emas yoki o'chirilgan.",
+            );
           }
           return _DeliveryDetailBody(
             delivery: delivery,
@@ -101,8 +109,13 @@ class _DeliveryDetailScreenState
             deliveryId: widget.deliveryId,
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Xatolik: $e')),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: cs.primary)),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: e.toString(),
+        ),
       ),
     );
   }
@@ -131,47 +144,47 @@ class _DeliveryDetailBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Holat kartasi
-          _StatusCard(delivery: delivery),
+          // Holat timeline kartasi
+          _StatusTimelineCard(delivery: delivery),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Ma'lumot kartasi
           _InfoCard(delivery: delivery),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // GPS holati (faol holatda)
-          if (kGpsActiveStatuses.contains(delivery.status))
-            const _GpsActiveCard(),
-
-          const SizedBox(height: 8),
+          if (kGpsActiveStatuses.contains(delivery.status)) ...[
+            _GpsActiveCard(),
+            const SizedBox(height: AppSpacing.md),
+          ],
 
           // Xaritada ko'rish havolasi
           _MapLinkButton(deliveryId: deliveryId),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // Holat o'zgartirish tugmalari
-          if (actionState is! DeliveryActionLoading)
+          if (actionState is DeliveryActionLoading)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.primary),
+              ),
+            )
+          else
             _ActionButtons(
               delivery: delivery,
               deliveryId: deliveryId,
             ),
 
-          if (actionState is DeliveryActionLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
-            ),
-
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
 
           // proof_photo (delivered yoki delivering holatda)
           if (delivery.status == 'delivering' ||
@@ -187,75 +200,115 @@ class _DeliveryDetailBody extends ConsumerWidget {
   }
 }
 
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({required this.delivery});
+// ---------------------------------------------------------------------------
+
+/// Holat timeline kartasi — renk + ikon + matn + sync holat.
+class _StatusTimelineCard extends StatelessWidget {
+  const _StatusTimelineCard({required this.delivery});
   final Delivery delivery;
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon, label) = _statusInfo(delivery.status);
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+    final (icon, variant, label) = _statusInfo(delivery.status);
 
-    return Card(
-      color: color.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.15),
-              ),
-              child: Icon(icon, color: color, size: 26),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16),
-                  ),
-                  if (delivery.syncStatus == 'pending')
-                    const Text(
-                      'Sync kutilmoqda...',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.orange),
-                    ),
-                ],
-              ),
-            ),
-            // Versiya
-            Text(
-              'v${delivery.version}',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
+    final (bgColor, borderColor) = switch (variant) {
+      StatusVariant.success => (
+          appColors.successContainer.withValues(alpha: 0.4),
+          appColors.success.withValues(alpha: 0.3),
         ),
+      StatusVariant.warning => (
+          appColors.warningContainer.withValues(alpha: 0.4),
+          appColors.warning.withValues(alpha: 0.3),
+        ),
+      StatusVariant.danger => (
+          appColors.dangerContainer.withValues(alpha: 0.4),
+          appColors.danger.withValues(alpha: 0.3),
+        ),
+      StatusVariant.info => (
+          appColors.infoContainer.withValues(alpha: 0.4),
+          appColors.info.withValues(alpha: 0.3),
+        ),
+      _ => (
+          cs.surfaceContainerHighest,
+          cs.outlineVariant,
+        ),
+    };
+
+    final fgColor = switch (variant) {
+      StatusVariant.success => appColors.success,
+      StatusVariant.warning => appColors.warning,
+      StatusVariant.danger => appColors.danger,
+      StatusVariant.info => appColors.info,
+      _ => cs.onSurfaceVariant,
+    };
+
+    return AppCard(
+      color: bgColor,
+      borderColor: borderColor,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: fgColor.withValues(alpha: 0.15),
+            ),
+            child: Icon(icon, color: fgColor, size: AppSpacing.iconMd),
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                StatusBadge(
+                  status: label,
+                  variant: variant,
+                  size: StatusBadgeSize.large,
+                ),
+                if (delivery.syncStatus == 'pending') ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Icon(Icons.sync_outlined,
+                          size: 12,
+                          color: cs.tertiary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Sync kutilmoqda...',
+                        style: tt.labelSmall?.copyWith(color: cs.tertiary),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Text(
+            'v${delivery.version}',
+            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
 
-  (Color, IconData, String) _statusInfo(String status) => switch (status) {
-        'assigned' => (Colors.blue, Icons.assignment, 'Tayinlangan'),
-        'started' => (Colors.orange, Icons.directions_run, 'Boshlandi'),
-        'delivering' => (Colors.purple, Icons.local_shipping, 'Yetkazilmoqda'),
-        'delivered' => (Colors.green, Icons.check_circle, 'Yetkazildi'),
-        'failed' => (Colors.red, Icons.cancel, 'Muvaffaqiyatsiz'),
-        _ => (Colors.grey, Icons.help, status),
+  (IconData, StatusVariant, String) _statusInfo(String status) =>
+      switch (status) {
+        'assigned' => (Icons.assignment_outlined, StatusVariant.info, 'Tayinlangan'),
+        'started' => (Icons.directions_run_outlined, StatusVariant.warning, 'Boshlandi'),
+        'delivering' => (Icons.local_shipping_outlined, StatusVariant.warning, 'Yetkazilmoqda'),
+        'delivered' => (Icons.check_circle_outline, StatusVariant.success, 'Yetkazildi'),
+        'failed' => (Icons.cancel_outlined, StatusVariant.danger, 'Muvaffaqiyatsiz'),
+        _ => (Icons.help_outline, StatusVariant.neutral, status),
       };
 }
+
+// ---------------------------------------------------------------------------
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.delivery});
@@ -263,67 +316,63 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Ma\'lumot',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const Divider(),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(title: "Ma'lumot"),
+          const SizedBox(height: AppSpacing.md),
+          _InfoRow(
+            icon: Icons.receipt_outlined,
+            label: 'Buyurtma ID',
+            value: delivery.orderId,
+          ),
+          if (delivery.address != null)
             _InfoRow(
-              icon: Icons.receipt,
-              label: 'Buyurtma ID',
-              value: delivery.orderId,
+              icon: Icons.location_on_outlined,
+              label: 'Manzil',
+              value: delivery.address!,
             ),
-            if (delivery.address != null)
-              _InfoRow(
-                icon: Icons.location_on,
-                label: 'Manzil',
-                value: delivery.address!,
-              ),
-            if (delivery.customerName != null)
-              _InfoRow(
-                icon: Icons.person,
-                label: 'Mijoz',
-                value: delivery.customerName!,
-              ),
-            if (delivery.assignedAt != null)
-              _InfoRow(
-                icon: Icons.schedule,
-                label: 'Tayinlangan',
-                value: _fmtDate(delivery.assignedAt!),
-              ),
-            if (delivery.startedAt != null)
-              _InfoRow(
-                icon: Icons.play_arrow,
-                label: 'Boshlangan',
-                value: _fmtDate(delivery.startedAt!),
-              ),
-            if (delivery.deliveredAt != null)
-              _InfoRow(
-                icon: Icons.done_all,
-                label: 'Yetkazilgan',
-                value: _fmtDate(delivery.deliveredAt!),
-              ),
-            if (delivery.failureReason != null)
-              _InfoRow(
-                icon: Icons.error_outline,
-                label: 'Sabab',
-                value: delivery.failureReason!,
-              ),
-            if (delivery.proofPhotoUrl != null)
-              const _InfoRow(
-                icon: Icons.photo,
-                label: 'Dalil rasmi',
-                value: 'Yuklangan',
-              ),
-          ],
-        ),
+          if (delivery.customerName != null)
+            _InfoRow(
+              icon: Icons.person_outline,
+              label: 'Mijoz',
+              value: delivery.customerName!,
+            ),
+          if (delivery.assignedAt != null)
+            _InfoRow(
+              icon: Icons.assignment_outlined,
+              label: 'Tayinlangan',
+              value: _fmtDate(delivery.assignedAt!),
+            ),
+          if (delivery.startedAt != null)
+            _InfoRow(
+              icon: Icons.play_arrow_outlined,
+              label: 'Boshlangan',
+              value: _fmtDate(delivery.startedAt!),
+            ),
+          if (delivery.deliveredAt != null)
+            _InfoRow(
+              icon: Icons.done_all,
+              label: 'Yetkazilgan',
+              value: _fmtDate(delivery.deliveredAt!),
+            ),
+          if (delivery.failureReason != null)
+            _InfoRow(
+              icon: Icons.error_outline,
+              label: 'Sabab',
+              value: delivery.failureReason!,
+              valueColor: Theme.of(context).colorScheme.error,
+            ),
+          if (delivery.proofPhotoUrl != null)
+            _InfoRow(
+              icon: Icons.photo_outlined,
+              label: 'Dalil rasmi',
+              value: 'Yuklangan',
+              valueColor: AppTheme.colorsOf(context).success,
+            ),
+        ],
       ),
     );
   }
@@ -338,33 +387,39 @@ class _InfoRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Colors.grey),
-          const SizedBox(width: 8),
+          Icon(icon, size: AppSpacing.iconXs, color: cs.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm),
           SizedBox(
-            width: 80,
+            width: 88,
             child: Text(
               label,
-              style:
-                  const TextStyle(fontSize: 12, color: Colors.grey),
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 13),
+              style: tt.bodySmall?.copyWith(
+                color: valueColor ?? cs.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -373,60 +428,56 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+
 class _GpsActiveCard extends StatelessWidget {
   const _GpsActiveCard();
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.green.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.green.shade200),
-      ),
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Icon(Icons.gps_fixed, color: Colors.green, size: 18),
-            SizedBox(width: 8),
-            Text(
-              'GPS tracking faol (45s interval)',
-              style: TextStyle(color: Colors.green, fontSize: 12),
-            ),
-          ],
-        ),
+    final appColors = AppTheme.colorsOf(context);
+    final tt = Theme.of(context).textTheme;
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      color: appColors.successContainer.withValues(alpha: 0.3),
+      borderColor: appColors.success.withValues(alpha: 0.3),
+      child: Row(
+        children: [
+          Icon(Icons.gps_fixed, color: appColors.success, size: AppSpacing.iconSm),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            'GPS tracking faol (45s interval)',
+            style: tt.bodySmall?.copyWith(color: appColors.success),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Xaritada ko'rish tugmasi — GPS trek ekraniga o'tish.
+// ---------------------------------------------------------------------------
+
 class _MapLinkButton extends StatelessWidget {
   const _MapLinkButton({required this.deliveryId});
   final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.blueGrey,
-        side: BorderSide(color: Colors.blueGrey.withValues(alpha: 0.4)),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        minimumSize: const Size.fromHeight(0),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => context.push(
+            routeDeliveryMap.replaceAll(':deliveryId', deliveryId)),
+        icon: const Icon(Icons.map_outlined, size: AppSpacing.iconSm),
+        label: const Text("Xaritada ko'rish"),
       ),
-      onPressed: () =>
-          context.push(routeDeliveryMap.replaceAll(':deliveryId', deliveryId)),
-      icon: const Icon(Icons.map_outlined, size: 18),
-      label: const Text('Xaritada ko\'rish'),
     );
   }
 }
 
-/// Holat o'zgartirish tugmalari.
-///
-/// Server-avtoritar VALID_TRANSITIONS qoidasiga asosan faqat mumkin
-/// bo'lgan holatlar ko'rsatiladi.
+// ---------------------------------------------------------------------------
+
 class _ActionButtons extends ConsumerWidget {
   const _ActionButtons({
     required this.delivery,
@@ -440,43 +491,37 @@ class _ActionButtons extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier =
         ref.read(deliveryDetailNotifierProvider(deliveryId).notifier);
-    final transitions =
-        kValidTransitions[delivery.status] ?? <String>[];
+    final transitions = kValidTransitions[delivery.status] ?? <String>[];
 
-    if (transitions.isEmpty) {
-      return const SizedBox.shrink(); // Terminal holat
-    }
+    if (transitions.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Holat o\'zgartirish',
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
+        SectionHeader(title: "Holat o'zgartirish"),
+        const SizedBox(height: AppSpacing.sm),
         ...transitions.map(
           (nextStatus) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: nextStatus == 'failed'
                 ? OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      foregroundColor:
+                          Theme.of(context).colorScheme.error,
+                      side: BorderSide(
+                          color: Theme.of(context).colorScheme.error),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.md),
                     ),
-                    onPressed: () =>
-                        _confirmFailed(context, notifier),
+                    onPressed: () => _confirmFailed(context, notifier),
                     icon: const Icon(Icons.cancel_outlined),
                     label: const Text('Muvaffaqiyatsiz deb belgilash'),
                   )
                 : FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: _buttonColor(nextStatus),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: _buttonColor(context, nextStatus),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.md),
                     ),
                     onPressed: () =>
                         notifier.changeStatus(newStatus: nextStatus),
@@ -502,12 +547,11 @@ class _ActionButtons extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Sabab kiriting (ixtiyoriy):'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             TextField(
               controller: controller,
               decoration: const InputDecoration(
-                hintText: 'Masalan: Mijoz uyda yo\'q edi',
-                border: OutlineInputBorder(),
+                hintText: "Masalan: Mijoz uyda yo'q edi",
               ),
               maxLines: 2,
             ),
@@ -519,7 +563,8 @@ class _ActionButtons extends ConsumerWidget {
             child: const Text('Bekor'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Tasdiqlash'),
           ),
@@ -536,36 +581,33 @@ class _ActionButtons extends ConsumerWidget {
     }
   }
 
-  Color _buttonColor(String status) => switch (status) {
-        'started' => Colors.orange,
-        'delivering' => Colors.purple,
-        'delivered' => Colors.green,
-        _ => Colors.blue,
-      };
+  Color _buttonColor(BuildContext context, String status) {
+    final appColors = AppTheme.colorsOf(context);
+    return switch (status) {
+      'started' => appColors.warning,
+      'delivering' => Theme.of(context).colorScheme.secondary,
+      'delivered' => appColors.success,
+      _ => Theme.of(context).colorScheme.primary,
+    };
+  }
 
   IconData _buttonIcon(String status) => switch (status) {
-        'started' => Icons.directions_run,
-        'delivering' => Icons.local_shipping,
-        'delivered' => Icons.check_circle,
+        'started' => Icons.directions_run_outlined,
+        'delivering' => Icons.local_shipping_outlined,
+        'delivered' => Icons.check_circle_outline,
         _ => Icons.arrow_forward,
       };
 
   String _buttonLabel(String status) => switch (status) {
-        'started' => 'Yo\'lga chiqish',
+        'started' => "Yo'lga chiqish",
         'delivering' => 'Yetkazishni boshlash',
         'delivered' => 'Yetkazildi',
         _ => status,
       };
 }
 
-/// proof_photo bo'limi.
-///
-/// image_picker paketi orqali kamera yoki galereadan rasm olish.
-/// Rasm olingach — server POST /delivery/{id}/proof-photo ga yuboriladi.
-///
-/// Platform sozlamalari:
-///   Android: CAMERA ruxsati (AndroidManifest.xml)
-///   iOS: NSCameraUsageDescription, NSPhotoLibraryUsageDescription (Info.plist)
+// ---------------------------------------------------------------------------
+
 class _ProofPhotoSection extends ConsumerStatefulWidget {
   const _ProofPhotoSection({
     required this.delivery,
@@ -591,25 +633,21 @@ class _ProofPhotoSectionState extends ConsumerState<_ProofPhotoSection> {
         ? await _photoService.takePhoto()
         : await _photoService.pickFromGallery();
 
-    if (file == null) return; // Foydalanuvchi bekor qildi
+    if (file == null) return;
 
     setState(() {
       _localPhoto = file;
       _isUploading = true;
     });
 
-    // Yetkazish provideri orqali yuklash
-    // (notifier upload logikasini bajarishi uchun kengaytirish mumkin)
-    // Hozirda: foto tanlanganini UI da ko'rsatish + upload simulatsiyasi.
-    // Haqiqiy yuklash: POST /delivery/{id}/proof-photo (multipart/form-data).
     await Future<void>.delayed(const Duration(milliseconds: 500));
 
     if (mounted) {
       setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Rasm muvaffaqiyatli tanlandi'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: const Text('Rasm muvaffaqiyatli tanlandi'),
+          backgroundColor: AppTheme.colorsOf(context).success,
         ),
       );
     }
@@ -617,90 +655,97 @@ class _ProofPhotoSectionState extends ConsumerState<_ProofPhotoSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Dalil rasmi',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
 
-            // Server tomonida allaqachon yuklangan rasm
-            if (widget.delivery.proofPhotoUrl != null) ...[
-              const Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Rasm yuklangan',
-                      style: TextStyle(color: Colors.green),
-                    ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(title: 'Dalil rasmi (isbot)'),
+          const SizedBox(height: AppSpacing.md),
+
+          if (widget.delivery.proofPhotoUrl != null) ...[
+            // Yuklangan holat
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: appColors.successContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                   ),
-                ],
-              ),
-            ] else if (_localPhoto != null) ...[
-              // Mahalliy tanlangan rasm preview
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  _localPhoto!,
-                  height: 160,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+                  child: Icon(Icons.check_circle_outline,
+                      color: appColors.success, size: AppSpacing.iconSm),
                 ),
-              ),
-              const SizedBox(height: 8),
-              if (_isUploading)
-                const LinearProgressIndicator()
-              else
-                Text(
-                  'Rasm tanlandi. Server bilan sync da yuklanadi.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    'Rasm yuklangan',
+                    style: tt.bodyMedium?.copyWith(
+                        color: appColors.success,
+                        fontWeight: FontWeight.w600),
                   ),
                 ),
-            ] else ...[
-              // Kamera yoki galereya tugmalari
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _isUploading
-                          ? null
-                          : () => _pickAndUpload(fromCamera: true),
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Kamera'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _isUploading
-                          ? null
-                          : () => _pickAndUpload(fromCamera: false),
-                      icon: const Icon(Icons.photo_library),
-                      label: const Text('Galereya'),
-                    ),
-                  ),
-                ],
+              ],
+            ),
+          ] else if (_localPhoto != null) ...[
+            // Mahalliy tanlangan rasm preview
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              child: Image.file(
+                _localPhoto!,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
               ),
-              const SizedBox(height: 6),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (_isUploading)
+              LinearProgressIndicator(
+                color: cs.primary,
+                backgroundColor: cs.surfaceContainerHighest,
+              )
+            else
               Text(
-                'Rasm yetkazish isboti sifatida saqlanadi.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                'Rasm tanlandi. Server bilan sync da yuklanadi.',
+                style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
               ),
-            ],
+          ] else ...[
+            // Kamera yoki galereya tugmalari
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _isUploading
+                        ? null
+                        : () => _pickAndUpload(fromCamera: true),
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Kamera'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isUploading
+                        ? null
+                        : () => _pickAndUpload(fromCamera: false),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Galereya'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs + 2),
+            Text(
+              'Rasm yetkazish isboti sifatida saqlanadi.',
+              style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

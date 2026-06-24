@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/status_badge.dart';
 import 'pos_models.dart';
 import 'pos_providers.dart';
 
-/// POS sotuv ekrani — savat + checkout.
+/// POS sotuv ekrani — chiroyli kassa interfeysi.
 ///
 /// Qoida (server-avtoritar):
 ///   - Faqat product_id + qty yuboriladi.
@@ -24,7 +30,6 @@ class PosSaleScreen extends ConsumerWidget {
     ref.listen(checkoutProvider, (_, next) {
       if (next is CheckoutSuccess) {
         ref.read(cartProvider.notifier).clear();
-        // Inventarni yangilash
         ref.read(inventoryNotifierProvider.notifier).load();
         _showReceipt(context, next.response);
       } else if (next is CheckoutFailure) {
@@ -34,43 +39,41 @@ class PosSaleScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('POS Sotuv'),
+        title: Row(
+          children: [
+            const Text('Kassa'),
+            if (cart.items.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.sm),
+              _CartCountBadge(count: cart.items.length),
+            ],
+          ],
+        ),
         actions: [
           if (cart.items.isNotEmpty)
             TextButton.icon(
               onPressed: () => ref.read(cartProvider.notifier).clear(),
-              icon: const Icon(Icons.delete_outline, size: 18),
+              icon: const Icon(Icons.delete_sweep_outlined,
+                  size: AppSpacing.iconSm),
               label: const Text('Tozalash'),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
             ),
         ],
       ),
       body: Column(
         children: [
-          // Savat bo'sh bo'lganda mahsulot tanlash hint
           if (cart.items.isEmpty)
-            const Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.shopping_cart_outlined,
-                        size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'Savat bo\'sh',
-                      style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Mahsulot qo\'shish uchun pastdagi tugmani bosing',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+            Expanded(
+              child: EmptyState(
+                icon: Icons.point_of_sale_outlined,
+                title: 'Savat bo\'sh',
+                message:
+                    'Mahsulot qo\'shish uchun pastdagi tugmani bosing',
+                actionLabel: 'Mahsulot qo\'shish',
+                onAction: isLoading
+                    ? null
+                    : () => _showProductPicker(context),
               ),
             )
           else
@@ -80,13 +83,17 @@ class PosSaleScreen extends ConsumerWidget {
                   // Savat ro'yxati
                   Expanded(
                     child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                      ),
                       itemCount: cart.items.length,
                       itemBuilder: (context, i) =>
-                          _CartItemRow(cartItem: cart.items[i]),
+                          _CartItemCard(cartItem: cart.items[i]),
                     ),
                   ),
-
                   // To'lov usuli + jami
                   _CheckoutPanel(cart: cart, isLoading: isLoading),
                 ],
@@ -94,11 +101,15 @@ class PosSaleScreen extends ConsumerWidget {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: isLoading ? null : () => _showProductPicker(context),
-        icon: const Icon(Icons.add_shopping_cart),
-        label: const Text('Mahsulot qo\'shish'),
-      ),
+      floatingActionButton: cart.items.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: isLoading
+                  ? null
+                  : () => _showProductPicker(context),
+              icon: const Icon(Icons.add_shopping_cart),
+              label: const Text('Mahsulot qo\'shish'),
+            ),
     );
   }
 
@@ -120,84 +131,178 @@ class PosSaleScreen extends ConsumerWidget {
   }
 
   void _showError(BuildContext context, CheckoutFailure failure) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
     final isExpired = failure.isExpiredError;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(
-              isExpired ? Icons.warning_amber_rounded : Icons.error_outline,
-              color: Colors.white,
-              size: 20,
+              isExpired
+                  ? Icons.warning_amber_rounded
+                  : Icons.error_outline,
+              color: appColors.onDanger,
+              size: AppSpacing.iconSm,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(failure.message)),
           ],
         ),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: appColors.danger,
         duration: const Duration(seconds: 5),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        ),
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
+// Savat elementi kartasi
 
-class _CartItemRow extends ConsumerWidget {
-  const _CartItemRow({required this.cartItem});
+class _CartCountBadge extends StatelessWidget {
+  const _CartCountBadge({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: cs.primary,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+      ),
+      child: Text(
+        '$count',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: cs.onPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+}
+
+class _CartItemCard extends ConsumerWidget {
+  const _CartItemCard({required this.cartItem});
   final CartItem cartItem;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
     final item = cartItem.item;
     final isExpiredWarning = item.hasExpiryWarning;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      color: isExpiredWarning ? Colors.red.shade50 : null,
-      shape: isExpiredWarning
-          ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.red.shade300),
-            )
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        color: item.isExpired
+            ? appColors.dangerContainer.withValues(alpha: 0.35)
+            : item.isNearExpiry
+                ? appColors.warningContainer.withValues(alpha: 0.35)
+                : null,
+        borderColor: item.isExpired
+            ? appColors.danger.withValues(alpha: 0.4)
+            : item.isNearExpiry
+                ? appColors.warning.withValues(alpha: 0.4)
+                : null,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Mahsulot ikonasi
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isExpiredWarning
+                    ? (item.isExpired
+                        ? appColors.dangerContainer
+                        : appColors.warningContainer)
+                    : cs.primaryContainer,
+                borderRadius:
+                    BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Icon(
+                item.isExpired
+                    ? Icons.block
+                    : item.isNearExpiry
+                        ? Icons.warning_amber_rounded
+                        : Icons.inventory_2_outlined,
+                size: AppSpacing.iconSm,
+                color: item.isExpired
+                    ? appColors.danger
+                    : item.isNearExpiry
+                        ? appColors.warning
+                        : cs.primary,
+              ),
+            ),
+
+            const SizedBox(width: AppSpacing.md),
+
+            // Matn qismi
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Nomi + badge
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Text(
                           item.productName,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: tt.titleSmall?.copyWith(
+                            color: item.isExpired
+                                ? appColors.danger
+                                : cs.onSurface,
+                            decoration: item.isExpired
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: AppSpacing.xs),
                       if (item.isExpired)
-                        const _ExpiryBadge(label: 'Yaroqsiz', color: Colors.red)
+                        StatusBadge(
+                          status: 'Yaroqsiz',
+                          variant: StatusVariant.danger,
+                          size: StatusBadgeSize.small,
+                        )
                       else if (item.isNearExpiry)
-                        _ExpiryBadge(
-                            label: item.daysToExpiry != null
-                                ? '${item.daysToExpiry}k qoldi'
-                                : 'Muddat yaqin',
-                            color: Colors.orange),
+                        StatusBadge(
+                          status: item.daysToExpiry != null
+                              ? '${item.daysToExpiry}k qoldi'
+                              : 'Muddat yaqin',
+                          variant: StatusVariant.warning,
+                          size: StatusBadgeSize.small,
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.xs),
+                  // Narx
                   Text(
-                    // Narx display uchun (server hisoblaydi, lokal tahminy)
-                    '${_fmt(item.salePrice)} so\'m / ${item.unit}  '
-                    '·  Jami: ${_fmt(item.salePrice * cartItem.qty)} so\'m',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    '${_fmt(item.salePrice)} so\'m/${item.unit}'
+                    '  ·  Jami: ${_fmt(item.salePrice * cartItem.qty)} so\'m',
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             ),
+
+            const SizedBox(width: AppSpacing.xs),
+
             // Miqdor boshqaruvi
             _QtyControl(
               qty: cartItem.qty,
@@ -207,8 +312,9 @@ class _CartItemRow extends ConsumerWidget {
               onIncrement: () => ref
                   .read(cartProvider.notifier)
                   .updateQty(item.productId, cartItem.qty + 1),
-              onRemove: () =>
-                  ref.read(cartProvider.notifier).removeItem(item.productId),
+              onRemove: () => ref
+                  .read(cartProvider.notifier)
+                  .removeItem(item.productId),
             ),
           ],
         ),
@@ -219,29 +325,6 @@ class _CartItemRow extends ConsumerWidget {
   String _fmt(double v) {
     if (v == v.truncate()) return v.toStringAsFixed(0);
     return v.toStringAsFixed(2);
-  }
-}
-
-class _ExpiryBadge extends StatelessWidget {
-  const _ExpiryBadge({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-            color: color, fontSize: 10, fontWeight: FontWeight.w700),
-      ),
-    );
   }
 }
 
@@ -259,38 +342,86 @@ class _QtyControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
+
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline),
-          iconSize: 20,
-          onPressed: onDecrement,
-        ),
-        SizedBox(
-          width: 36,
-          child: Text(
-            qty % 1 == 0 ? qty.toStringAsFixed(0) : qty.toStringAsFixed(1),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        // Qty row
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _QtyBtn(
+                icon: Icons.remove,
+                onPressed: onDecrement,
+                color: cs.onSurfaceVariant,
+              ),
+              SizedBox(
+                width: 32,
+                child: Text(
+                  qty % 1 == 0
+                      ? qty.toStringAsFixed(0)
+                      : qty.toStringAsFixed(1),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              _QtyBtn(
+                icon: Icons.add,
+                onPressed: onIncrement,
+                color: cs.primary,
+              ),
+            ],
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline),
-          iconSize: 20,
-          onPressed: onIncrement,
-        ),
-        IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          iconSize: 20,
-          onPressed: onRemove,
+        const SizedBox(height: AppSpacing.xs),
+        // O'chirish
+        GestureDetector(
+          onTap: onRemove,
+          child: Icon(
+            Icons.delete_outline,
+            size: AppSpacing.iconSm,
+            color: appColors.danger,
+          ),
         ),
       ],
     );
   }
 }
 
+class _QtyBtn extends StatelessWidget {
+  const _QtyBtn({
+    required this.icon,
+    required this.onPressed,
+    required this.color,
+  });
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
+// Checkout paneli
 
 class _CheckoutPanel extends ConsumerWidget {
   const _CheckoutPanel({required this.cart, required this.isLoading});
@@ -299,33 +430,63 @@ class _CheckoutPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: cs.outlineVariant),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: cs.shadow.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // To'lov usuli
           Row(
             children: [
-              const Text('To\'lov:',
-                  style: TextStyle(fontWeight: FontWeight.w500)),
-              const SizedBox(width: 12),
+              Text(
+                'To\'lov usuli',
+                style: tt.labelMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'cash', label: Text('Naqd')),
-                    ButtonSegment(value: 'card', label: Text('Karta')),
-                    ButtonSegment(value: 'transfer', label: Text('O\'tkazma')),
+                    ButtonSegment(
+                      value: 'cash',
+                      label: Text('Naqd'),
+                      icon: Icon(Icons.money, size: 14),
+                    ),
+                    ButtonSegment(
+                      value: 'card',
+                      label: Text('Karta'),
+                      icon: Icon(Icons.credit_card, size: 14),
+                    ),
+                    ButtonSegment(
+                      value: 'transfer',
+                      label: Text("O'tkazma"),
+                      icon:
+                          Icon(Icons.account_balance, size: 14),
+                    ),
                   ],
                   selected: {cart.paymentMethod},
                   onSelectionChanged: (s) => ref
@@ -339,49 +500,72 @@ class _CheckoutPanel extends ConsumerWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
+          Divider(color: cs.outlineVariant, height: 1),
+          const SizedBox(height: AppSpacing.md),
 
-          // Jami + Checkout tugmasi
+          // Jami + Checkout
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Jami (taxminiy)',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  Text(
-                    '${_fmtAmount(cart.estimatedTotal)} so\'m',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  const Text(
-                    'Server narxi hisoblanadi',
-                    style: TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Taxminiy jami',
+                      style: tt.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_fmtAmount(cart.estimatedTotal)} so\'m',
+                      style: tt.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: cs.onSurface,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    Text(
+                      'Server narxi hisoblanadi',
+                      style: tt.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
-              ElevatedButton.icon(
+              const SizedBox(width: AppSpacing.md),
+              FilledButton.icon(
                 onPressed: isLoading
                     ? null
                     : () => ref
                         .read(checkoutProvider.notifier)
                         .checkout(cart),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.colorsOf(context).success,
+                  foregroundColor:
+                      AppTheme.colorsOf(context).onSuccess,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 14),
+                    horizontal: AppSpacing.xl,
+                    vertical: AppSpacing.md,
+                  ),
                 ),
                 icon: isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: AppTheme.colorsOf(context).onSuccess,
+                        ),
                       )
                     : const Icon(Icons.check_circle_outline),
-                label: Text(isLoading ? 'Yuborilmoqda...' : 'Sotish'),
+                label: Text(
+                  isLoading ? 'Yuborilmoqda...' : 'Sotish',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -392,7 +576,6 @@ class _CheckoutPanel extends ConsumerWidget {
 
   String _fmtAmount(double v) {
     final s = v.toStringAsFixed(0);
-    // Minglablar uchun bo'sh joy
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
       if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
@@ -413,7 +596,8 @@ class _InventoryPickerSheet extends ConsumerStatefulWidget {
       _InventoryPickerSheetState();
 }
 
-class _InventoryPickerSheetState extends ConsumerState<_InventoryPickerSheet> {
+class _InventoryPickerSheetState
+    extends ConsumerState<_InventoryPickerSheet> {
   final _controller = TextEditingController();
 
   @override
@@ -425,6 +609,7 @@ class _InventoryPickerSheetState extends ConsumerState<_InventoryPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final inventoryState = ref.watch(inventoryNotifierProvider);
     final filtered = ref.watch(filteredInventoryProvider);
 
@@ -438,86 +623,80 @@ class _InventoryPickerSheetState extends ConsumerState<_InventoryPickerSheet> {
           // Handle
           Center(
             child: Container(
-              width: 40,
+              width: 32,
               height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              margin: const EdgeInsets.only(
+                  top: AppSpacing.sm, bottom: AppSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+                color: cs.outlineVariant,
+                borderRadius:
+                    BorderRadius.circular(AppSpacing.radiusFull),
               ),
             ),
           ),
 
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(
-              children: [
-                Text('Mahsulot tanlash',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                // Yangilash tugmasi
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  iconSize: 20,
-                  onPressed: () =>
-                      ref.read(inventoryNotifierProvider.notifier).load(),
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: SectionHeader(
+              title: 'Mahsulot tanlash',
+              actionLabel: 'Yangilash',
+              onAction: () =>
+                  ref.read(inventoryNotifierProvider.notifier).load(),
             ),
           ),
 
           // Qidiruv
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
             child: TextField(
               controller: _controller,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Mahsulot qidirish...',
-                prefixIcon: const Icon(Icons.search),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                prefixIcon: Icon(Icons.search),
               ),
-              onChanged:
-                  ref.read(inventorySearchProvider.notifier).setQuery,
+              onChanged: (v) {
+                setState(() {});
+                ref
+                    .read(inventorySearchProvider.notifier)
+                    .setQuery(v);
+              },
             ),
           ),
 
           // Ro'yxat
           Expanded(
             child: switch (inventoryState) {
-              InventoryLoading() =>
-                const Center(child: CircularProgressIndicator()),
-              InventoryError(:final message) => Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline,
-                          color: Colors.red, size: 40),
-                      const SizedBox(height: 8),
-                      Text('Xatolik: $message',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => ref
-                            .read(inventoryNotifierProvider.notifier)
-                            .load(),
-                        child: const Text('Qayta urinish'),
-                      ),
-                    ],
-                  ),
+              InventoryLoading() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              InventoryError(:final message) => _PickerError(
+                  message: message,
+                  onRetry: () =>
+                      ref.read(inventoryNotifierProvider.notifier).load(),
                 ),
               InventoryLoaded() => filtered.isEmpty
-                  ? const Center(
-                      child: Text('Mahsulot topilmadi',
-                          style: TextStyle(color: Colors.grey)),
+                  ? EmptyState(
+                      icon: Icons.search_off,
+                      title: 'Mahsulot topilmadi',
+                      compact: true,
                     )
                   : ListView.builder(
                       controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg),
                       itemCount: filtered.length,
                       itemBuilder: (ctx, i) =>
-                          _InventoryListTile(item: filtered[i]),
+                          _InventoryPickerItem(item: filtered[i]),
                     ),
             },
           ),
@@ -527,113 +706,215 @@ class _InventoryPickerSheetState extends ConsumerState<_InventoryPickerSheet> {
   }
 }
 
-class _InventoryListTile extends ConsumerWidget {
-  const _InventoryListTile({required this.item});
+class _PickerError extends StatelessWidget {
+  const _PickerError({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = AppTheme.colorsOf(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline,
+                color: appColors.danger, size: AppSpacing.iconXl),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Xatolik: $message',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: appColors.danger),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Qayta urinish'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InventoryPickerItem extends ConsumerWidget {
+  const _InventoryPickerItem({required this.item});
   final InventoryItem item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
     final isBlocked = item.isExpired;
-    final isWarning = item.isNearExpiry && !item.isExpired;
 
-    Color? tileColor;
-    if (item.isExpired) {
-      tileColor = Colors.red.shade50;
-    } else if (item.isNearExpiry) {
-      tileColor = Colors.orange.shade50;
-    }
-
-    return ListTile(
-      tileColor: tileColor,
-      leading: Icon(
-        item.isExpired
-            ? Icons.block
-            : item.isNearExpiry
-                ? Icons.warning_amber_rounded
-                : Icons.inventory_2_outlined,
-        color: item.isExpired
-            ? Colors.red
-            : item.isNearExpiry
-                ? Colors.orange
-                : null,
-      ),
-      title: Text(
-        item.productName,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: isBlocked ? Colors.red.shade700 : null,
-          decoration: isBlocked ? TextDecoration.lineThrough : null,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
         ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${item.qty % 1 == 0 ? item.qty.toStringAsFixed(0) : item.qty.toStringAsFixed(2)} ${item.unit}'
-            '  ·  ${item.salePrice.toStringAsFixed(0)} so\'m',
-            style: const TextStyle(fontSize: 12),
-          ),
-          if (item.isExpired)
-            const Text(
-              'Muddati o\'tgan — sotib bo\'lmaydi',
-              style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600),
-            )
-          else if (item.isNearExpiry)
-            Text(
-              item.daysToExpiry != null
-                  ? 'Muddat: ${item.daysToExpiry} kun qoldi'
-                  : 'Muddat yaqinlashmoqda',
-              style: TextStyle(
-                  color: Colors.orange.shade700,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600),
+        color: item.isExpired
+            ? appColors.dangerContainer.withValues(alpha: 0.2)
+            : item.isNearExpiry
+                ? appColors.warningContainer.withValues(alpha: 0.2)
+                : null,
+        borderColor: item.isExpired
+            ? appColors.danger.withValues(alpha: 0.3)
+            : item.isNearExpiry
+                ? appColors.warning.withValues(alpha: 0.3)
+                : null,
+        onTap: isBlocked
+            ? () => _showBlockedSnack(context)
+            : () {
+                ref.read(cartProvider.notifier).addItem(item);
+                Navigator.of(context).pop();
+              },
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: item.isExpired
+                    ? appColors.dangerContainer
+                    : item.isNearExpiry
+                        ? appColors.warningContainer
+                        : cs.primaryContainer,
+                borderRadius:
+                    BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Icon(
+                item.isExpired
+                    ? Icons.block
+                    : item.isNearExpiry
+                        ? Icons.warning_amber_rounded
+                        : Icons.inventory_2_outlined,
+                size: AppSpacing.iconSm,
+                color: item.isExpired
+                    ? appColors.danger
+                    : item.isNearExpiry
+                        ? appColors.warning
+                        : cs.primary,
+              ),
             ),
-        ],
-      ),
-      trailing: isBlocked
-          ? Tooltip(
-              message: 'Yaroqsiz mahsulot',
-              child: Icon(Icons.not_interested, color: Colors.red.shade300),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isWarning)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(Icons.warning_amber_rounded,
-                        color: Colors.orange.shade600, size: 18),
-                  ),
-                const Icon(Icons.add_circle_outline),
-              ],
-            ),
-      onTap: isBlocked
-          ? () => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Row(
+
+            const SizedBox(width: AppSpacing.md),
+
+            // Matn
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(Icons.block, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Bu mahsulot muddati o\'tgan — savatga qo\'shib bo\'lmaydi',
+                          item.productName,
+                          style: tt.titleSmall?.copyWith(
+                            color: isBlocked
+                                ? appColors.danger
+                                : cs.onSurface,
+                            decoration: isBlocked
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (item.isExpired)
+                        StatusBadge(
+                          status: 'Yaroqsiz',
+                          variant: StatusVariant.danger,
+                          size: StatusBadgeSize.small,
+                        )
+                      else if (item.isNearExpiry)
+                        StatusBadge(
+                          status: item.daysToExpiry != null
+                              ? '${item.daysToExpiry}k'
+                              : 'Muddat yaqin',
+                          variant: StatusVariant.warning,
+                          size: StatusBadgeSize.small,
+                        ),
                     ],
                   ),
-                  backgroundColor: Colors.red.shade700,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              )
-          : () {
-              ref.read(cartProvider.notifier).addItem(item);
-              Navigator.of(context).pop();
-            },
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_fmtQty(item.qty)} ${item.unit}  ·  '
+                    '${item.salePrice.toStringAsFixed(0)} so\'m',
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  if (item.isExpired)
+                    Text(
+                      'Muddati o\'tgan — sotib bo\'lmaydi',
+                      style: tt.labelSmall?.copyWith(
+                        color: appColors.danger,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else if (item.isNearExpiry && item.daysToExpiry != null)
+                    Text(
+                      'Muddat: ${item.daysToExpiry} kun qoldi',
+                      style: tt.labelSmall?.copyWith(
+                        color: appColors.warning,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: AppSpacing.sm),
+
+            // Trailing
+            if (isBlocked)
+              Icon(Icons.not_interested,
+                  color: appColors.danger.withValues(alpha: 0.5),
+                  size: AppSpacing.iconSm)
+            else
+              Icon(Icons.add_circle_outline,
+                  color: cs.primary, size: AppSpacing.iconMd),
+          ],
+        ),
+      ),
     );
   }
+
+  void _showBlockedSnack(BuildContext context) {
+    final appColors = AppTheme.colorsOf(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.block, color: Colors.white, size: AppSpacing.iconSm),
+            SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Bu mahsulot muddati o\'tgan — savatga qo\'shib bo\'lmaydi',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: appColors.danger,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        ),
+      ),
+    );
+  }
+
+  String _fmtQty(double qty) =>
+      qty % 1 == 0 ? qty.toStringAsFixed(0) : qty.toStringAsFixed(2);
 }
 
 // ---------------------------------------------------------------------------
@@ -645,12 +926,30 @@ class _ReceiptDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.check_circle, color: Colors.green, size: 28),
-          SizedBox(width: 8),
-          Text('Sotuv muvaffaqiyatli'),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: appColors.successContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.check,
+                color: appColors.success, size: AppSpacing.iconMd),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              'Sotuv muvaffaqiyatli',
+              style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
       content: SingleChildScrollView(
@@ -658,41 +957,53 @@ class _ReceiptDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ReceiptRow('ID', response.saleId.length > 8
-                ? '${response.saleId.substring(0, 8)}...'
-                : response.saleId),
+            _ReceiptRow(
+                'ID',
+                response.saleId.length > 8
+                    ? '${response.saleId.substring(0, 8)}...'
+                    : response.saleId),
             _ReceiptRow(
                 "To'lov", _paymentMethodLabel(response.paymentMethod)),
-            const Divider(height: 16),
+            Divider(color: cs.outlineVariant, height: AppSpacing.lg),
             // Mahsulotlar
             ...response.items.map((item) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xs),
                   child: Row(
                     children: [
                       Expanded(
-                          child: Text(item.productName,
-                              style: const TextStyle(fontSize: 13))),
+                        child: Text(
+                          item.productName,
+                          style: tt.bodySmall,
+                        ),
+                      ),
                       Text(
-                        '${_fmtQty(item.qty)}  ×  ${item.unitPrice.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.grey),
+                        '${_fmtQty(item.qty)} × '
+                        '${item.unitPrice.toStringAsFixed(0)}',
+                        style: tt.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
                 )),
-            const Divider(height: 16),
+            Divider(color: cs.outlineVariant, height: AppSpacing.lg),
             Row(
               children: [
-                const Text('JAMI',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  'JAMI',
+                  style: tt.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const Spacer(),
                 Text(
                   '${response.totalAmount.toStringAsFixed(0)} so\'m',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: Colors.green),
+                  style: tt.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: appColors.success,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ],
             ),
@@ -700,7 +1011,7 @@ class _ReceiptDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        ElevatedButton(
+        FilledButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Yopish'),
         ),
@@ -726,15 +1037,20 @@ class _ReceiptRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         children: [
-          Text('$label: ',
-              style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w500, fontSize: 13)),
+          Text(
+            '$label: ',
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          Text(
+            value,
+            style: tt.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

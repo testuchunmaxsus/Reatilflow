@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
 import 'finance_models.dart';
@@ -23,7 +26,15 @@ class StoreBalanceScreen extends ConsumerWidget {
     };
 
     if (storeId == null) {
-      return const _NoStoreIdBody();
+      return Scaffold(
+        appBar: AppBar(title: const Text("Do'kon balansi")),
+        body: const EmptyState(
+          icon: Icons.store_mall_directory_outlined,
+          title: "Do'kon ID topilmadi",
+          message: "Akkauntga do'kon biriktirilmagan. "
+              'Administrator bilan bog\'laning.',
+        ),
+      );
     }
 
     return Scaffold(
@@ -31,7 +42,7 @@ class StoreBalanceScreen extends ConsumerWidget {
         title: const Text("Do'kon balansi"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Yangilash',
             onPressed: () =>
                 ref.read(financeBalanceProvider(storeId).notifier).reload(),
@@ -39,32 +50,22 @@ class StoreBalanceScreen extends ConsumerWidget {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Sana
-            Text(
-              _formattedDate(),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
-            ),
+            SectionHeader(subtitle: _formattedDate(), title: "Do'kon balansi"),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.xl),
 
-            // Balans kartasi
             _BalanceCard(storeId: storeId),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
-            // Ledger ga o'tish
             _LedgerCard(storeId: storeId),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
 
-            // Balans izohi
             _BalanceInfoCard(),
           ],
         ),
@@ -84,43 +85,6 @@ class StoreBalanceScreen extends ConsumerWidget {
 
 // ---------------------------------------------------------------------------
 
-class _NoStoreIdBody extends StatelessWidget {
-  const _NoStoreIdBody();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Do'kon balansi")),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.store_mall_directory_outlined,
-                  size: 64, color: Colors.grey.shade300),
-              const SizedBox(height: 16),
-              const Text(
-                "Do'kon ID topilmadi",
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Akkauntga do\'kon biriktirilmagan. '
-                'Administrator bilan bog\'laning.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
 class _BalanceCard extends ConsumerWidget {
   const _BalanceCard({required this.storeId});
   final String storeId;
@@ -128,43 +92,41 @@ class _BalanceCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(financeBalanceProvider(storeId));
+    final appColors = AppTheme.colorsOf(context);
 
     return switch (state) {
-      FinanceBalanceLoading() => const Card(
-          child: Padding(
-            padding: EdgeInsets.all(32),
+      FinanceBalanceLoading() => AppCard(
+          child: const Padding(
+            padding: EdgeInsets.all(AppSpacing.xxxl),
             child: Center(child: CircularProgressIndicator()),
           ),
         ),
-      FinanceBalanceError(:final message) => Card(
-          color: Colors.red.withValues(alpha: 0.07),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 36),
-                const SizedBox(height: 10),
-                Text(
-                  'Xatolik: $message',
-                  style: const TextStyle(color: Colors.red, fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  style:
-                      FilledButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => ref
-                      .read(financeBalanceProvider(storeId).notifier)
-                      .reload(),
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Qayta urinish'),
-                ),
-              ],
-            ),
+      FinanceBalanceError(:final message) => AppCard(
+          color: appColors.dangerContainer.withValues(alpha: 0.3),
+          borderColor: appColors.danger.withValues(alpha: 0.3),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            children: [
+              Icon(Icons.error_outline,
+                  color: appColors.danger, size: AppSpacing.iconXl),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Xatolik: $message',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: appColors.danger),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                    backgroundColor: appColors.danger),
+                onPressed: () =>
+                    ref.read(financeBalanceProvider(storeId).notifier).reload(),
+                icon: const Icon(Icons.refresh_outlined,
+                    size: AppSpacing.iconXs),
+                label: const Text('Qayta urinish'),
+              ),
+            ],
           ),
         ),
       FinanceBalanceLoaded(:final balance) =>
@@ -179,89 +141,93 @@ class _BalanceLoadedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = balance.isDebt ? Colors.red : Colors.green;
-    final statusLabel =
-        balance.isDebt ? 'Qarzdorlik' : 'Kredit qoldiq';
+    final appColors = AppTheme.colorsOf(context);
+    final tt = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    final color = balance.isDebt ? appColors.danger : appColors.success;
+    final bgColor = balance.isDebt
+        ? appColors.dangerContainer.withValues(alpha: 0.35)
+        : appColors.successContainer.withValues(alpha: 0.35);
+    final borderColor = color.withValues(alpha: 0.3);
+    final statusLabel = balance.isDebt ? 'Qarzdorlik' : 'Kredit qoldiq';
     final statusIcon =
         balance.isDebt ? Icons.trending_up : Icons.savings_outlined;
 
-    return Card(
-      color: color.withValues(alpha: 0.07),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(Icons.account_balance_wallet,
-                      color: color, size: 26),
+    return AppCard(
+      color: bgColor,
+      borderColor: borderColor,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: AppSpacing.iconLg + AppSpacing.md,
+                height: AppSpacing.iconLg + AppSpacing.md,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Moliyaviy balans',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      Row(
-                        children: [
-                          Icon(statusIcon, color: color, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            statusLabel,
-                            style: TextStyle(
-                                color: color,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                child: Icon(Icons.account_balance_wallet_outlined,
+                    color: color, size: AppSpacing.iconMd),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Moliyaviy balans',
+                      style: tt.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Row(
+                      children: [
+                        Icon(statusIcon, color: color, size: 14),
+                        const SizedBox(width: AppSpacing.xs),
+                        StatusBadge(
+                          status: statusLabel,
+                          variant: balance.isDebt
+                              ? StatusVariant.danger
+                              : StatusVariant.success,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.xl),
+
+          // Asosiy qiymat — yirik
+          Text(
+            '${_fmt(balance.balanceAmount)} ${balance.currency}',
+            style: tt.headlineMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
             ),
-            const SizedBox(height: 20),
-            Text(
-              '${_fmt(balance.balanceAmount)} ${balance.currency}',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Divider(color: color.withValues(alpha: 0.2)),
-            const SizedBox(height: 8),
-            Text(
-              "Do'kon: ${balance.storeId}",
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              'Yangilangan: ${_fmtDate(balance.lastRecalcAt)}',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+          Divider(color: color.withValues(alpha: 0.2), height: 1),
+          const SizedBox(height: AppSpacing.sm),
+
+          Text(
+            "Do'kon: ${balance.storeId}",
+            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            'Yangilangan: ${_fmtDate(balance.lastRecalcAt)}',
+            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
@@ -293,43 +259,49 @@ class _LedgerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => LedgerScreen(initialStoreId: storeId),
-            ),
-          );
-        },
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(Icons.receipt_long_outlined,
-                  color: Colors.indigo, size: 28),
-              SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Buxgalteriya yozuvlari',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      'Debet va kredit yozuvlarini ko\'rish',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey),
-            ],
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => LedgerScreen(initialStoreId: storeId),
           ),
-        ),
+        );
+      },
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          Container(
+            width: AppSpacing.iconLg + AppSpacing.md,
+            height: AppSpacing.iconLg + AppSpacing.md,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(Icons.receipt_long_outlined,
+                color: cs.primary, size: AppSpacing.iconMd),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Buxgalteriya yozuvlari',
+                  style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'Debet va kredit yozuvlarini ko\'rish',
+                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right,
+              color: cs.onSurfaceVariant, size: AppSpacing.iconSm),
+        ],
       ),
     );
   }
@@ -340,28 +312,27 @@ class _LedgerCard extends StatelessWidget {
 class _BalanceInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.blue.withValues(alpha: 0.05),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.blue.withValues(alpha: 0.2)),
-      ),
-      child: const Padding(
-        padding: EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.info_outline, color: Colors.blue, size: 18),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Balans server tomonida hisoblangan. '
-                'Muammolar yuzaga kelganda administrator bilan bog\'laning.',
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
+    final appColors = AppTheme.colorsOf(context);
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      color: appColors.infoContainer.withValues(alpha: 0.25),
+      borderColor: appColors.info.withValues(alpha: 0.25),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline,
+              color: appColors.info, size: AppSpacing.iconSm),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Balans server tomonida hisoblangan. '
+              'Muammolar yuzaga kelganda administrator bilan bog\'laning.',
+              style: tt.bodySmall?.copyWith(color: appColors.info),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

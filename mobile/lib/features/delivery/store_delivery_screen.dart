@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
@@ -26,12 +29,10 @@ class StoreDeliveryScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Yetkazishlar'),
         actions: [
-          // Filtr: barcha / faol
           Consumer(builder: (context, ref, _) {
             final showAll = ref.watch(_storeDeliveryShowAllProvider);
             return IconButton(
-              icon: Icon(
-                  showAll ? Icons.filter_list_off : Icons.filter_list),
+              icon: Icon(showAll ? Icons.filter_list_off : Icons.filter_list),
               tooltip: showAll ? 'Faqat faollar' : 'Hammasi',
               onPressed: () => ref
                   .read(_storeDeliveryShowAllProvider.notifier)
@@ -41,7 +42,11 @@ class StoreDeliveryScreen extends ConsumerWidget {
         ],
       ),
       body: storeId == null
-          ? const _NoStoreBody()
+          ? const EmptyState(
+              icon: Icons.store_outlined,
+              title: "Do'kon ID topilmadi",
+              message: "Akkauntga do'kon biriktirilmagan.",
+            )
           : _StoreDeliveryBody(storeId: storeId),
     );
   }
@@ -49,42 +54,8 @@ class StoreDeliveryScreen extends ConsumerWidget {
 
 // ---------------------------------------------------------------------------
 
-/// Faol/hammasi toggle holati
 final _storeDeliveryShowAllProvider =
     StateProvider.autoDispose<bool>((ref) => false);
-
-// ---------------------------------------------------------------------------
-
-class _NoStoreBody extends StatelessWidget {
-  const _NoStoreBody();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.local_shipping_outlined,
-                size: 64, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-            const Text(
-              "Do'kon ID topilmadi",
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Akkauntga do\'kon biriktirilmagan.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 
@@ -96,30 +67,45 @@ class _StoreDeliveryBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final showAll = ref.watch(_storeDeliveryShowAllProvider);
 
-    // Barcha yoki faqat faol yetkazishlar (lokal Drift stream)
     final deliveriesAsync = showAll
         ? ref.watch(deliveriesStreamProvider)
         : ref.watch(activeDeliveriesStreamProvider);
 
     return deliveriesAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorBody(message: e.toString()),
+      loading: () => Center(
+        child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary),
+      ),
+      error: (e, _) => EmptyState(
+        icon: Icons.error_outline,
+        title: 'Xatolik yuz berdi',
+        message: e.toString(),
+      ),
       data: (deliveries) {
         if (deliveries.isEmpty) {
-          return _EmptyBody(showAll: showAll);
+          return EmptyState(
+            icon: Icons.local_shipping_outlined,
+            title: showAll
+                ? "Hali yetkazishlar yo'q"
+                : "Faol yetkazishlar yo'q",
+            message: "Buyurtmalar tayinlangach bu yerda ko'rinadi.",
+          );
         }
         return RefreshIndicator(
-          onRefresh: () async {}, // SyncNotifier boshqaradi
+          onRefresh: () async {},
           child: Column(
             children: [
-              // Qisqacha statistika
               _SummaryBanner(deliveries: deliveries),
-
-              // Ro'yxat
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.md,
+                      AppSpacing.lg,
+                      AppSpacing.xl),
                   itemCount: deliveries.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: AppSpacing.sm),
                   itemBuilder: (context, i) =>
                       _DeliveryCard(delivery: deliveries[i]),
                 ),
@@ -140,33 +126,41 @@ class _SummaryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
     final delivering =
         deliveries.where((d) => d.status == 'delivering').length;
     final delivered =
         deliveries.where((d) => d.status == 'delivered').length;
-    final failed =
-        deliveries.where((d) => d.status == 'failed').length;
+    final failed = deliveries.where((d) => d.status == 'failed').length;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Colors.grey.shade50,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(
+          bottom: BorderSide(color: cs.outlineVariant),
+        ),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _StatChip(
             label: 'Yetkazilmoqda',
             value: delivering,
-            color: Colors.purple,
+            color: cs.secondary,
           ),
+          const Spacer(),
           _StatChip(
             label: 'Yetkazildi',
             value: delivered,
-            color: Colors.green,
+            color: appColors.success,
           ),
+          const Spacer(),
           _StatChip(
             label: 'Muvaffaqiyatsiz',
             value: failed,
-            color: Colors.red,
+            color: appColors.danger,
           ),
         ],
       ),
@@ -187,20 +181,22 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           '$value',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+          style: tt.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
             color: color,
+            letterSpacing: -0.5,
           ),
         ),
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: Colors.grey),
+          style: tt.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -215,179 +211,136 @@ class _DeliveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon, label) = _statusInfo(delivery.status);
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final statusVariant = _statusVariant(delivery.status);
+    final statusLabel = _statusLabel(delivery.status);
+    final statusIcon = _statusIcon(delivery.status);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push(
-          '/home/deliveries/${delivery.id}',
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // Holat ikonasi
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(width: 12),
+    final iconBgColor = switch (statusVariant) {
+      StatusVariant.success =>
+        AppTheme.colorsOf(context).successContainer.withValues(alpha: 0.5),
+      StatusVariant.warning =>
+        AppTheme.colorsOf(context).warningContainer.withValues(alpha: 0.5),
+      StatusVariant.danger =>
+        AppTheme.colorsOf(context).dangerContainer.withValues(alpha: 0.5),
+      StatusVariant.info =>
+        AppTheme.colorsOf(context).infoContainer.withValues(alpha: 0.5),
+      _ => cs.surfaceContainerHighest,
+    };
+    final iconColor = switch (statusVariant) {
+      StatusVariant.success => AppTheme.colorsOf(context).success,
+      StatusVariant.warning => AppTheme.colorsOf(context).warning,
+      StatusVariant.danger => AppTheme.colorsOf(context).danger,
+      StatusVariant.info => AppTheme.colorsOf(context).info,
+      _ => cs.onSurfaceVariant,
+    };
 
-              // Ma'lumot
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return AppCard(
+      onTap: () => context.push('/home/deliveries/${delivery.id}'),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(statusIcon, color: iconColor, size: AppSpacing.iconSm),
+          ),
+          const SizedBox(width: AppSpacing.md),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Buyurtma: ${delivery.orderId.substring(0, 8)}...',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: color.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            label,
-                            style: TextStyle(
-                                color: color,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
+                    Expanded(
+                      child: Text(
+                        'Buyurtma: ${delivery.orderId.substring(0, 8)}...',
+                        style: tt.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    if (delivery.address != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on_outlined,
-                              size: 13, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              delivery.address!,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.grey),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (delivery.customerName != null) ...[
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(Icons.person_outline,
-                              size: 13, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(
-                            delivery.customerName!,
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ],
+                    const SizedBox(width: AppSpacing.xs),
+                    StatusBadge(
+                        status: statusLabel, variant: statusVariant),
                   ],
                 ),
-              ),
-
-              const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
-            ],
+                if (delivery.address != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_outlined,
+                          size: 12, color: cs.onSurfaceVariant),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          delivery.address!,
+                          style: tt.bodySmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (delivery.customerName != null) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline,
+                          size: 12, color: cs.onSurfaceVariant),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        delivery.customerName!,
+                        style: tt.bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
+
+          Icon(Icons.chevron_right,
+              color: cs.onSurfaceVariant, size: AppSpacing.iconSm),
+        ],
       ),
     );
   }
 
-  (Color, IconData, String) _statusInfo(String status) => switch (status) {
-        'assigned' => (Colors.blue, Icons.assignment, 'Tayinlangan'),
-        'started' => (Colors.orange, Icons.directions_run, 'Boshlandi'),
-        'delivering' => (Colors.purple, Icons.local_shipping, 'Yetkazilmoqda'),
-        'delivered' => (Colors.green, Icons.check_circle, 'Yetkazildi'),
-        'failed' => (Colors.red, Icons.cancel, 'Muvaffaqiyatsiz'),
-        _ => (Colors.grey, Icons.help, status),
+  StatusVariant _statusVariant(String status) => switch (status) {
+        'assigned' => StatusVariant.info,
+        'started' => StatusVariant.warning,
+        'delivering' => StatusVariant.warning,
+        'delivered' => StatusVariant.success,
+        'failed' => StatusVariant.danger,
+        _ => StatusVariant.neutral,
       };
-}
 
-// ---------------------------------------------------------------------------
+  String _statusLabel(String status) => switch (status) {
+        'assigned' => 'Tayinlangan',
+        'started' => 'Boshlandi',
+        'delivering' => 'Yetkazilmoqda',
+        'delivered' => 'Yetkazildi',
+        'failed' => 'Muvaffaqiyatsiz',
+        _ => status,
+      };
 
-class _EmptyBody extends StatelessWidget {
-  const _EmptyBody({required this.showAll});
-  final bool showAll;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.local_shipping_outlined,
-                size: 64, color: Colors.grey.shade300),
-            const SizedBox(height: 12),
-            Text(
-              showAll
-                  ? 'Hali yetkazishlar yo\'q'
-                  : 'Faol yetkazishlar yo\'q',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Buyurtmalar tayinlangach bu yerda ko\'rinadi.',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 40),
-            const SizedBox(height: 8),
-            Text('Xatolik: $message', textAlign: TextAlign.center),
-          ],
-        ),
-      ),
-    );
-  }
+  IconData _statusIcon(String status) => switch (status) {
+        'assigned' => Icons.assignment_outlined,
+        'started' => Icons.directions_run_outlined,
+        'delivering' => Icons.local_shipping_outlined,
+        'delivered' => Icons.check_circle_outline,
+        'failed' => Icons.cancel_outlined,
+        _ => Icons.help_outline,
+      };
 }

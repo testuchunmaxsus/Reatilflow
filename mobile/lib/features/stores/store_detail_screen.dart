@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import 'stores_providers.dart';
 
@@ -13,6 +15,7 @@ class StoreDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storeAsync = ref.watch(storeByIdProvider(storeId));
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -29,12 +32,21 @@ class StoreDetailScreen extends ConsumerWidget {
       body: storeAsync.when(
         data: (store) {
           if (store == null) {
-            return const Center(child: Text("Do'kon topilmadi"));
+            return const EmptyState(
+              icon: Icons.store_mall_directory_outlined,
+              title: "Do'kon topilmadi",
+              message: "Bu do'kon mavjud emas yoki o'chirilgan.",
+            );
           }
           return _StoreDetailBody(store: store);
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Xatolik: $e')),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: cs.primary)),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: e.toString(),
+        ),
       ),
     );
   }
@@ -46,97 +58,123 @@ class _StoreDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sarlavha
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 28,
-                    child: Icon(Icons.store, size: 32),
+          // Sarlavha kartasi — do'kon nomi + avatar
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          store.name,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                  child: Icon(Icons.store_outlined,
+                      size: AppSpacing.iconLg, color: cs.primary),
+                ),
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        store.name,
+                        style: tt.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (store.address != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Row(
+                          children: [
+                            Icon(Icons.location_on_outlined,
+                                size: AppSpacing.iconXs,
+                                color: cs.onSurfaceVariant),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Text(
+                                store.address!,
+                                style: tt.bodySmall
+                                    ?.copyWith(color: cs.onSurfaceVariant),
+                              ),
+                            ),
+                          ],
                         ),
-                        if (store.address != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            store.address!,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: Colors.grey),
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.lg),
 
-          // GPS koordinatalar
-          if (store.gpsLat != null && store.gpsLng != null)
-            _InfoRow(
-              icon: Icons.location_on_outlined,
-              label: 'GPS',
-              value:
-                  '${store.gpsLat!.toStringAsFixed(6)}, ${store.gpsLng!.toStringAsFixed(6)}',
-              valueColor: Colors.blue,
+          // Ma'lumot kartasi
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeader(title: "Ma'lumot"),
+                const SizedBox(height: AppSpacing.md),
+                if (store.gpsLat != null && store.gpsLng != null)
+                  _InfoRow(
+                    icon: Icons.location_on_outlined,
+                    label: 'GPS',
+                    value:
+                        '${store.gpsLat!.toStringAsFixed(6)}, ${store.gpsLng!.toStringAsFixed(6)}',
+                    valueColor: cs.primary,
+                  ),
+                if (store.phone != null)
+                  _InfoRow(
+                    icon: Icons.phone_outlined,
+                    label: 'Telefon',
+                    value: store.phone!,
+                  ),
+                if (store.inn != null)
+                  _InfoRow(
+                    icon: Icons.badge_outlined,
+                    label: 'INN',
+                    value: store.inn!,
+                  ),
+                if (store.creditLimit != null)
+                  _InfoRow(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Kredit limiti',
+                    value: '${_formatAmount(store.creditLimit!)} UZS',
+                    valueColor: Theme.of(context).colorScheme.secondary,
+                  ),
+                if (store.gpsLat == null &&
+                    store.phone == null &&
+                    store.inn == null &&
+                    store.creditLimit == null)
+                  Text(
+                    "Qo'shimcha ma'lumot mavjud emas",
+                    style: tt.bodyMedium
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+              ],
             ),
+          ),
 
-          // Telefon
-          if (store.phone != null)
-            _InfoRow(
-              icon: Icons.phone_outlined,
-              label: 'Telefon',
-              value: store.phone!,
-            ),
-
-          // INN
-          if (store.inn != null)
-            _InfoRow(
-              icon: Icons.badge_outlined,
-              label: 'INN',
-              value: store.inn!,
-            ),
-
-          // Balans (credit limit)
-          if (store.creditLimit != null)
-            _InfoRow(
-              icon: Icons.account_balance_wallet_outlined,
-              label: 'Kredit limiti',
-              value: '${_formatAmount(store.creditLimit!)} UZS',
-              valueColor: Colors.green,
-            ),
-
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
 
           // Buyurtma berish tugmasi
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () =>
-                  context.push('/home/orders/create?storeId=${store.id}'),
-              icon: const Icon(Icons.add_shopping_cart),
+              onPressed: () => context
+                  .push('/home/orders/create?storeId=${store.id}'),
+              icon: const Icon(Icons.add_shopping_cart_outlined),
               label: const Text('Buyurtma berish'),
             ),
           ),
@@ -170,21 +208,28 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Colors.grey),
-          const SizedBox(width: 12),
-          Text('$label: ',
-              style: const TextStyle(
-                  color: Colors.grey, fontWeight: FontWeight.w500)),
+          Icon(icon, size: AppSpacing.iconXs, color: cs.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm),
+          SizedBox(
+            width: 96,
+            child: Text(
+              '$label:',
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
+              style: tt.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: valueColor,
+                color: valueColor ?? cs.onSurface,
               ),
             ),
           ),

@@ -2,6 +2,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+
 /// Offline holat banneri — ekran tepasida ko'rinadi.
 ///
 /// Offline-first tamoyil: banner faqat axborot uchun,
@@ -18,21 +21,35 @@ class ConnectivityBanner extends ConsumerWidget {
         final isOffline = results.every((r) => r == ConnectivityResult.none);
         if (!isOffline) return const SizedBox.shrink();
 
+        final appColors = AppTheme.colorsOf(context);
+        final tt = Theme.of(context).textTheme;
+
         return Container(
           width: double.infinity,
-          color: Colors.orange.shade700,
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-          child: const Row(
+          color: appColors.warning,
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.xs,
+            horizontal: AppSpacing.lg,
+          ),
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.wifi_off, size: 16, color: Colors.white),
-              SizedBox(width: 8),
-              Text(
-                'Offline rejim — o\'zgarishlar tarmoq tiklananda yuboriladi',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              Icon(
+                Icons.wifi_off_rounded,
+                size: AppSpacing.iconXs,
+                color: appColors.onWarning,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  'Offline rejim — o\'zgarishlar tarmoq tiklananda yuboriladi',
+                  style: tt.labelSmall?.copyWith(
+                    color: appColors.onWarning,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
 import 'marketplace_models.dart';
 import 'marketplace_providers.dart';
 
-/// Marketplace bosh ekrani — banner karusel, aksiyalar, mahsulotlar.
+/// Marketplace bosh ekrani — banner karusel, aksiyalar, mahsulotlar grid.
 class MarketplaceBrowseScreen extends ConsumerStatefulWidget {
   const MarketplaceBrowseScreen({super.key});
 
@@ -26,14 +31,54 @@ class _MarketplaceBrowseScreenState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final cartState = ref.watch(marketplaceCartProvider);
+    final cartCount = cartState.items.length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Marketplace'),
         actions: [
+          // Savat badge
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart_outlined),
+                tooltip: 'Savat',
+                onPressed: () =>
+                    context.go('/home/marketplace/cart'),
+              ),
+              if (cartCount > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: cs.error,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$cartCount',
+                        style: TextStyle(
+                          color: cs.onError,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined),
+            icon: const Icon(Icons.receipt_long_outlined),
             tooltip: 'Buyurtmalarim',
-            onPressed: () => context.go('/home/marketplace/orders'),
+            onPressed: () =>
+                context.go('/home/marketplace/orders'),
           ),
         ],
         bottom: PreferredSize(
@@ -53,15 +98,20 @@ class _SearchBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: TextField(
         controller: controller,
         decoration: InputDecoration(
           hintText: 'Mahsulot qidirish...',
-          prefixIcon: const Icon(Icons.search, size: 20),
+          prefixIcon: const Icon(Icons.search, size: AppSpacing.iconSm),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear, size: 18),
+                  icon: const Icon(Icons.clear, size: AppSpacing.iconSm),
                   onPressed: () {
                     controller.clear();
                     ref.read(marketplaceSearchProvider.notifier).clear();
@@ -69,15 +119,10 @@ class _SearchBar extends ConsumerWidget {
                 )
               : null,
           isDense: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.grey.shade100,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
         ),
-        onChanged: (v) => ref.read(marketplaceSearchProvider.notifier).set(v),
+        onChanged: (v) {
+          ref.read(marketplaceSearchProvider.notifier).set(v);
+        },
       ),
     );
   }
@@ -97,36 +142,42 @@ class _MarketplaceBody extends ConsumerWidget {
       child: CustomScrollView(
         slivers: [
           // --- Reklama bannerlari ---
-          const SliverToBoxAdapter(child: _BannerCarousel()),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(top: AppSpacing.md),
+              child: _BannerCarousel(),
+            ),
+          ),
 
           // --- Qaynoq aksiyalar ---
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.sm)),
           const SliverToBoxAdapter(child: _PromoSection()),
 
           // --- Mahsulotlar sarlavhasi ---
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
               child: Row(
                 children: [
-                  Text(
-                    'Mahsulotlar',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: SectionHeader(title: 'Mahsulotlar'),
                   ),
-                  const Spacer(),
                   const _SupplierFilterChip(),
                 ],
               ),
             ),
           ),
 
-          // --- Mahsulotlar ro'yxati ---
+          // --- Mahsulotlar grid ---
           const _ProductsSliver(),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const SliverToBoxAdapter(
+              child: SizedBox(height: AppSpacing.xxxl)),
         ],
       ),
     );
@@ -158,16 +209,24 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
     final bannersState = ref.watch(bannersNotifierProvider);
 
     return switch (bannersState) {
-      BannersLoading() => const SizedBox(
+      BannersLoading() => SizedBox(
           height: 160,
-          child: Center(child: CircularProgressIndicator()),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            itemCount: 2,
+            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+            itemBuilder: (_, __) => _BannerSkeleton(),
+          ),
         ),
       BannersError(:final message) => SizedBox(
-          height: 80,
+          height: 72,
           child: Center(
             child: Text(
-              'Bannerlar yuklanmadi: $message',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              'Bannerlar yuklanmadi',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ),
         ),
@@ -178,8 +237,9 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
   }
 
   Widget _buildCarousel(List<MarketplaceBanner> banners) {
+    final cs = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 164,
+      height: 172,
       child: Column(
         children: [
           Expanded(
@@ -192,7 +252,7 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
           ),
           if (banners.length > 1)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -200,13 +260,14 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
                   (i) => AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
                     margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: _currentPage == i ? 18 : 6,
+                    width: _currentPage == i ? 20 : 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.radiusFull),
                       color: _currentPage == i
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.grey.shade300,
+                          ? cs.primary
+                          : cs.outlineVariant,
                     ),
                   ),
                 ),
@@ -218,32 +279,48 @@ class _BannerCarouselState extends ConsumerState<_BannerCarousel> {
   }
 }
 
+class _BannerSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: MediaQuery.of(context).size.width - AppSpacing.xxl * 2,
+      height: 152,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      ),
+    );
+  }
+}
+
 class _BannerTile extends StatelessWidget {
   const _BannerTile({required this.banner});
   final MarketplaceBanner banner;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: () {
         if (banner.targetProductId != null) {
-          // Mahsulotga scroll qilish yoki detail ochish
           // v2c da kengaytirish mumkin
         }
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
           gradient: LinearGradient(
             colors: [
-              Theme.of(context).colorScheme.primaryContainer,
-              Theme.of(context).colorScheme.secondaryContainer,
+              cs.primaryContainer,
+              cs.secondaryContainer,
             ],
           ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -251,12 +328,13 @@ class _BannerTile extends StatelessWidget {
                 Image.network(
                   banner.imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _BannerPlaceholder(
-                    title: banner.title,
-                  ),
+                  errorBuilder: (_, __, ___) =>
+                      _BannerPlaceholder(title: banner.title),
                 )
               else
                 _BannerPlaceholder(title: banner.title),
+
+              // Gradient overlay + title
               if (banner.title != null)
                 Positioned(
                   left: 0,
@@ -264,24 +342,28 @@ class _BannerTile extends StatelessWidget {
                   bottom: 0,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.55),
+                          Colors.black.withValues(alpha: 0.6),
                           Colors.transparent,
                         ],
                       ),
                     ),
                     child: Text(
                       banner.title!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -301,24 +383,29 @@ class _BannerPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: Theme.of(context).colorScheme.primaryContainer,
+      color: cs.primaryContainer,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.local_offer,
-              size: 40,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            Icon(Icons.local_offer_outlined,
+                size: AppSpacing.iconXl, color: cs.primary),
             if (title != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                title!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(height: AppSpacing.sm),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg),
+                child: Text(
+                  title!,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -340,9 +427,38 @@ class _PromoSection extends ConsumerWidget {
     final promosState = ref.watch(promosNotifierProvider);
 
     return switch (promosState) {
-      PromosLoading() => const SizedBox(
-          height: 100,
-          child: Center(child: CircularProgressIndicator()),
+      PromosLoading() => Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 140,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                height: 130,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 3,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: AppSpacing.sm),
+                  itemBuilder: (_, __) => _PromoCardSkeleton(),
+                ),
+              ),
+            ],
+          ),
         ),
       PromosError() => const SizedBox.shrink(),
       PromosLoaded(promos: final promos) when promos.isEmpty =>
@@ -351,31 +467,51 @@ class _PromoSection extends ConsumerWidget {
     };
   }
 
-  Widget _buildPromos(BuildContext context, List<MarketplacePromo> promos) {
+  Widget _buildPromos(
+      BuildContext context, List<MarketplacePromo> promos) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Text(
-            'Qaynoq aksiyalar',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: SectionHeader(
+            title: 'Qaynoq aksiyalar',
+            subtitle: '${promos.length} ta taklif',
           ),
         ),
         SizedBox(
-          height: 130,
+          height: 140,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg),
             itemCount: promos.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (context, i) => _PromoCard(promo: promos[i]),
+            separatorBuilder: (_, __) =>
+                const SizedBox(width: AppSpacing.sm),
+            itemBuilder: (context, i) =>
+                _PromoCard(promo: promos[i]),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PromoCardSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 160,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      ),
     );
   }
 }
@@ -386,76 +522,96 @@ class _PromoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final appColors = AppTheme.colorsOf(context);
+
     return Container(
-      width: 160,
+      width: 164,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.orange.shade50,
-        border: Border.all(color: Colors.orange.shade200),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        color: appColors.warningContainer.withValues(alpha: 0.5),
+        border: Border.all(
+            color: appColors.warning.withValues(alpha: 0.3)),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Chegirma ulushi
-          if (promo.discountPercent != null)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.orange,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '-${promo.discountPercent!.toStringAsFixed(0)}%',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
+          // Chegirma badge + muddat qatori
+          Row(
+            children: [
+              if (promo.discountPercent != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: appColors.warning,
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusXs),
+                  ),
+                  child: Text(
+                    '-${promo.discountPercent!.toStringAsFixed(0)}%',
+                    style: tt.labelSmall?.copyWith(
+                      color: appColors.onWarning,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          const SizedBox(height: 6),
+              const Spacer(),
+              if (promo.endsAt != null)
+                Icon(Icons.timer_outlined,
+                    size: 12,
+                    color: appColors.warning),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.sm),
+
+          // Nomi
           Expanded(
             child: Text(
               promo.productName,
-              style: const TextStyle(
+              style: tt.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
-                fontSize: 13,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(height: 4),
+
+          const SizedBox(height: AppSpacing.xs),
+
+          // Supplier
           Text(
             promo.supplierName,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade600,
+            style: tt.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
+
+          const SizedBox(height: AppSpacing.xs),
+
+          // Narxlar
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
                 _fmt(promo.promoPrice),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade800,
+                style: tt.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: appColors.warning,
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpacing.xs),
               if (promo.originalPrice > promo.promoPrice)
                 Text(
                   _fmt(promo.originalPrice),
-                  style: const TextStyle(
-                    fontSize: 11,
+                  style: tt.labelSmall?.copyWith(
                     decoration: TextDecoration.lineThrough,
-                    color: Colors.grey,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
             ],
@@ -466,13 +622,9 @@ class _PromoCard extends StatelessWidget {
   }
 
   String _fmt(double v) {
-    if (v >= 1000000) {
-      return "${(v / 1000000).toStringAsFixed(1)} mln so'm";
-    }
-    if (v >= 1000) {
-      return "${(v / 1000).toStringAsFixed(0)} ming so'm";
-    }
-    return "${v.toStringAsFixed(0)} so'm";
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)} mln';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)} ming';
+    return v.toStringAsFixed(0);
   }
 }
 
@@ -484,8 +636,8 @@ class _SupplierFilterChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedSupplier =
-        ref.watch(marketplaceSupplierFilterProvider);
+    final cs = Theme.of(context).colorScheme;
+    final selectedSupplier = ref.watch(marketplaceSupplierFilterProvider);
     final productsState = ref.watch(productsNotifierProvider);
 
     // Mavjud supplierlar ro'yxatini mahsulotlardan olish
@@ -498,17 +650,29 @@ class _SupplierFilterChip extends ConsumerWidget {
 
     if (suppliers.isEmpty) return const SizedBox.shrink();
 
-    return TextButton.icon(
+    final isFiltered = selectedSupplier != null;
+
+    return FilledButton.tonalIcon(
       onPressed: () => _showSupplierSheet(context, ref, suppliers),
-      icon: const Icon(Icons.filter_list, size: 16),
+      icon: Icon(
+        isFiltered ? Icons.filter_alt : Icons.filter_list,
+        size: AppSpacing.iconSm,
+      ),
       label: Text(
-        selectedSupplier != null
+        isFiltered
             ? (suppliers[selectedSupplier] ?? 'Filtr')
             : 'Filtr',
-        style: const TextStyle(fontSize: 13),
+        style: Theme.of(context).textTheme.labelMedium,
       ),
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        backgroundColor: isFiltered
+            ? cs.primaryContainer
+            : cs.surfaceContainerHighest,
+        foregroundColor: isFiltered ? cs.primary : cs.onSurfaceVariant,
       ),
     );
   }
@@ -524,9 +688,40 @@ class _SupplierFilterChip extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                margin: const EdgeInsets.only(
+                    top: AppSpacing.sm, bottom: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color:
+                      Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusFull),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+              child: const SectionHeader(title: 'Supplier tanlash'),
+            ),
             ListTile(
-              title: const Text('Barcha supplierlar'),
-              leading: const Icon(Icons.clear),
+              title: const Text('Barchasi'),
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest,
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: const Icon(Icons.clear, size: AppSpacing.iconSm),
+              ),
               onTap: () {
                 ref
                     .read(marketplaceSupplierFilterProvider.notifier)
@@ -534,11 +729,24 @@ class _SupplierFilterChip extends ConsumerWidget {
                 Navigator.pop(ctx);
               },
             ),
-            const Divider(height: 1),
+            Divider(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                height: 1),
             ...suppliers.entries.map(
               (e) => ListTile(
                 title: Text(e.value),
-                leading: const Icon(Icons.storefront),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: Icon(Icons.storefront,
+                      size: AppSpacing.iconSm,
+                      color: Theme.of(context).colorScheme.primary),
+                ),
                 onTap: () {
                   ref
                       .read(marketplaceSupplierFilterProvider.notifier)
@@ -547,6 +755,7 @@ class _SupplierFilterChip extends ConsumerWidget {
                 },
               ),
             ),
+            const SizedBox(height: AppSpacing.lg),
           ],
         ),
       ),
@@ -555,7 +764,7 @@ class _SupplierFilterChip extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Mahsulotlar ro'yxati (Sliver)
+// Mahsulotlar grid (Sliver)
 
 class _ProductsSliver extends ConsumerWidget {
   const _ProductsSliver();
@@ -565,127 +774,218 @@ class _ProductsSliver extends ConsumerWidget {
     final productsState = ref.watch(productsNotifierProvider);
 
     return switch (productsState) {
-      ProductsLoading() => const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: CircularProgressIndicator()),
+      ProductsLoading() => SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          sliver: SliverGrid.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 0.72,
+            children: List.generate(6, (_) => _ProductCardSkeleton()),
           ),
         ),
       ProductsError(:final message) => SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: Text(
-                'Xatolik: $message',
-                style: const TextStyle(color: Colors.red),
-                textAlign: TextAlign.center,
-              ),
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: EmptyState(
+              icon: Icons.error_outline,
+              title: 'Xatolik yuz berdi',
+              message: message,
+              iconColor: AppTheme.colorsOf(context).danger,
+              compact: true,
             ),
           ),
         ),
       ProductsLoaded(products: final products) when products.isEmpty =>
         const SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(
-              child: Text(
-                'Mahsulot topilmadi',
-                style: TextStyle(color: Colors.grey),
-              ),
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: EmptyState(
+              icon: Icons.search_off,
+              title: 'Mahsulot topilmadi',
+              message:
+                  'Boshqa kalit so\'z bilan qidiring yoki filtrni tozalang',
+              compact: true,
             ),
           ),
         ),
-      ProductsLoaded(:final products) => SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, i) => _ProductTile(product: products[i]),
-            childCount: products.length,
+      ProductsLoaded(:final products) => SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          sliver: SliverGrid.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 0.72,
+            children: products
+                .map((p) => _ProductCard(product: p))
+                .toList(),
           ),
         ),
     };
   }
 }
 
-class _ProductTile extends ConsumerWidget {
-  const _ProductTile({required this.product});
+class _ProductCardSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final base = cs.surfaceContainerHighest;
+
+    Widget block(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: base,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          ),
+        );
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: base,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          block(double.infinity, 16),
+          const SizedBox(height: AppSpacing.xs),
+          block(100, 12),
+          const SizedBox(height: AppSpacing.sm),
+          block(80, 14),
+          const Spacer(),
+          block(double.infinity, 36),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductCard extends ConsumerWidget {
+  const _ProductCard({required this.product});
   final MarketplaceProduct product;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            // Mahsulot ikonasi
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.blue.shade50,
-              ),
-              child: Icon(
-                Icons.inventory_2_outlined,
-                color: Colors.blue.shade400,
-                size: 28,
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final cartState = ref.watch(marketplaceCartProvider);
+    final inCart =
+        cartState.items.any((e) => e.product.id == product.id);
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: inCart
+          ? () => context.go('/home/marketplace/cart')
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Mahsulot "rasm" zone
+          Container(
+            height: 86,
+            decoration: BoxDecoration(
+              color: inCart
+                  ? AppTheme.colorsOf(context)
+                      .successContainer
+                      .withValues(alpha: 0.5)
+                  : cs.primaryContainer.withValues(alpha: 0.5),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppSpacing.radiusLg),
               ),
             ),
-            const SizedBox(width: 12),
+            child: Stack(
+              children: [
+                if (product.imageUrl != null)
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(AppSpacing.radiusLg),
+                    ),
+                    child: Image.network(
+                      product.imageUrl!,
+                      width: double.infinity,
+                      height: 86,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _ProductIcon(product: product, inCart: inCart),
+                    ),
+                  )
+                else
+                  _ProductIcon(product: product, inCart: inCart),
 
-            // Ma'lumot
-            Expanded(
+                // inCart indicator
+                if (inCart)
+                  Positioned(
+                    top: AppSpacing.xs,
+                    right: AppSpacing.xs,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: AppTheme.colorsOf(context).success,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.check,
+                          size: 10,
+                          color:
+                              AppTheme.colorsOf(context).onSuccess),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Matn + tugma
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     product.name,
-                    style: const TextStyle(
+                    style: tt.labelLarge?.copyWith(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     product.supplierEnterpriseName,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        _fmtPrice(product.price),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        product.unit,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
+                  const Spacer(),
+                  // Narx
+                  Text(
+                    '${_fmtPrice(product.price)} so\'m',
+                    style: tt.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: cs.primary,
+                    ),
                   ),
+                  Text(
+                    product.unit,
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  // Tugma
+                  _ProductCardButton(product: product, inCart: inCart),
                 ],
               ),
             ),
-
-            // Buyurtma berish tugmasi
-            _OrderButton(product: product),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -697,36 +997,72 @@ class _ProductTile extends ConsumerWidget {
   }
 }
 
-/// Mahsulotni savatga qo'shish yoki buyurtma berish tugmasi.
-class _OrderButton extends ConsumerWidget {
-  const _OrderButton({required this.product});
+class _ProductIcon extends StatelessWidget {
+  const _ProductIcon({required this.product, required this.inCart});
   final MarketplaceProduct product;
+  final bool inCart;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
+    return Center(
+      child: Icon(
+        Icons.inventory_2_outlined,
+        size: AppSpacing.iconXl,
+        color: inCart
+            ? appColors.success.withValues(alpha: 0.6)
+            : cs.primary.withValues(alpha: 0.5),
+      ),
+    );
+  }
+}
+
+class _ProductCardButton extends ConsumerWidget {
+  const _ProductCardButton({
+    required this.product,
+    required this.inCart,
+  });
+  final MarketplaceProduct product;
+  final bool inCart;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cartState = ref.watch(marketplaceCartProvider);
-    final inCart = cartState.items.any((e) => e.product.id == product.id);
+    final appColors = AppTheme.colorsOf(context);
 
     if (inCart) {
-      return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.green,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          minimumSize: Size.zero,
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: appColors.success,
+            foregroundColor: appColors.onSuccess,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            minimumSize: const Size(0, 32),
+          ),
+          onPressed: () => context.go('/home/marketplace/cart'),
+          icon: const Icon(Icons.shopping_cart, size: AppSpacing.iconSm),
+          label: const Text('Savatda'),
         ),
-        onPressed: () => context.go('/home/marketplace/cart'),
-        icon: const Icon(Icons.shopping_cart, size: 16),
-        label: const Text('Savatda', style: TextStyle(fontSize: 12)),
       );
     }
 
-    return FilledButton(
-      style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: Size.zero,
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          minimumSize: const Size(0, 32),
+        ),
+        onPressed: () => _addToCart(context, ref),
+        child: const Text('Savatga'),
       ),
-      onPressed: () => _addToCart(context, ref),
-      child: const Text('Qo\'sh', style: TextStyle(fontSize: 12)),
     );
   }
 
@@ -736,6 +1072,10 @@ class _OrderButton extends ConsumerWidget {
       SnackBar(
         content: Text('${product.name} savatga qo\'shildi'),
         duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        ),
         action: SnackBarAction(
           label: 'Savat',
           onPressed: () => context.go('/home/marketplace/cart'),

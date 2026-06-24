@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
 import '../../data/sync/sync_notifier.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
@@ -12,7 +14,7 @@ import 'sync_providers.dart';
 /// Asosiy shell — barcha himoyalangan sahifalar uchun wrapper.
 ///
 /// Tepada ConnectivityBanner (offline holat ko'rsatkichi).
-/// Agent uchun pastda NavBar (do'konlar, katalog, buyurtmalar, davomat, bosh).
+/// Pastda Material 3 NavigationBar (rol bo'yicha).
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key, required this.child});
   final Widget child;
@@ -34,17 +36,29 @@ class HomeShell extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('RETAIL'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.storefront_rounded,
+              color: Theme.of(context).colorScheme.primary,
+              size: AppSpacing.iconMd,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            const Text('RETAIL'),
+          ],
+        ),
         actions: [
           // Sync holat indikatori
-          _SyncStatusIcon(syncState: syncState),
+          _SyncStatusIcon(syncState: syncState, ref: ref),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
             tooltip: 'Chiqish',
             onPressed: () async {
               await ref.read(authNotifierProvider.notifier).logout();
             },
           ),
+          const SizedBox(width: AppSpacing.xs),
         ],
       ),
       body: Column(
@@ -53,7 +67,7 @@ class HomeShell extends ConsumerWidget {
           Expanded(child: child),
         ],
       ),
-      // Rol bo'yicha pastki navigatsiya
+      // Rol bo'yicha Material 3 NavigationBar
       bottomNavigationBar: isAgent
           ? _AgentNavBar()
           : isCourier
@@ -67,30 +81,49 @@ class HomeShell extends ConsumerWidget {
   }
 }
 
+/// Sync holat ikona — tap qilinganda qayta sinxronlashtiradi.
 class _SyncStatusIcon extends StatelessWidget {
-  const _SyncStatusIcon({required this.syncState});
+  const _SyncStatusIcon({required this.syncState, required this.ref});
   final SyncState syncState;
+  final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
-    return switch (syncState) {
-      SyncState.syncing => const Padding(
-          padding: EdgeInsets.all(12),
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
+    final appColors = AppTheme.colorsOf(context);
+    final cs = Theme.of(context).colorScheme;
+
+    if (syncState == SyncState.syncing) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: SizedBox(
+          width: AppSpacing.iconSm,
+          height: AppSpacing.iconSm,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: cs.primary,
           ),
         ),
-      SyncState.offline => const Icon(Icons.cloud_off, color: Colors.orange),
-      SyncState.error => const Icon(Icons.sync_problem, color: Colors.red),
-      SyncState.success => const Icon(Icons.cloud_done, color: Colors.green),
-      SyncState.idle => const Icon(Icons.cloud_queue),
+      );
+    }
+
+    final (icon, color) = switch (syncState) {
+      SyncState.offline => (Icons.cloud_off_rounded, appColors.warning),
+      SyncState.error => (Icons.sync_problem_rounded, appColors.danger),
+      SyncState.success => (Icons.cloud_done_rounded, appColors.success),
+      _ => (Icons.cloud_queue_rounded, cs.onSurfaceVariant),
     };
+
+    return IconButton(
+      icon: Icon(icon, color: color),
+      tooltip: 'Sinxronlashtirish',
+      onPressed: () => ref.read(syncNotifierProvider.notifier).triggerSync(),
+    );
   }
 }
 
-/// Agent pastki navigatsiya paneli — enabled_modules'ga qarab tab'lar.
+// ---- NavigationBar-lar ----
+
+/// Agent — Material 3 NavigationBar.
 class _AgentNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -100,32 +133,35 @@ class _AgentNavBar extends ConsumerWidget {
     final hasOrders = ref.watch(moduleEnabledProvider('orders'));
     final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
 
-    // Tab ro'yxatini dinamik yasash
     final tabs = <_NavTab>[
       const _NavTab(
         route: '/home/agent',
         matchPrefix: '/home/agent',
-        icon: Icons.home,
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
         label: 'Bosh',
       ),
       const _NavTab(
         route: '/home/stores',
         matchPrefix: '/home/stores',
-        icon: Icons.store,
+        icon: Icons.store_outlined,
+        selectedIcon: Icons.store_rounded,
         label: "Do'konlar",
       ),
       if (hasCatalog)
         const _NavTab(
           route: '/home/catalog',
           matchPrefix: '/home/catalog',
-          icon: Icons.inventory_2,
+          icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2_rounded,
           label: 'Katalog',
         ),
       if (hasOrders)
         const _NavTab(
           route: '/home/orders',
           matchPrefix: '/home/orders',
-          icon: Icons.receipt_long,
+          icon: Icons.receipt_long_outlined,
+          selectedIcon: Icons.receipt_long_rounded,
           label: 'Buyurtmalar',
         ),
       if (hasAttendance)
@@ -133,27 +169,27 @@ class _AgentNavBar extends ConsumerWidget {
           route: '/home/attendance',
           matchPrefix: '/home/attendance',
           icon: Icons.fingerprint,
+          selectedIcon: Icons.fingerprint,
           label: 'Davomat',
         ),
       const _NavTab(
         route: '/home/agent/cabinet',
         matchPrefix: '/home/agent/cabinet',
         icon: Icons.manage_accounts_outlined,
+        selectedIcon: Icons.manage_accounts_rounded,
         label: 'Kabinet',
       ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);
 
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedFontSize: 11,
-      unselectedFontSize: 10,
-      onTap: (index) => context.go(tabs[index].route),
-      items: tabs
-          .map((t) => BottomNavigationBarItem(
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: (index) => context.go(tabs[index].route),
+      destinations: tabs
+          .map((t) => NavigationDestination(
                 icon: Icon(t.icon),
+                selectedIcon: Icon(t.selectedIcon),
                 label: t.label,
               ))
           .toList(),
@@ -161,7 +197,7 @@ class _AgentNavBar extends ConsumerWidget {
   }
 }
 
-/// Kuryer pastki navigatsiya paneli — enabled_modules'ga qarab tab'lar.
+/// Kuryer — Material 3 NavigationBar.
 class _CourierNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -175,21 +211,24 @@ class _CourierNavBar extends ConsumerWidget {
       const _NavTab(
         route: '/home/courier',
         matchPrefix: '/home/courier',
-        icon: Icons.home,
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
         label: 'Bosh',
       ),
       if (hasDelivery)
         const _NavTab(
           route: '/home/deliveries',
           matchPrefix: '/home/deliveries',
-          icon: Icons.local_shipping,
+          icon: Icons.local_shipping_outlined,
+          selectedIcon: Icons.local_shipping_rounded,
           label: 'Yetkazishlar',
         ),
       if (hasMarketplace)
         const _NavTab(
           route: '/home/courier/mp-deliveries',
           matchPrefix: '/home/courier/mp-deliveries',
-          icon: Icons.storefront,
+          icon: Icons.storefront_outlined,
+          selectedIcon: Icons.storefront_rounded,
           label: 'MP Yetkazish',
         ),
       if (hasAttendance)
@@ -197,21 +236,20 @@ class _CourierNavBar extends ConsumerWidget {
           route: '/home/attendance',
           matchPrefix: '/home/attendance',
           icon: Icons.fingerprint,
+          selectedIcon: Icons.fingerprint,
           label: 'Davomat',
         ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);
 
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedFontSize: 11,
-      unselectedFontSize: 10,
-      onTap: (index) => context.go(tabs[index].route),
-      items: tabs
-          .map((t) => BottomNavigationBarItem(
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: (index) => context.go(tabs[index].route),
+      destinations: tabs
+          .map((t) => NavigationDestination(
                 icon: Icon(t.icon),
+                selectedIcon: Icon(t.selectedIcon),
                 label: t.label,
               ))
           .toList(),
@@ -219,7 +257,7 @@ class _CourierNavBar extends ConsumerWidget {
   }
 }
 
-/// Do'kon (store) pastki navigatsiya paneli — pos moduli gating.
+/// Do'kon — Material 3 NavigationBar.
 class _StoreNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -234,20 +272,23 @@ class _StoreNavBar extends ConsumerWidget {
       const _NavTab(
         route: '/home/store',
         matchPrefix: '/home/store',
-        icon: Icons.home,
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
         label: 'Bosh',
       ),
       if (hasPos) ...[
         const _NavTab(
           route: '/home/pos/sale',
           matchPrefix: '/home/pos/sale',
-          icon: Icons.point_of_sale,
+          icon: Icons.point_of_sale_outlined,
+          selectedIcon: Icons.point_of_sale_rounded,
           label: 'Sotuv',
         ),
         const _NavTab(
           route: '/home/pos/inventory',
           matchPrefix: '/home/pos/inventory',
           icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2_rounded,
           label: 'Inventar',
         ),
       ],
@@ -255,7 +296,8 @@ class _StoreNavBar extends ConsumerWidget {
         const _NavTab(
           route: '/home/marketplace',
           matchPrefix: '/home/marketplace',
-          icon: Icons.storefront,
+          icon: Icons.storefront_outlined,
+          selectedIcon: Icons.storefront_rounded,
           label: 'Marketplace',
         ),
       if (hasFinance)
@@ -263,6 +305,7 @@ class _StoreNavBar extends ConsumerWidget {
           route: '/home/store/balance',
           matchPrefix: '/home/store/balance',
           icon: Icons.account_balance_wallet_outlined,
+          selectedIcon: Icons.account_balance_wallet_rounded,
           label: 'Balans',
         ),
       if (hasDelivery)
@@ -270,21 +313,20 @@ class _StoreNavBar extends ConsumerWidget {
           route: '/home/store/deliveries',
           matchPrefix: '/home/store/deliveries',
           icon: Icons.local_shipping_outlined,
+          selectedIcon: Icons.local_shipping_rounded,
           label: 'Yetkazish',
         ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);
 
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedFontSize: 11,
-      unselectedFontSize: 10,
-      onTap: (index) => context.go(tabs[index].route),
-      items: tabs
-          .map((t) => BottomNavigationBarItem(
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: (index) => context.go(tabs[index].route),
+      destinations: tabs
+          .map((t) => NavigationDestination(
                 icon: Icon(t.icon),
+                selectedIcon: Icon(t.selectedIcon),
                 label: t.label,
               ))
           .toList(),
@@ -292,9 +334,7 @@ class _StoreNavBar extends ConsumerWidget {
   }
 }
 
-/// Buxgalter pastki navigatsiya paneli.
-///
-/// Bo'limlar: Bosh sahifa | Moliya | Davomat.
+/// Buxgalter — Material 3 NavigationBar.
 class _AccountantNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -304,34 +344,35 @@ class _AccountantNavBar extends ConsumerWidget {
       const _NavTab(
         route: '/home/accountant',
         matchPrefix: '/home/accountant',
-        icon: Icons.home,
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
         label: 'Bosh',
       ),
       const _NavTab(
         route: '/home/accountant/finance',
         matchPrefix: '/home/accountant/finance',
-        icon: Icons.account_balance_wallet,
+        icon: Icons.account_balance_wallet_outlined,
+        selectedIcon: Icons.account_balance_wallet_rounded,
         label: 'Moliya',
       ),
       const _NavTab(
         route: '/home/attendance',
         matchPrefix: '/home/attendance',
         icon: Icons.fingerprint,
+        selectedIcon: Icons.fingerprint,
         label: 'Davomat',
       ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);
 
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedFontSize: 11,
-      unselectedFontSize: 10,
-      onTap: (index) => context.go(tabs[index].route),
-      items: tabs
-          .map((t) => BottomNavigationBarItem(
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: (index) => context.go(tabs[index].route),
+      destinations: tabs
+          .map((t) => NavigationDestination(
                 icon: Icon(t.icon),
+                selectedIcon: Icon(t.selectedIcon),
                 label: t.label,
               ))
           .toList(),
@@ -346,12 +387,14 @@ class _NavTab {
     required this.route,
     required this.matchPrefix,
     required this.icon,
+    required this.selectedIcon,
     required this.label,
   });
 
   final String route;
   final String matchPrefix;
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
 }
 

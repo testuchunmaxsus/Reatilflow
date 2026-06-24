@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import 'delivery_providers.dart';
 
@@ -15,6 +17,7 @@ class DeliveryListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final deliveriesAsync = ref.watch(deliveriesStreamProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -26,10 +29,10 @@ class DeliveryListScreen extends ConsumerWidget {
                   list.where((d) => !_isTerminal(d.status)).length;
               if (active == 0) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 child: Badge(
                   label: Text('$active'),
-                  child: const Icon(Icons.local_shipping),
+                  child: const Icon(Icons.local_shipping_outlined),
                 ),
               );
             },
@@ -41,12 +44,17 @@ class DeliveryListScreen extends ConsumerWidget {
       body: deliveriesAsync.when(
         data: (deliveries) {
           if (deliveries.isEmpty) {
-            return const _EmptyDeliveries();
+            return const EmptyState(
+              icon: Icons.local_shipping_outlined,
+              title: "Tayinlangan yetkazish yo'q",
+              message: 'Yetkazishlar sync orqali yuklanadi.',
+            );
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: deliveries.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, __) =>
+                const SizedBox(height: AppSpacing.sm),
             itemBuilder: (context, index) {
               return _DeliveryCard(
                 delivery: deliveries[index],
@@ -57,47 +65,20 @@ class DeliveryListScreen extends ConsumerWidget {
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Xatolik: $e')),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: cs.primary),
+        ),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: e.toString(),
+        ),
       ),
     );
   }
 
   bool _isTerminal(String status) =>
       status == 'delivered' || status == 'failed';
-}
-
-class _EmptyDeliveries extends StatelessWidget {
-  const _EmptyDeliveries();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.local_shipping_outlined,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Tayinlangan yetkazish yo\'q',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(color: Colors.grey),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Yetkazishlar sync orqali yuklanadi',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _DeliveryCard extends StatelessWidget {
@@ -111,100 +92,124 @@ class _DeliveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (statusColor, statusLabel) = _statusInfo(delivery.status);
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final statusVariant = _statusVariant(delivery.status);
+    final statusLabel = _statusLabel(delivery.status);
+    final statusIcon = _statusIcon(delivery.status);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sarlavha satri: order ID + badge
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Buyurtma: ${delivery.orderId.substring(0, 8)}...',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14),
-                    ),
-                  ),
-                  _StatusBadge(
-                    color: statusColor,
-                    label: statusLabel,
-                  ),
-                ],
-              ),
-              if (delivery.address != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        delivery.address!,
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+              Container(
+                width: AppSpacing.iconLg + AppSpacing.md,
+                height: AppSpacing.iconLg + AppSpacing.md,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                 ),
-              ],
-              if (delivery.customerName != null) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.person, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      delivery.customerName!,
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.schedule, size: 12, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    _fmtDate(delivery.assignedAt ?? delivery.createdAt),
-                    style:
-                        const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  const Spacer(),
-                  // Sync holat indikatori
-                  if (delivery.syncStatus == 'pending')
-                    const Icon(Icons.pending_outlined,
-                        size: 14, color: Colors.orange),
-                  if (delivery.syncStatus == 'conflict')
-                    const Icon(Icons.warning_amber,
-                        size: 14, color: Colors.red),
-                  const Icon(Icons.chevron_right,
-                      size: 16, color: Colors.grey),
-                ],
+                child: Icon(statusIcon,
+                    size: AppSpacing.iconSm, color: cs.primary),
               ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  'Buyurtma: ${delivery.orderId.substring(0, 8)}...',
+                  style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              StatusBadge(status: statusLabel, variant: statusVariant),
             ],
           ),
-        ),
+
+          if (delivery.address != null || delivery.customerName != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            if (delivery.address != null)
+              _InfoLine(
+                icon: Icons.location_on_outlined,
+                text: delivery.address!,
+              ),
+            if (delivery.customerName != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              _InfoLine(
+                icon: Icons.person_outline,
+                text: delivery.customerName!,
+              ),
+            ],
+          ],
+
+          const SizedBox(height: AppSpacing.md),
+          Divider(
+            height: 1,
+            color: cs.outlineVariant,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Pastki satr: sana + sync holat
+          Row(
+            children: [
+              Icon(Icons.schedule_outlined,
+                  size: AppSpacing.iconXs,
+                  color: cs.onSurfaceVariant),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                _fmtDate(delivery.assignedAt ?? delivery.createdAt),
+                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              const Spacer(),
+              if (delivery.syncStatus == 'pending')
+                Icon(Icons.sync_outlined,
+                    size: AppSpacing.iconXs,
+                    color: Theme.of(context).colorScheme.tertiary),
+              if (delivery.syncStatus == 'conflict')
+                Icon(Icons.warning_amber_outlined,
+                    size: AppSpacing.iconXs,
+                    color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: AppSpacing.xs),
+              Icon(Icons.chevron_right,
+                  size: AppSpacing.iconSm,
+                  color: cs.onSurfaceVariant),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  (Color, String) _statusInfo(String status) => switch (status) {
-        'assigned' => (Colors.blue, 'Tayinlangan'),
-        'started' => (Colors.orange, 'Boshlandi'),
-        'delivering' => (Colors.purple, 'Yetkazilmoqda'),
-        'delivered' => (Colors.green, 'Yetkazildi'),
-        'failed' => (Colors.red, 'Muvaffaqiyatsiz'),
-        _ => (Colors.grey, status),
+  StatusVariant _statusVariant(String status) => switch (status) {
+        'assigned' => StatusVariant.info,
+        'started' => StatusVariant.warning,
+        'delivering' => StatusVariant.warning,
+        'delivered' => StatusVariant.success,
+        'failed' => StatusVariant.danger,
+        _ => StatusVariant.neutral,
+      };
+
+  String _statusLabel(String status) => switch (status) {
+        'assigned' => 'Tayinlangan',
+        'started' => 'Boshlandi',
+        'delivering' => 'Yetkazilmoqda',
+        'delivered' => 'Yetkazildi',
+        'failed' => 'Muvaffaqiyatsiz',
+        _ => status,
+      };
+
+  IconData _statusIcon(String status) => switch (status) {
+        'assigned' => Icons.assignment_outlined,
+        'started' => Icons.directions_run_outlined,
+        'delivering' => Icons.local_shipping_outlined,
+        'delivered' => Icons.check_circle_outline,
+        'failed' => Icons.cancel_outlined,
+        _ => Icons.help_outline,
       };
 
   String _fmtDate(DateTime dt) =>
@@ -212,29 +217,28 @@ class _DeliveryCard extends StatelessWidget {
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.color, required this.label});
-
-  final Color color;
-  final String label;
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Icon(icon, size: AppSpacing.iconXs, color: cs.onSurfaceVariant),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            text,
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-      ),
+      ],
     );
   }
 }

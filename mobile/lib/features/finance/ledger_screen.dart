@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import 'finance_models.dart';
 import 'finance_providers.dart';
 
@@ -18,14 +21,13 @@ class LedgerScreen extends ConsumerStatefulWidget {
 
 class _LedgerScreenState extends ConsumerState<LedgerScreen> {
   late final TextEditingController _storeIdController;
-  String? _typeFilter; // null = hammasi, 'debit', 'credit'
+  String? _typeFilter;
 
   @override
   void initState() {
     super.initState();
     _storeIdController =
         TextEditingController(text: widget.initialStoreId ?? '');
-    // Dastlabki yuklanish — initialStoreId bilan.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialStoreId != null && widget.initialStoreId!.isNotEmpty) {
         ref
@@ -52,13 +54,14 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
   @override
   Widget build(BuildContext context) {
     final ledgerState = ref.watch(ledgerNotifierProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Buxgalteriya yozuvlari'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_outlined),
             tooltip: 'Yangilash',
             onPressed: () =>
                 ref.read(ledgerNotifierProvider.notifier).reload(),
@@ -67,7 +70,6 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
       ),
       body: Column(
         children: [
-          // Filtr paneli
           _FilterPanel(
             controller: _storeIdController,
             typeFilter: _typeFilter,
@@ -78,9 +80,8 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
             onSearch: _applyFilters,
           ),
 
-          const Divider(height: 1),
+          Divider(height: 1, color: cs.outlineVariant),
 
-          // Ro'yxat
           Expanded(
             child: _LedgerBody(state: ledgerState),
           ),
@@ -107,62 +108,54 @@ class _FilterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
       child: Column(
         children: [
-          // Do'kon UUID maydoni
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: controller,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: "Do'kon UUID (ixtiyoriy)",
                     hintText: '019012ab-...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    isDense: true,
-                    prefixIcon: const Icon(Icons.store_outlined, size: 20),
+                    prefixIcon: Icon(Icons.store_outlined),
                   ),
                   onSubmitted: (_) => onSearch(),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               FilledButton(
                 onPressed: onSearch,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                ),
                 child: const Text('Filtr'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          // Tur filtri
+          const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              const Text('Tur:', style: TextStyle(fontSize: 13)),
-              const SizedBox(width: 8),
               _TypeChip(
                 label: 'Hammasi',
                 selected: typeFilter == null,
                 onTap: () => onTypeChanged(null),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: AppSpacing.xs),
               _TypeChip(
                 label: 'Debet',
                 selected: typeFilter == 'debit',
-                color: Colors.red,
+                color: appColors.danger,
                 onTap: () => onTypeChanged('debit'),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: AppSpacing.xs),
               _TypeChip(
                 label: 'Kredit',
                 selected: typeFilter == 'credit',
-                color: Colors.green,
+                color: appColors.success,
                 onTap: () => onTypeChanged('credit'),
               ),
             ],
@@ -188,28 +181,30 @@ class _TypeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = color ?? Theme.of(context).colorScheme.primary;
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final activeColor = color ?? cs.primary;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.xs),
         decoration: BoxDecoration(
           color: selected
               ? activeColor.withValues(alpha: 0.12)
-              : Colors.grey.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
+              : cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
           border: Border.all(
-            color: selected ? activeColor : Colors.grey.withValues(alpha: 0.3),
+            color: selected ? activeColor : cs.outlineVariant,
           ),
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            color: selected ? activeColor : Colors.grey.shade700,
+          style: tt.labelMedium?.copyWith(
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            color: selected ? activeColor : cs.onSurfaceVariant,
           ),
         ),
       ),
@@ -226,55 +221,23 @@ class _LedgerBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (state) {
-      LedgerLoading() => const Center(child: CircularProgressIndicator()),
-      LedgerError(:final message) => _ErrorView(message: message),
+      LedgerLoading() => Center(
+          child: CircularProgressIndicator(
+              color: Theme.of(context).colorScheme.primary),
+        ),
+      LedgerError(:final message) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: message,
+        ),
       LedgerLoaded(:final page) => page.items.isEmpty
-          ? const _EmptyView()
+          ? const EmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: 'Yozuvlar topilmadi',
+              message: "Filtr shartlariga mos yozuv yo'q.",
+            )
           : _LedgerList(page: page),
     };
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 12),
-            Text('Xatolik: $message',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.receipt_long, size: 48, color: Colors.grey),
-          SizedBox(height: 12),
-          Text('Yozuvlar topilmadi',
-              style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
   }
 }
 
@@ -284,27 +247,32 @@ class _LedgerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return Column(
       children: [
-        // Jami ma'lumot
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
           child: Row(
             children: [
               Text(
                 'Jami: ${page.total} yozuv',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
           ),
         ),
         Expanded(
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
             itemCount: page.items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            separatorBuilder: (_, __) =>
+                const SizedBox(height: AppSpacing.sm),
             itemBuilder: (context, index) {
-              return _LedgerEntryTile(entry: page.items[index]);
+              return _LedgerEntryCard(entry: page.items[index]);
             },
           ),
         ),
@@ -313,79 +281,77 @@ class _LedgerList extends StatelessWidget {
   }
 }
 
-class _LedgerEntryTile extends StatelessWidget {
-  const _LedgerEntryTile({required this.entry});
+class _LedgerEntryCard extends StatelessWidget {
+  const _LedgerEntryCard({required this.entry});
   final LedgerEntry entry;
 
   @override
   Widget build(BuildContext context) {
+    final appColors = AppTheme.colorsOf(context);
+    final tt = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
     final isDebit = entry.type == LedgerEntryType.debit;
-    final color = isDebit ? Colors.red : Colors.green;
+    final color = isDebit ? appColors.danger : appColors.success;
+    final bgColor = isDebit
+        ? appColors.dangerContainer.withValues(alpha: 0.15)
+        : appColors.successContainer.withValues(alpha: 0.15);
     final icon = isDebit ? Icons.arrow_upward : Icons.arrow_downward;
     final sign = isDebit ? '+' : '-';
 
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            // Tur belgisi
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 18),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
             ),
-            const SizedBox(width: 12),
-            // Ma'lumotlar
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      _TypeBadge(type: entry.type),
-                      if (entry.refType != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          entry.refType!,
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.grey),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _fmtDate(entry.entryDate),
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            // Miqdor
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Icon(icon, color: color, size: AppSpacing.iconSm),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    StatusBadge(
+                      status: entry.type.label,
+                      variant: isDebit
+                          ? StatusVariant.danger
+                          : StatusVariant.success,
+                    ),
+                    if (entry.refType != null) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        entry.refType!,
+                        style: tt.labelSmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
                 Text(
-                  '$sign${_fmtAmount(entry.amountValue)} ${entry.currency}',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                  _fmtDate(entry.entryDate),
+                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          Text(
+            '$sign${_fmtAmount(entry.amountValue)} ${entry.currency}',
+            style: tt.titleSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -406,31 +372,4 @@ class _LedgerEntryTile extends StatelessWidget {
   String _fmtDate(DateTime dt) =>
       '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year} '
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-}
-
-class _TypeBadge extends StatelessWidget {
-  const _TypeBadge({required this.type});
-  final LedgerEntryType type;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDebit = type == LedgerEntryType.debit;
-    final color = isDebit ? Colors.red : Colors.green;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        type.label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
 }

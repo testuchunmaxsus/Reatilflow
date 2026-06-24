@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import 'barcode_scanner_service.dart';
 import 'catalog_providers.dart';
@@ -20,17 +22,17 @@ class CatalogScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Katalog'),
         actions: [
-          // Barcode skaner tugmasi
           IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
+            icon: const Icon(Icons.qr_code_scanner_outlined),
             tooltip: 'Barcode skanerla',
             onPressed: () => _scanBarcode(context, ref),
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(64),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
             child: _ProductSearchBar(),
           ),
         ),
@@ -39,7 +41,6 @@ class CatalogScreen extends ConsumerWidget {
     );
   }
 
-  /// Barcode skanerini ochish va natijani qidiruv maydoniga joylashtirish.
   Future<void> _scanBarcode(BuildContext context, WidgetRef ref) async {
     const scanner = MobileScannerService();
     final result = await scanner.scan(context);
@@ -54,8 +55,8 @@ class _ProductSearchBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return TextField(
       decoration: InputDecoration(
-        hintText: 'Nom, SKU yoki barcode bo\'yicha qidirish...',
-        prefixIcon: const Icon(Icons.search),
+        hintText: "Nom, SKU yoki barcode bo'yicha qidirish...",
+        prefixIcon: const Icon(Icons.search_outlined),
         suffixIcon: Consumer(
           builder: (_, ref, __) {
             final query = ref.watch(productSearchProvider);
@@ -66,10 +67,6 @@ class _ProductSearchBar extends ConsumerWidget {
             );
           },
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        filled: true,
-        fillColor: Theme.of(context).colorScheme.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 8),
       ),
       onChanged: ref.read(productSearchProvider.notifier).setQuery,
     );
@@ -82,43 +79,32 @@ class _ProductList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(filteredProductsProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return productsAsync.when(
       data: (products) {
         if (products.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.inventory_2_outlined,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.outline),
-                const SizedBox(height: 12),
-                Text(
-                  'Mahsulot topilmadi',
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.outline),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Sync qilinmagan yoki qidiruv noto\'g\'ri',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.outline,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+          return const EmptyState(
+            icon: Icons.inventory_2_outlined,
+            title: 'Mahsulot topilmadi',
+            message: "Sync qilinmagan yoki qidiruv noto'g'ri",
           );
         }
-
-        return ListView.builder(
+        return ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.lg),
           itemCount: products.length,
+          separatorBuilder: (_, __) =>
+              const SizedBox(height: AppSpacing.sm),
           itemBuilder: (ctx, i) => _ProductCard(product: products[i]),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Xatolik: $e')),
+      loading: () =>
+          Center(child: CircularProgressIndicator(color: cs.primary)),
+      error: (e, _) => EmptyState(
+        icon: Icons.error_outline,
+        title: 'Xatolik yuz berdi',
+        message: e.toString(),
+      ),
     );
   }
 }
@@ -129,53 +115,126 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: ListTile(
-        leading: product.photoUrl != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Image.network(
-                  product.photoUrl!,
-                  width: 48,
-                  height: 48,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          // Rasm yoki placeholder
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: product.photoUrl != null
+                ? Image.network(
+                    product.photoUrl!,
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _PlaceholderIcon(cs: cs),
+                  )
+                : _PlaceholderIcon(cs: cs),
+          ),
+
+          const SizedBox(width: AppSpacing.md),
+
+          // Matn
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.nameUz,
+                  style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              )
-            : const CircleAvatar(child: Icon(Icons.inventory_2)),
-        title: Text(
-          product.nameUz,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (product.sku != null)
-              Text('SKU: ${product.sku!}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            if (product.barcode != null)
-              Text('Barcode: ${product.barcode!}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              product.unit,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                const SizedBox(height: AppSpacing.xs),
+                if (product.sku != null)
+                  _MetaChip(
+                      icon: Icons.tag_outlined, label: product.sku!),
+                if (product.barcode != null)
+                  _MetaChip(
+                      icon: Icons.qr_code_outlined,
+                      label: product.barcode!),
+              ],
             ),
-            // Narx server-avtoritar — mahalliy narx ko'rsatilmaydi (T11)
-            const Text(
-              'Narx: server',
-              style: TextStyle(fontSize: 10, color: Colors.orange),
-            ),
-          ],
-        ),
-        isThreeLine: product.sku != null && product.barcode != null,
+          ),
+
+          const SizedBox(width: AppSpacing.sm),
+
+          // O'ng tomon: birlik + narx holati
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+                ),
+                child: Text(
+                  product.unit,
+                  style: tt.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              // Narx server-avtoritar — mahalliy narx ko'rsatilmaydi (T11)
+              Text(
+                'Narx: server',
+                style: tt.labelSmall?.copyWith(
+                    color: cs.tertiary, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _PlaceholderIcon extends StatelessWidget {
+  const _PlaceholderIcon({required this.cs});
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Icon(Icons.inventory_2_outlined,
+          size: AppSpacing.iconMd, color: cs.onSurfaceVariant),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: cs.onSurfaceVariant),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
     );
   }
 }

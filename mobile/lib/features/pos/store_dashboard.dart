@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/dashboard_header.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
 import '../enterprise/enterprise_providers.dart';
@@ -28,93 +33,55 @@ class StoreDashboard extends ConsumerWidget {
     final hasFinance = ref.watch(moduleEnabledProvider('finance'));
     final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
 
+    final initials = user != null
+        ? user.fullName
+            .trim()
+            .split(' ')
+            .take(2)
+            .map((w) => w.isNotEmpty ? w[0] : '')
+            .join()
+            .toUpperCase()
+        : 'DO';
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Salom
-          if (user != null) ...[
-            Text(
-              'Salom, ${user.fullName}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formattedDate(),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
-            ),
-          ],
+          // Header
+          DashboardHeader(
+            greeting: 'Salom,',
+            name: user?.fullName ?? "Do'kon",
+            subtitle: _formattedDate(),
+            role: "DO'KON",
+            avatarInitials: initials,
+          ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.lg),
 
-          // POS moduli yo'q bo'lsa — xabar
+          // POS moduli yo'q bo'lsa — EmptyState
           if (!hasPos)
-            const _ModuleDisabledCard(
-              icon: Icons.point_of_sale,
+            EmptyState(
+              icon: Icons.point_of_sale_outlined,
               title: 'POS moduli faollashtirilmagan',
-              subtitle:
+              message:
                   'Administrator POS modulini yoqishi kerak. '
                   'Iltimos, administrator bilan bog\'laning.',
             )
           else ...[
-            Text(
-              'Tezkor harakatlar',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+            SectionHeader(
+              title: 'Tezkor harakatlar',
+              subtitle: 'Do\'kon operatsiyalari',
             ),
+            const SizedBox(height: AppSpacing.sm),
 
-            const SizedBox(height: 12),
-
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.4,
-              children: [
-                _QuickAction(
-                  icon: Icons.point_of_sale,
-                  label: 'Sotuv',
-                  color: Colors.blue,
-                  onTap: () => context.go('/home/pos/sale'),
-                ),
-                _QuickAction(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'Inventar',
-                  color: Colors.orange,
-                  onTap: () => context.go('/home/pos/inventory'),
-                ),
-                _QuickAction(
-                  icon: Icons.bar_chart,
-                  label: 'Hisobot',
-                  color: Colors.green,
-                  onTap: () => context.go('/home/pos/summary'),
-                ),
-                if (hasFinance)
-                  _QuickAction(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: 'Balans',
-                    color: Colors.teal,
-                    onTap: () => context.go(routeStoreBalance),
-                  ),
-                if (hasDelivery)
-                  _QuickAction(
-                    icon: Icons.local_shipping_outlined,
-                    label: 'Yetkazish',
-                    color: Colors.purple,
-                    onTap: () => context.go(routeStoreDeliveries),
-                  ),
-              ],
+            _StoreQuickActions(
+              hasFinance: hasFinance,
+              hasDelivery: hasDelivery,
             ),
           ],
+
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
     );
@@ -123,105 +90,129 @@ class StoreDashboard extends ConsumerWidget {
   String _formattedDate() {
     final now = DateTime.now();
     const months = [
-      'yanvar',
-      'fevral',
-      'mart',
-      'aprel',
-      'may',
-      'iyun',
-      'iyul',
-      'avgust',
-      'sentabr',
-      'oktabr',
-      'noyabr',
-      'dekabr',
+      'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+      'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr',
     ];
     return '${now.day} ${months[now.month - 1]} ${now.year}';
   }
 }
 
-class _ModuleDisabledCard extends StatelessWidget {
-  const _ModuleDisabledCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+/// Do'kon tezkor harakatlar gridi.
+class _StoreQuickActions extends StatelessWidget {
+  const _StoreQuickActions({
+    required this.hasFinance,
+    required this.hasDelivery,
   });
-  final IconData icon;
-  final String title;
-  final String subtitle;
+
+  final bool hasFinance;
+  final bool hasDelivery;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.grey.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
+    final actions = <_QuickActionData>[
+      const _QuickActionData(
+        icon: Icons.point_of_sale_rounded,
+        label: 'Sotuv',
+        route: '/home/pos/sale',
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(icon, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600,
-                  fontSize: 15),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      const _QuickActionData(
+        icon: Icons.inventory_2_rounded,
+        label: 'Inventar',
+        route: '/home/pos/inventory',
+      ),
+      const _QuickActionData(
+        icon: Icons.bar_chart_rounded,
+        label: 'Hisobot',
+        route: '/home/pos/summary',
+      ),
+      if (hasFinance)
+        _QuickActionData(
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Balans',
+          route: routeStoreBalance,
         ),
-      ),
+      if (hasDelivery)
+        _QuickActionData(
+          icon: Icons.local_shipping_rounded,
+          label: 'Yetkazish',
+          route: routeStoreDeliveries,
+        ),
+    ];
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.sm,
+      crossAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 1.6,
+      children: actions
+          .map((a) => _QuickActionCard(
+                icon: a.icon,
+                label: a.label,
+                onTap: () => context.go(a.route),
+              ))
+          .toList(),
     );
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
+class _QuickActionData {
+  const _QuickActionData({
     required this.icon,
     required this.label,
-    required this.color,
+    required this.route,
+  });
+  final IconData icon;
+  final String label;
+  final String route;
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
     required this.onTap,
   });
   final IconData icon;
   final String label;
-  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 32, color: color),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: AppSpacing.iconLg + AppSpacing.sm,
+            height: AppSpacing.iconLg + AppSpacing.sm,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(icon, color: cs.primary, size: AppSpacing.iconMd),
           ),
-        ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            label,
+            style: tt.labelMedium?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

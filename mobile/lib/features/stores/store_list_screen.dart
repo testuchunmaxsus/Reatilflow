@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
@@ -30,9 +32,10 @@ class StoreListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text("Do'konlar"),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(64),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
             child: _SearchBar(),
           ),
         ),
@@ -46,13 +49,9 @@ class _SearchBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return TextField(
-      decoration: InputDecoration(
+      decoration: const InputDecoration(
         hintText: "Do'kon qidirish...",
-        prefixIcon: const Icon(Icons.search),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        filled: true,
-        fillColor: Theme.of(context).colorScheme.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        prefixIcon: Icon(Icons.search_outlined),
       ),
       onChanged: ref.read(storeSearchProvider.notifier).setQuery,
     );
@@ -66,38 +65,35 @@ class _StoreList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storesAsync = ref.watch(filteredStoresProvider(agentId));
+    final cs = Theme.of(context).colorScheme;
 
     return storesAsync.when(
       data: (stores) {
         if (stores.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.store_mall_directory_outlined,
-                    size: 64, color: Colors.grey),
-                SizedBox(height: 12),
-                Text("Do'konlar topilmadi",
-                    style: TextStyle(color: Colors.grey)),
-                SizedBox(height: 6),
-                Text(
-                  'Sync qilinmagan bo\'lishi mumkin',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ],
-            ),
+          return const EmptyState(
+            icon: Icons.store_mall_directory_outlined,
+            title: "Do'konlar topilmadi",
+            message: "Sync qilinmagan yoki qidiruv noto'g'ri",
           );
         }
         return RefreshIndicator(
-          onRefresh: () async {}, // SyncNotifier orqali boshqariladi
-          child: ListView.builder(
+          onRefresh: () async {},
+          child: ListView.separated(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: stores.length,
+            separatorBuilder: (_, __) =>
+                const SizedBox(height: AppSpacing.sm),
             itemBuilder: (ctx, i) => _StoreCard(store: stores[i]),
           ),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Xatolik: $e')),
+      loading: () =>
+          Center(child: CircularProgressIndicator(color: cs.primary)),
+      error: (e, _) => EmptyState(
+        icon: Icons.error_outline,
+        title: 'Xatolik yuz berdi',
+        message: e.toString(),
+      ),
     );
   }
 }
@@ -108,15 +104,48 @@ class _StoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.store)),
-        title: Text(store.name,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: store.address != null ? Text(store.address!) : null,
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/home/stores/${store.id}'),
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      onTap: () => context.push('/home/stores/${store.id}'),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Icon(Icons.store_outlined,
+                color: cs.primary, size: AppSpacing.iconMd),
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  store.name,
+                  style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (store.address != null)
+                  Text(
+                    store.address!,
+                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right,
+              size: AppSpacing.iconSm, color: cs.onSurfaceVariant),
+        ],
       ),
     );
   }

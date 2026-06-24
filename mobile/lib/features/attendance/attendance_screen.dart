@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/widgets.dart';
 import 'attendance_providers.dart';
 import 'gps_service.dart';
 
@@ -17,14 +20,14 @@ class AttendanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(attendanceNotifierProvider);
+    final cs = Theme.of(context).colorScheme;
 
-    // Xato ko'rsatish
     ref.listen(attendanceNotifierProvider, (_, next) {
       if (next is AttendanceError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.message),
-            backgroundColor: Colors.red,
+            backgroundColor: cs.error,
           ),
         );
       }
@@ -73,73 +76,74 @@ class _AttendanceBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
 
-          // Holat ikonkasi
-          _StatusIcon(state: state),
+          _StatusCircle(state: state),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
 
-          // Holat matni
           _StatusText(state: state),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
 
-          // GPS ma'lumoti
           _GpsInfo(state: state),
 
-          const SizedBox(height: 40),
+          const SizedBox(height: AppSpacing.xxxl),
 
-          // Tugma(lar)
           _ActionButtons(state: state),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
 
-          // Biometrik izoh
-          const _BiometricNote(),
+          _BiometricNote(),
         ],
       ),
     );
   }
 }
 
-class _StatusIcon extends StatelessWidget {
-  const _StatusIcon({required this.state});
+// ---------------------------------------------------------------------------
+
+class _StatusCircle extends StatelessWidget {
+  const _StatusCircle({required this.state});
   final AttendanceState state;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = switch (state) {
-      AttendanceCheckedIn() => (Icons.work, Colors.green),
-      AttendanceCheckedOut() => (Icons.work_off, Colors.grey),
-      AttendanceLoading() => (Icons.hourglass_bottom, Colors.blue),
-      AttendanceError() => (Icons.error_outline, Colors.red),
-      AttendanceIdle() => (Icons.fingerprint, Colors.blue),
-    };
+    final appColors = AppTheme.colorsOf(context);
+    final cs = Theme.of(context).colorScheme;
 
     if (state is AttendanceLoading) {
-      return const SizedBox(
-        width: 80,
-        height: 80,
-        child: CircularProgressIndicator(strokeWidth: 4),
+      return SizedBox(
+        width: 96,
+        height: 96,
+        child: CircularProgressIndicator(strokeWidth: 4, color: cs.primary),
       );
     }
+
+    final (icon, color) = switch (state) {
+      AttendanceCheckedIn() => (Icons.work_outlined, appColors.success),
+      AttendanceCheckedOut() => (Icons.work_off_outlined, cs.onSurfaceVariant),
+      AttendanceError() => (Icons.error_outline, appColors.danger),
+      _ => (Icons.fingerprint, cs.primary),
+    };
 
     return Container(
       width: 100,
       height: 100,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color.withValues(alpha:0.1),
-        border: Border.all(color: color, width: 2),
+        color: color.withValues(alpha: 0.1),
+        border: Border.all(color: color, width: 2.5),
       ),
-      child: Icon(icon, size: 56, color: color),
+      child: Icon(icon, size: 52, color: color),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
 
 class _StatusText extends StatelessWidget {
   const _StatusText({required this.state});
@@ -147,46 +151,64 @@ class _StatusText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (title, subtitle) = switch (state) {
-      AttendanceIdle() => ('Ish kuni boshlanmagan', 'Kirish uchun Face ID bosing'),
-      AttendanceLoading() => ('Kutilmoqda...', 'Iltimos kuting'),
+    final tt = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
+
+    final (title, subtitle, titleColor) = switch (state) {
+      AttendanceIdle() => (
+          'Ish kuni boshlanmagan',
+          'Kirish uchun Face ID bosing',
+          cs.onSurface,
+        ),
+      AttendanceLoading() => (
+          'Kutilmoqda...',
+          'Iltimos kuting',
+          cs.onSurfaceVariant,
+        ),
       AttendanceCheckedIn(:final record) => (
           'Ish jarayonda',
           _formatTime(record.checkInAt),
+          appColors.success,
         ),
       AttendanceCheckedOut(:final record) => (
           'Ish tugadi',
           'Kirish: ${_formatTime(record.checkInAt)}'
               '\nChiqish: ${_formatTime(record.checkOutAt!)}',
+          cs.onSurface,
         ),
-      AttendanceError(:final message) => ('Xatolik', message),
+      AttendanceError(:final message) => (
+          'Xatolik',
+          message,
+          appColors.danger,
+        ),
     };
 
     return Column(
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: tt.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: titleColor,
+          ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.sm),
         Text(
           subtitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey,
-              ),
+          style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
           textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
+  String _formatTime(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
+
+// ---------------------------------------------------------------------------
 
 class _GpsInfo extends StatelessWidget {
   const _GpsInfo({required this.state});
@@ -198,30 +220,33 @@ class _GpsInfo extends StatelessWidget {
     if (state case AttendanceCheckedIn(:final lastGps)) {
       gps = lastGps;
     }
-
     if (gps == null) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade100),
-      ),
+    final appColors = AppTheme.colorsOf(context);
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      color: appColors.infoContainer.withValues(alpha: 0.3),
+      borderColor: appColors.info.withValues(alpha: 0.3),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.location_on, size: 16, color: Colors.blue),
-          const SizedBox(width: 6),
+          Icon(Icons.gps_fixed,
+              size: AppSpacing.iconXs, color: appColors.info),
+          const SizedBox(width: AppSpacing.xs),
           Text(
             'GPS: ${gps.lat.toStringAsFixed(4)}, ${gps.lng.toStringAsFixed(4)}',
-            style: const TextStyle(fontSize: 12, color: Colors.blue),
+            style: tt.labelMedium?.copyWith(color: appColors.info),
           ),
         ],
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
 
 class _ActionButtons extends ConsumerWidget {
   const _ActionButtons({required this.state});
@@ -230,21 +255,20 @@ class _ActionButtons extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(attendanceNotifierProvider.notifier);
+    final appColors = AppTheme.colorsOf(context);
 
-    if (state is AttendanceLoading) {
-      return const SizedBox.shrink();
-    }
+    if (state is AttendanceLoading) return const SizedBox.shrink();
 
     if (state is AttendanceCheckedIn) {
       return SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: Colors.orange,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            backgroundColor: appColors.warning,
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
           ),
           onPressed: notifier.checkOut,
-          icon: const Icon(Icons.logout),
+          icon: const Icon(Icons.logout_outlined),
           label: const Text('Ish kunini tugatish',
               style: TextStyle(fontSize: 16)),
         ),
@@ -252,12 +276,24 @@ class _ActionButtons extends ConsumerWidget {
     }
 
     if (state is AttendanceCheckedOut) {
-      return const Column(
+      return Column(
         children: [
-          Icon(Icons.check_circle, color: Colors.green, size: 48),
-          SizedBox(height: 8),
-          Text('Bugungi ish kuni qayd etildi',
-              style: TextStyle(color: Colors.green, fontSize: 16)),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: appColors.successContainer.withValues(alpha: 0.5),
+            ),
+            child: Icon(Icons.check_circle_outline,
+                color: appColors.success, size: AppSpacing.iconXl),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Bugungi ish kuni qayd etildi',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: appColors.success, fontWeight: FontWeight.w600),
+          ),
         ],
       );
     }
@@ -267,7 +303,7 @@ class _ActionButtons extends ConsumerWidget {
       width: double.infinity,
       child: FilledButton.icon(
         style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         ),
         onPressed: notifier.checkIn,
         icon: const Icon(Icons.fingerprint, size: 28),
@@ -278,27 +314,28 @@ class _ActionButtons extends ConsumerWidget {
   }
 }
 
-class _BiometricNote extends StatelessWidget {
-  const _BiometricNote();
+// ---------------------------------------------------------------------------
 
+class _BiometricNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Row(
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.security, size: 18, color: Colors.grey),
-          SizedBox(width: 8),
+          Icon(Icons.security_outlined,
+              size: AppSpacing.iconSm, color: cs.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               'Xavfsizlik: biometrik ma\'lumotingiz faqat qurilmangizda '
               'tekshiriladi. Serverga faqat "tasdiqlandi" belgisi yuboriladi.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
           ),
         ],

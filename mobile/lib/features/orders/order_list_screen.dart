@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import 'orders_providers.dart';
 
@@ -13,6 +15,7 @@ class OrderListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(ordersStreamProvider);
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -28,31 +31,29 @@ class OrderListScreen extends ConsumerWidget {
       body: ordersAsync.when(
         data: (orders) {
           if (orders.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.receipt_long_outlined,
-                      size: 64, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text('Buyurtmalar yo\'q',
-                      style: TextStyle(color: Colors.grey)),
-                  SizedBox(height: 6),
-                  Text(
-                    'Yangi buyurtma yarating',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
-              ),
+            return EmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: "Buyurtmalar yo'q",
+              message: 'Yangi buyurtma yarating',
+              actionLabel: 'Buyurtma yaratish',
+              onAction: () => context.push('/home/orders/create'),
             );
           }
-          return ListView.builder(
+          return ListView.separated(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: orders.length,
+            separatorBuilder: (_, __) =>
+                const SizedBox(height: AppSpacing.sm),
             itemBuilder: (ctx, i) => _OrderCard(order: orders[i]),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Xatolik: $e')),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: cs.primary)),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          title: 'Xatolik yuz berdi',
+          message: e.toString(),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/home/orders/create'),
@@ -69,96 +70,96 @@ class _OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: _statusColor(order.syncStatus).withValues(alpha:0.1),
-          child: Icon(
-            _statusIcon(order.status),
-            color: _statusColor(order.syncStatus),
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final syncVariant = _syncVariant(order.syncStatus);
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Row(
+        children: [
+          // Status ikon
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Icon(
+              _statusIcon(order.status),
+              color: cs.primary,
+              size: AppSpacing.iconMd,
+            ),
           ),
-        ),
-        title: Text(
-          'Buyurtma ${order.id.substring(0, 8)}...',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Do\'kon: ${order.storeId.substring(0, 8)}...',
-              style: const TextStyle(fontSize: 12),
+          const SizedBox(width: AppSpacing.lg),
+
+          // Matn
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Buyurtma ${order.id.substring(0, 8)}...',
+                  style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  "Do'kon: ${order.storeId.substring(0, 8)}...",
+                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                Text(
+                  _formatDate(order.createdAt),
+                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
             ),
-            Text(
-              _formatDate(order.createdAt),
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        ),
-        trailing: _SyncBadge(syncStatus: order.syncStatus),
-        isThreeLine: true,
+          ),
+
+          const SizedBox(width: AppSpacing.sm),
+
+          // Sync badge
+          StatusBadge(
+            status: _syncLabel(order.syncStatus),
+            variant: syncVariant,
+          ),
+        ],
       ),
     );
   }
 
-  Color _statusColor(String syncStatus) {
-    return switch (syncStatus) {
-      'synced' => Colors.green,
-      'pending' => Colors.orange,
-      'conflict' => Colors.red,
-      'error' => Colors.red,
-      _ => Colors.grey,
-    };
-  }
+  StatusVariant _syncVariant(String syncStatus) => switch (syncStatus) {
+        'synced' => StatusVariant.success,
+        'pending' => StatusVariant.warning,
+        'conflict' => StatusVariant.danger,
+        'error' => StatusVariant.danger,
+        _ => StatusVariant.neutral,
+      };
 
-  IconData _statusIcon(String status) {
-    return switch (status) {
-      'confirmed' => Icons.check_circle_outline,
-      'draft' => Icons.drafts_outlined,
-      'packed' => Icons.inventory_outlined,
-      'delivering' => Icons.local_shipping_outlined,
-      'delivered' => Icons.done_all,
-      'canceled' => Icons.cancel_outlined,
-      _ => Icons.receipt_long_outlined,
-    };
-  }
+  String _syncLabel(String syncStatus) => switch (syncStatus) {
+        'synced' => 'Yuborildi',
+        'pending' => 'Kutilmoqda',
+        'conflict' => 'Ziddiyat',
+        'error' => 'Xatolik',
+        _ => syncStatus,
+      };
 
-  String _formatDate(DateTime dt) {
-    return '${dt.day.toString().padLeft(2, '0')}.'
-        '${dt.month.toString().padLeft(2, '0')}.'
-        '${dt.year} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
-  }
-}
+  IconData _statusIcon(String status) => switch (status) {
+        'confirmed' => Icons.check_circle_outline,
+        'draft' => Icons.drafts_outlined,
+        'packed' => Icons.inventory_outlined,
+        'delivering' => Icons.local_shipping_outlined,
+        'delivered' => Icons.done_all,
+        'canceled' => Icons.cancel_outlined,
+        _ => Icons.receipt_long_outlined,
+      };
 
-class _SyncBadge extends StatelessWidget {
-  const _SyncBadge({required this.syncStatus});
-  final String syncStatus;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (syncStatus) {
-      'synced' => ('Yuborildi', Colors.green),
-      'pending' => ('Kutilmoqda', Colors.orange),
-      'conflict' => ('Ziddiyat', Colors.red),
-      'error' => ('Xatolik', Colors.red),
-      _ => (syncStatus, Colors.grey),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha:0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-            color: color, fontSize: 11, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
+  String _formatDate(DateTime dt) =>
+      '${dt.day.toString().padLeft(2, '0')}.'
+      '${dt.month.toString().padLeft(2, '0')}.'
+      '${dt.year} '
+      '${dt.hour.toString().padLeft(2, '0')}:'
+      '${dt.minute.toString().padLeft(2, '0')}';
 }

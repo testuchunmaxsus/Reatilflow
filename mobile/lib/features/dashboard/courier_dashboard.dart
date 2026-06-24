@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/dashboard_header.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/stat_card.dart';
 import '../../data/sync/sync_notifier.dart';
 import '../attendance/attendance_providers.dart';
 import '../auth/auth_providers.dart';
@@ -13,11 +20,10 @@ import '../home/sync_providers.dart';
 /// Kuryer uchun bosh ekran — dashboard.
 ///
 /// Ko'rsatiladi:
-/// - Salom (foydalanuvchi ismi)
-/// - Bugungi davomat holati
-/// - Tayinlangan yetkazishlar soni
-/// - Sync holati
-/// - Tezkor harakatlar (yetkazishlar, davomat)
+/// - DashboardHeader (salom, ism, rol)
+/// - Faol yetkazishlar StatCard (delivery moduli yoqilganda)
+/// - Davomat StatCard (attendance moduli yoqilganda)
+/// - Tezkor harakatlar grid
 class CourierDashboard extends ConsumerWidget {
   const CourierDashboard({super.key});
 
@@ -36,94 +42,59 @@ class CourierDashboard extends ConsumerWidget {
     final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
     final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
 
+    final initials = user != null
+        ? user.fullName
+            .trim()
+            .split(' ')
+            .take(2)
+            .map((w) => w.isNotEmpty ? w[0] : '')
+            .join()
+            .toUpperCase()
+        : 'KR';
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Salom
-          if (user != null) ...[
-            Text(
-              'Salom, ${user.fullName}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formattedDate(),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
-            ),
-          ],
-
-          const SizedBox(height: 20),
-
-          // Yetkazishlar holat kartasi (delivery moduli yoqilganda)
-          if (hasDelivery) ...[
-            activeCountAsync.when(
-              data: (count) => _DeliveriesCard(activeCount: count),
-              loading: () => const _DeliveriesCard(activeCount: 0),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 12),
-          ],
-
-          // Davomat kartasi (attendance moduli yoqilganda)
-          if (hasAttendance) ...[
-            _AttendanceCard(attendanceState: attendanceState),
-            const SizedBox(height: 12),
-          ],
-
-          // Sync holat
-          _SyncCard(syncState: syncState, ref: ref),
-
-          const SizedBox(height: 20),
-
-          Text(
-            'Tezkor harakatlar',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+          // Header
+          DashboardHeader(
+            greeting: 'Salom,',
+            name: user?.fullName ?? 'Kuryer',
+            subtitle: _formattedDate(),
+            role: 'KURYER',
+            avatarInitials: initials,
+            trailing: _SyncStatusButton(syncState: syncState, ref: ref),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.lg),
 
-          // Tezkor harakatlar grid (modul-gating)
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.4,
-            children: [
-              if (hasDelivery)
-                _QuickAction(
-                  icon: Icons.local_shipping,
-                  label: 'Yetkazishlar',
-                  color: Colors.blue,
-                  onTap: () => context.go('/home/deliveries'),
-                ),
-              if (hasMarketplace)
-                _QuickAction(
-                  icon: Icons.storefront,
-                  label: 'MP Yetkazish',
-                  color: Colors.teal,
-                  onTap: () =>
-                      context.go('/home/courier/mp-deliveries'),
-                ),
-              if (hasAttendance)
-                _QuickAction(
-                  icon: Icons.fingerprint,
-                  label: 'Davomat',
-                  color: Colors.purple,
-                  onTap: () => context.go('/home/attendance'),
-                ),
-            ],
+          // Statistika qatori
+          if (hasDelivery || hasAttendance)
+            _StatsRow(
+              hasDelivery: hasDelivery,
+              hasAttendance: hasAttendance,
+              activeCountAsync: activeCountAsync,
+              attendanceState: attendanceState,
+            ),
+
+          if (hasDelivery || hasAttendance)
+            const SizedBox(height: AppSpacing.lg),
+
+          // Tezkor harakatlar
+          SectionHeader(
+            title: 'Tezkor harakatlar',
+            subtitle: 'Tez kirishingiz uchun',
           ),
+          const SizedBox(height: AppSpacing.sm),
+
+          _CourierQuickActions(
+            hasDelivery: hasDelivery,
+            hasAttendance: hasAttendance,
+            hasMarketplace: hasMarketplace,
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
     );
@@ -132,215 +103,250 @@ class CourierDashboard extends ConsumerWidget {
   String _formattedDate() {
     final now = DateTime.now();
     const months = [
-      'yanvar',
-      'fevral',
-      'mart',
-      'aprel',
-      'may',
-      'iyun',
-      'iyul',
-      'avgust',
-      'sentabr',
-      'oktabr',
-      'noyabr',
-      'dekabr',
+      'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+      'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr',
     ];
     return '${now.day} ${months[now.month - 1]} ${now.year}';
   }
 }
 
-class _DeliveriesCard extends StatelessWidget {
-  const _DeliveriesCard({required this.activeCount});
+/// Statistika qatori — yetkazish + davomat stat kartalar.
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({
+    required this.hasDelivery,
+    required this.hasAttendance,
+    required this.activeCountAsync,
+    required this.attendanceState,
+  });
 
-  final int activeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = activeCount > 0 ? Colors.blue : Colors.grey;
-
-    return GestureDetector(
-      onTap: () => context.push('/home/deliveries'),
-      child: Card(
-        color: color.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.local_shipping, color: color, size: 36),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      activeCount > 0
-                          ? '$activeCount ta faol yetkazish'
-                          : 'Yetkazish yo\'q',
-                      style: TextStyle(
-                          color: color, fontWeight: FontWeight.bold),
-                    ),
-                    const Text(
-                      'Ko\'rish uchun bosing',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: color),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AttendanceCard extends StatelessWidget {
-  const _AttendanceCard({required this.attendanceState});
+  final bool hasDelivery;
+  final bool hasAttendance;
+  final AsyncValue<int> activeCountAsync;
   final AttendanceState attendanceState;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color, title, subtitle) = switch (attendanceState) {
-      AttendanceCheckedIn(:final record) => (
-          Icons.work,
-          Colors.green,
+    final appColors = AppTheme.colorsOf(context);
+
+    final deliveryWidget = hasDelivery
+        ? activeCountAsync.when(
+            data: (count) => StatCard(
+              icon: Icons.local_shipping_rounded,
+              label: 'Faol yetkazishlar',
+              value: count > 0 ? '$count ta' : 'Yo\'q',
+              accentColor: count > 0 ? appColors.info : appColors.warning,
+              onTap: () => Navigator.of(context).pushNamed('/home/deliveries'),
+            ),
+            loading: () => StatCard(
+              icon: Icons.local_shipping_rounded,
+              label: 'Faol yetkazishlar',
+              value: '—',
+              isLoading: true,
+            ),
+            error: (_, __) => const SizedBox.shrink(),
+          )
+        : null;
+
+    final attendanceWidget = hasAttendance
+        ? _buildAttendanceCard(appColors)
+        : null;
+
+    // Ikkala moduli bo'lsa — Row, bitta bo'lsa — to'liq kenglikda
+    if (deliveryWidget != null && attendanceWidget != null) {
+      return Row(
+        children: [
+          Expanded(child: deliveryWidget),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: attendanceWidget),
+        ],
+      );
+    }
+
+    return deliveryWidget ?? attendanceWidget ?? const SizedBox.shrink();
+  }
+
+  Widget _buildAttendanceCard(AppColors appColors) {
+    final (icon, color, title) = switch (attendanceState) {
+      AttendanceCheckedIn() => (
+          Icons.work_rounded,
+          appColors.success,
           'Ish jarayonda',
-          'Kirish: ${_fmt(record.checkInAt)}',
         ),
-      AttendanceCheckedOut(:final record) => (
-          Icons.work_off,
-          Colors.grey,
+      AttendanceCheckedOut() => (
+          Icons.work_off_rounded,
+          appColors.warning,
           'Ish tugadi',
-          'Chiqish: ${_fmt(record.checkOutAt!)}',
         ),
       AttendanceIdle() => (
           Icons.fingerprint,
-          Colors.blue,
-          'Davomat qayd etilmagan',
-          'Boshlash uchun bosing',
+          appColors.info,
+          'Qayd etilmagan',
         ),
-      _ => (Icons.work_outline, Colors.orange, 'Davomat', ''),
+      _ => (Icons.work_outline, appColors.warning, 'Davomat'),
     };
 
-    return GestureDetector(
-      onTap: () => context.push('/home/attendance'),
-      child: Card(
-        color: color.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 36),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                          color: color, fontWeight: FontWeight.bold),
-                    ),
-                    if (subtitle.isNotEmpty)
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.grey),
-                      ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: color),
-            ],
-          ),
-        ),
-      ),
+    return StatCard(
+      icon: icon,
+      label: 'Davomat',
+      value: title,
+      accentColor: color,
     );
   }
-
-  String _fmt(DateTime dt) =>
-      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
-class _SyncCard extends StatelessWidget {
-  const _SyncCard({required this.syncState, required this.ref});
+/// Sync holati tugmasi — DashboardHeader trailing uchun.
+class _SyncStatusButton extends StatelessWidget {
+  const _SyncStatusButton({required this.syncState, required this.ref});
   final SyncState syncState;
   final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color, label) = switch (syncState) {
-      SyncState.syncing => (Icons.sync, Colors.blue, 'Sync qilinmoqda...'),
-      SyncState.success =>
-        (Icons.cloud_done, Colors.green, 'Sync muvaffaqiyatli'),
-      SyncState.error => (Icons.sync_problem, Colors.red, 'Sync xatosi'),
-      SyncState.offline => (Icons.cloud_off, Colors.orange, 'Offline rejim'),
-      SyncState.idle => (Icons.cloud_queue, Colors.grey, 'Sync tayyorligida'),
+    final cs = Theme.of(context).colorScheme;
+    final appColors = AppTheme.colorsOf(context);
+
+    final (icon, color) = switch (syncState) {
+      SyncState.syncing => (Icons.sync, cs.onPrimary),
+      SyncState.success => (Icons.cloud_done, appColors.success),
+      SyncState.error => (Icons.sync_problem, appColors.danger),
+      SyncState.offline => (Icons.cloud_off, appColors.warning),
+      SyncState.idle => (Icons.cloud_queue, cs.onPrimary.withValues(alpha: 0.7)),
     };
 
-    return Card(
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: TextStyle(color: color, fontSize: 14)),
-        trailing: TextButton(
-          onPressed: () =>
-              ref.read(syncNotifierProvider.notifier).triggerSync(),
-          child: const Text('Sync'),
-        ),
-        dense: true,
-      ),
+    return GestureDetector(
+      onTap: () => ref.read(syncNotifierProvider.notifier).triggerSync(),
+      child: syncState == SyncState.syncing
+          ? SizedBox(
+              width: AppSpacing.iconMd,
+              height: AppSpacing.iconMd,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: cs.onPrimary,
+              ),
+            )
+          : Icon(icon, color: color, size: AppSpacing.iconMd),
     );
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
+/// Kuryer tezkor harakatlar gridi.
+class _CourierQuickActions extends StatelessWidget {
+  const _CourierQuickActions({
+    required this.hasDelivery,
+    required this.hasAttendance,
+    required this.hasMarketplace,
   });
 
+  final bool hasDelivery;
+  final bool hasAttendance;
+  final bool hasMarketplace;
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = <_QuickActionData>[
+      if (hasDelivery)
+        _QuickActionData(
+          icon: Icons.local_shipping_rounded,
+          label: 'Yetkazishlar',
+          route: '/home/deliveries',
+        ),
+      if (hasMarketplace)
+        _QuickActionData(
+          icon: Icons.storefront_rounded,
+          label: 'MP Yetkazish',
+          route: '/home/courier/mp-deliveries',
+        ),
+      if (hasAttendance)
+        _QuickActionData(
+          icon: Icons.fingerprint,
+          label: 'Davomat',
+          route: '/home/attendance',
+        ),
+    ];
+
+    if (actions.isEmpty) {
+      return EmptyState(
+        icon: Icons.widgets_outlined,
+        title: 'Modullar yo\'q',
+        message: 'Administrator tomonidan modullar faollashtirilmagan.',
+        compact: true,
+      );
+    }
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.sm,
+      crossAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 1.6,
+      children: actions
+          .map((a) => _QuickActionCard(
+                icon: a.icon,
+                label: a.label,
+                onTap: () => context.go(a.route),
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _QuickActionData {
+  const _QuickActionData({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
   final IconData icon;
   final String label;
-  final Color color;
+  final String route;
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 32, color: color),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            ],
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: AppSpacing.iconLg + AppSpacing.sm,
+            height: AppSpacing.iconLg + AppSpacing.sm,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(icon, color: cs.primary, size: AppSpacing.iconMd),
           ),
-        ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            label,
+            style: tt.labelMedium?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
