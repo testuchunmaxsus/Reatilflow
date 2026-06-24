@@ -52,9 +52,24 @@ const SuperadminLayout = lazy(() =>
     default: m.SuperadminLayout,
   })),
 );
+const SuperadminDashboardPage = lazy(() =>
+  import("@/features/superadmin/SuperadminDashboardPage").then((m) => ({
+    default: m.SuperadminDashboardPage,
+  })),
+);
 const SuperadminEnterprisesPage = lazy(() =>
   import("@/features/superadmin/SuperadminEnterprisesPage").then((m) => ({
     default: m.SuperadminEnterprisesPage,
+  })),
+);
+const SuperadminEnterpriseDetailPage = lazy(() =>
+  import("@/features/superadmin/SuperadminEnterpriseDetailPage").then((m) => ({
+    default: m.SuperadminEnterpriseDetailPage,
+  })),
+);
+const SuperadminUsersPage = lazy(() =>
+  import("@/features/superadmin/SuperadminUsersPage").then((m) => ({
+    default: m.SuperadminUsersPage,
   })),
 );
 // Enterprise settings
@@ -128,11 +143,39 @@ function App() {
                       </Suspense>
                     }
                   >
+                    {/* Dashboard — index sahifa */}
                     <Route
                       index
                       element={
                         <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminDashboardPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* Korxonalar ro'yxati */}
+                    <Route
+                      path="enterprises"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
                           <SuperadminEnterprisesPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* Korxona tafsiloti */}
+                    <Route
+                      path="enterprises/:id"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminEnterpriseDetailPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* Cross-tenant foydalanuvchilar */}
+                    <Route
+                      path="users"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminUsersPage />
                         </Suspense>
                       }
                     />

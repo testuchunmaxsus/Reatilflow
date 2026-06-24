@@ -599,6 +599,21 @@
       "suspend": "To'xtatib qo'yish",
       "activate": "Faollashtirish"
     },
+    "nav": {
+      "dashboard": "Bosh sahifa"
+    },
+    "dashboard": {
+      "title": "Superadmin paneli",
+      "enterprises_total": "Jami korxonalar",
+      "enterprises_active": "Faol korxonalar",
+      "enterprises_suspended": "To'xtatilgan korxonalar",
+      "users_total": "Jami foydalanuvchilar",
+      "enterprises_new_7d": "Yangi (7 kun)"
+    },
+    "filter": {
+      "search_placeholder": "Nom yoki INN bo'yicha qidirish...",
+      "all_statuses": "Barcha holatlar"
+    },
     "table": {
       "name": "Nomi",
       "inn": "INN",
@@ -626,11 +641,16 @@
       "title": "Korxonani to'xtatish",
       "confirm": "\"{{name}}\" korxonasini to'xtatib qo'yishni tasdiqlaysizmi? Foydalanuvchilar tizimga kira olmaydi."
     },
+    "delete": {
+      "title": "Korxonani o'chirish",
+      "confirm": "\"{{name}}\" korxonasini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi."
+    },
     "messages": {
       "enterprise_created": "\"{{name}}\" korxonasi muvaffaqiyatli yaratildi",
       "enterprise_updated": "Korxona muvaffaqiyatli yangilandi",
       "enterprise_suspended": "\"{{name}}\" korxonasi to'xtatildi",
-      "enterprise_activated": "\"{{name}}\" korxonasi faollashtirildi"
+      "enterprise_activated": "\"{{name}}\" korxonasi faollashtirildi",
+      "enterprise_deleted": "\"{{name}}\" korxonasi o'chirildi"
     },
     "modules": {
       "catalog": "Katalog",
@@ -647,6 +667,28 @@
       "stats": "Statistika",
       "push": "Push xabarnomalar",
       "marketplace": "Marketplace"
+    },
+    "detail": {
+      "back": "Orqaga",
+      "info_section": "Korxona ma'lumoti",
+      "admins_section": "Administratorlar",
+      "no_admins": "Administratorlar topilmadi",
+      "user_count": "Foydalanuvchilar soni",
+      "updated_at": "Yangilangan"
+    },
+    "reset_password": {
+      "title": "Parolni reset qilish",
+      "confirm_for": "\"{{name}}\" administratori uchun parolni reset qilish",
+      "generate": "Yangi parol yaratish",
+      "new_password_label": "Yangi parol (faqat bir marta ko'rinadi!)",
+      "copy": "Nusxa olish",
+      "copied": "Nusxalandi!",
+      "one_time_warning": "Bu parol faqat bir marta ko'rsatiladi. Darhol saqlab oling."
+    },
+    "users": {
+      "all_enterprises": "Barcha korxonalar",
+      "enterprise_filter": "Korxona bo'yicha filtrlash",
+      "enterprise_column": "Korxona"
     }
   },
   "marketplace": {

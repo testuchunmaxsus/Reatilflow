@@ -4,7 +4,7 @@
  * Tenant AppLayout'dan butunlay alohida — superadmin
  * tenant ma'lumotlarini ko'rmaydi.
  *
- * Nav: faqat Korxonalar
+ * Nav: Dashboard, Korxonalar, Foydalanuvchilar
  * Header: foydalanuvchi ismi, til, chiqish
  */
 
@@ -25,9 +25,11 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconBuildingSkyscraper,
+  IconLayoutDashboard,
   IconLogout,
   IconChevronDown,
   IconLanguage,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -141,8 +143,22 @@ export function SuperadminLayout() {
             component={NavLink}
             to="/superadmin"
             end
+            label={t("superadmin.nav.dashboard")}
+            leftSection={<IconLayoutDashboard size={18} />}
+            mb={2}
+          />
+          <MantineNavLink
+            component={NavLink}
+            to="/superadmin/enterprises"
             label={t("nav.enterprises")}
             leftSection={<IconBuildingSkyscraper size={18} />}
+            mb={2}
+          />
+          <MantineNavLink
+            component={NavLink}
+            to="/superadmin/users"
+            label={t("nav.users")}
+            leftSection={<IconUsers size={18} />}
             mb={2}
           />
         </ScrollArea>

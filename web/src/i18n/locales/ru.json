@@ -599,6 +599,21 @@
       "suspend": "Приостановить",
       "activate": "Активировать"
     },
+    "nav": {
+      "dashboard": "Главная"
+    },
+    "dashboard": {
+      "title": "Панель суперадмина",
+      "enterprises_total": "Всего организаций",
+      "enterprises_active": "Активных организаций",
+      "enterprises_suspended": "Приостановленных",
+      "users_total": "Всего пользователей",
+      "enterprises_new_7d": "Новых (7 дней)"
+    },
+    "filter": {
+      "search_placeholder": "Поиск по названию или ИНН...",
+      "all_statuses": "Все статусы"
+    },
     "table": {
       "name": "Название",
       "inn": "ИНН",
@@ -626,11 +641,16 @@
       "title": "Приостановить организацию",
       "confirm": "Вы уверены, что хотите приостановить организацию «{{name}}»? Пользователи не смогут войти в систему."
     },
+    "delete": {
+      "title": "Удалить организацию",
+      "confirm": "Вы уверены, что хотите удалить организацию «{{name}}»? Это действие необратимо."
+    },
     "messages": {
       "enterprise_created": "Организация «{{name}}» успешно создана",
       "enterprise_updated": "Организация успешно обновлена",
       "enterprise_suspended": "Организация «{{name}}» приостановлена",
-      "enterprise_activated": "Организация «{{name}}» активирована"
+      "enterprise_activated": "Организация «{{name}}» активирована",
+      "enterprise_deleted": "Организация «{{name}}» удалена"
     },
     "modules": {
       "catalog": "Каталог",
@@ -647,6 +667,28 @@
       "stats": "Статистика",
       "push": "Push-уведомления",
       "marketplace": "Маркетплейс"
+    },
+    "detail": {
+      "back": "Назад",
+      "info_section": "Информация об организации",
+      "admins_section": "Администраторы",
+      "no_admins": "Администраторы не найдены",
+      "user_count": "Количество пользователей",
+      "updated_at": "Обновлена"
+    },
+    "reset_password": {
+      "title": "Сбросить пароль",
+      "confirm_for": "Сбросить пароль для администратора «{{name}}»",
+      "generate": "Создать новый пароль",
+      "new_password_label": "Новый пароль (показывается только один раз!)",
+      "copy": "Скопировать",
+      "copied": "Скопировано!",
+      "one_time_warning": "Этот пароль показывается только один раз. Сохраните его немедленно."
+    },
+    "users": {
+      "all_enterprises": "Все организации",
+      "enterprise_filter": "Фильтр по организации",
+      "enterprise_column": "Организация"
     }
   },
   "marketplace": {

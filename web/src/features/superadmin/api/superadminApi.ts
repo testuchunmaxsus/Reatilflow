@@ -2,12 +2,16 @@
  * Superadmin API — TanStack Query hook'lari.
  *
  * Backend endpointlari (superadmin/router.py):
- *   POST   /superadmin/enterprises          — korxona + admin yaratish
- *   GET    /superadmin/enterprises          — ro'yxat (paginated)
- *   GET    /superadmin/enterprises/{id}     — bitta korxona
- *   PATCH  /superadmin/enterprises/{id}     — yangilash
- *   PATCH  /superadmin/enterprises/{id}/suspend  — to'xtatish
- *   PATCH  /superadmin/enterprises/{id}/activate — faollashtirish
+ *   GET    /superadmin/stats                       — dashboard statistika
+ *   POST   /superadmin/enterprises                 — korxona + admin yaratish
+ *   GET    /superadmin/enterprises                 — ro'yxat (paginated, search, status)
+ *   GET    /superadmin/enterprises/{id}            — tafsilot + adminlar
+ *   PATCH  /superadmin/enterprises/{id}            — yangilash
+ *   PATCH  /superadmin/enterprises/{id}/suspend    — to'xtatish
+ *   PATCH  /superadmin/enterprises/{id}/activate   — faollashtirish
+ *   DELETE /superadmin/enterprises/{id}            — soft-delete
+ *   POST   /superadmin/enterprises/{id}/reset-admin-password — parol reset
+ *   GET    /superadmin/users                       — cross-tenant foydalanuvchilar
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,34 +20,69 @@ import type {
   SuperadminEnterpriseOut,
   SuperadminEnterpriseAdminOut,
   SuperadminEnterprisePaginated,
+  SuperadminEnterpriseDetail,
+  SuperadminStats,
+  SuperadminUserPaginated,
+  ResetAdminPasswordRequest,
+  ResetAdminPasswordResponse,
   EnterpriseCreate,
   EnterpriseUpdate,
+  EnterpriseListFilters,
 } from "../types";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const enterpriseKeys = {
   all: ["superadmin-enterprises"] as const,
-  list: (limit: number, offset: number) =>
-    [...enterpriseKeys.all, "list", { limit, offset }] as const,
+  list: (filters: EnterpriseListFilters) =>
+    [...enterpriseKeys.all, "list", filters] as const,
   detail: (id: string) => [...enterpriseKeys.all, "detail", id] as const,
+  stats: ["superadmin-stats"] as const,
+  users: (filters: Record<string, unknown>) =>
+    ["superadmin-users", filters] as const,
 };
 
-// ─── Ro'yxat ──────────────────────────────────────────────────────────────────
+// ─── Dashboard statistika ─────────────────────────────────────────────────────
 
-export function useEnterprises(limit = 20, offset = 0) {
+export function useSuperadminStats() {
   return useQuery({
-    queryKey: enterpriseKeys.list(limit, offset),
+    queryKey: enterpriseKeys.stats,
+    queryFn: () => apiClient.get<SuperadminStats>("/superadmin/stats"),
+  });
+}
+
+// ─── Ro'yxat (search + status filter) ────────────────────────────────────────
+
+export function useEnterprises(filters: EnterpriseListFilters = {}) {
+  const { search = "", status = "", limit = 20, offset = 0 } = filters;
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (status) params.set("status", status);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+
+  return useQuery({
+    queryKey: enterpriseKeys.list(filters),
     queryFn: () =>
       apiClient.get<SuperadminEnterprisePaginated>(
-        `/superadmin/enterprises?limit=${limit}&offset=${offset}`,
+        `/superadmin/enterprises?${params.toString()}`,
       ),
     placeholderData: (prev) => prev,
   });
 }
 
-// ─── Bitta korxona ────────────────────────────────────────────────────────────
+// ─── Korxona tafsiloti ────────────────────────────────────────────────────────
 
+export function useEnterpriseDetail(id: string, enabled = true) {
+  return useQuery({
+    queryKey: enterpriseKeys.detail(id),
+    queryFn: () =>
+      apiClient.get<SuperadminEnterpriseDetail>(`/superadmin/enterprises/${id}`),
+    enabled: !!id && enabled,
+  });
+}
+
+/** Eski nomi saqlanadi — mavjud kodga mos (EnterpriseFormModal ishlatadi) */
 export function useEnterprise(id: string, enabled = true) {
   return useQuery({
     queryKey: enterpriseKeys.detail(id),
@@ -62,6 +101,7 @@ export function useCreateEnterprise() {
       apiClient.post<SuperadminEnterpriseAdminOut>("/superadmin/enterprises", data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: enterpriseKeys.all });
+      void queryClient.invalidateQueries({ queryKey: enterpriseKeys.stats });
     },
   });
 }
@@ -88,6 +128,7 @@ export function useSuspendEnterprise() {
       apiClient.patch<SuperadminEnterpriseOut>(`/superadmin/enterprises/${id}/suspend`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: enterpriseKeys.all });
+      void queryClient.invalidateQueries({ queryKey: enterpriseKeys.stats });
     },
   });
 }
@@ -101,6 +142,60 @@ export function useActivateEnterprise() {
       apiClient.patch<SuperadminEnterpriseOut>(`/superadmin/enterprises/${id}/activate`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: enterpriseKeys.all });
+      void queryClient.invalidateQueries({ queryKey: enterpriseKeys.stats });
     },
+  });
+}
+
+// ─── O'chirish (soft-delete) ──────────────────────────────────────────────────
+
+export function useDeleteEnterprise() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete<void>(`/superadmin/enterprises/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: enterpriseKeys.all });
+      void queryClient.invalidateQueries({ queryKey: enterpriseKeys.stats });
+    },
+  });
+}
+
+// ─── Parol reset ──────────────────────────────────────────────────────────────
+
+export function useResetAdminPassword(enterpriseId: string) {
+  return useMutation({
+    mutationFn: (body: ResetAdminPasswordRequest) =>
+      apiClient.post<ResetAdminPasswordResponse>(
+        `/superadmin/enterprises/${enterpriseId}/reset-admin-password`,
+        body,
+      ),
+  });
+}
+
+// ─── Cross-tenant foydalanuvchilar ────────────────────────────────────────────
+
+export interface SuperadminUsersFilters {
+  enterprise_id?: string;
+  role?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export function useSuperadminUsers(filters: SuperadminUsersFilters = {}) {
+  const { enterprise_id = "", role = "", limit = 20, offset = 0 } = filters;
+  const params = new URLSearchParams();
+  if (enterprise_id) params.set("enterprise_id", enterprise_id);
+  if (role) params.set("role", role);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+
+  return useQuery({
+    queryKey: enterpriseKeys.users(filters as Record<string, unknown>),
+    queryFn: () =>
+      apiClient.get<SuperadminUserPaginated>(
+        `/superadmin/users?${params.toString()}`,
+      ),
+    placeholderData: (prev) => prev,
   });
 }

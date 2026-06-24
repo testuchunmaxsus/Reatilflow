@@ -62,3 +62,74 @@ export interface EnterpriseUpdate {
   status?: string | null;
   version: number;
 }
+
+// ─── Dashboard statistika ─────────────────────────────────────────────────────
+
+export interface SuperadminStats {
+  enterprises_total: int;
+  enterprises_active: int;
+  enterprises_suspended: int;
+  users_total: int;
+  enterprises_new_7d: int;
+}
+
+// TypeScript aliasi: backend int → TS number
+type int = number;
+
+// ─── Korxona tafsiloti ────────────────────────────────────────────────────────
+
+/** GET /superadmin/enterprises/{id} javobi — adminlar + user_count bilan */
+export interface SuperadminEnterpriseDetailAdmin {
+  id: string;
+  full_name: string;
+  phone: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface SuperadminEnterpriseDetail extends SuperadminEnterpriseOut {
+  user_count: number;
+  admins: SuperadminEnterpriseDetailAdmin[];
+}
+
+// ─── Parol reset ──────────────────────────────────────────────────────────────
+
+export interface ResetAdminPasswordRequest {
+  user_id: string;
+  new_password?: string | null;
+}
+
+export interface ResetAdminPasswordResponse {
+  user_id: string;
+  new_password: string;
+}
+
+// ─── Cross-tenant foydalanuvchilar ────────────────────────────────────────────
+
+export interface SuperadminUserOut {
+  id: string;
+  full_name: string;
+  phone: string;
+  role: string;
+  is_active: boolean;
+  enterprise_id: string | null;
+  enterprise_name: string | null;
+  created_at: string;
+}
+
+export interface SuperadminUserPaginated {
+  items: SuperadminUserOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ─── Ro'yxat filtrlari ────────────────────────────────────────────────────────
+
+export interface EnterpriseListFilters {
+  search?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}

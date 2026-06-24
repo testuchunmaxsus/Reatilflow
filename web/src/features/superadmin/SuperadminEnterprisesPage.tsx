@@ -2,10 +2,13 @@
  * SuperadminEnterprisesPage — korxonalar boshqaruv sahifasi.
  *
  * Xususiyatlar:
+ * - Qidiruv (name/INN) + status filter (active/suspended/hammasi)
  * - Jadval: nom, INN, status, modullar soni, yaratilgan vaqt, amallar
  * - Yaratish tugmasi → EnterpriseFormModal (yaratish)
  * - Tahrirlash → EnterpriseFormModal (tahrirlash, nom + modullar)
  * - Suspend / Activate tugmalari (tasdiqlash bilan)
+ * - O'chirish tugmasi + ConfirmDeleteModal (DELETE)
+ * - Qator bosilsa → /superadmin/enterprises/:id tafsilot sahifasi
  * - Paginated (20 ta/sahifa)
  * - i18n uz/ru
  */
@@ -18,9 +21,11 @@ import {
   Group,
   Loader,
   Pagination,
+  Select,
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -29,15 +34,19 @@ import {
   IconEdit,
   IconPlayerPause,
   IconPlayerPlay,
+  IconTrash,
+  IconSearch,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useNavigate } from "react-router-dom";
 import {
   useEnterprises,
   useSuspendEnterprise,
   useActivateEnterprise,
+  useDeleteEnterprise,
 } from "./api/superadminApi";
 import { EnterpriseFormModal } from "./components/EnterpriseFormModal";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
@@ -67,37 +76,69 @@ function StatusBadge({ status }: { status: string }) {
 export function SuperadminEnterprisesPage() {
   const { t } = useTranslation();
   const { showError } = useApiError();
+  const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
   const offset = (page - 1) * PAGE_SIZE;
 
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [suspendOpened, { open: openSuspend, close: closeSuspend }] = useDisclosure(false);
+  const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
 
   const [editingEnterprise, setEditingEnterprise] =
     useState<SuperadminEnterpriseOut | null>(null);
   const [suspendingEnterprise, setSuspendingEnterprise] =
     useState<SuperadminEnterpriseOut | null>(null);
+  const [deletingEnterprise, setDeletingEnterprise] =
+    useState<SuperadminEnterpriseOut | null>(null);
 
-  const { data, isLoading, isError, error } = useEnterprises(PAGE_SIZE, offset);
+  const { data, isLoading, isError, error } = useEnterprises({
+    search,
+    status: statusFilter,
+    limit: PAGE_SIZE,
+    offset,
+  });
   const suspendMutation = useSuspendEnterprise();
   const activateMutation = useActivateEnterprise();
+  const deleteMutation = useDeleteEnterprise();
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+
+  // Qidiruv o'zgarganda sahifani 1 ga qaytarish
+  const handleSearchChange = useCallback((val: string) => {
+    setSearch(val);
+    setPage(1);
+  }, []);
+
+  const handleStatusChange = useCallback((val: string | null) => {
+    setStatusFilter(val ?? "");
+    setPage(1);
+  }, []);
 
   const handleCreateClick = () => {
     setEditingEnterprise(null);
     openForm();
   };
 
-  const handleEditClick = (ent: SuperadminEnterpriseOut) => {
+  const handleEditClick = (e: React.MouseEvent, ent: SuperadminEnterpriseOut) => {
+    e.stopPropagation();
     setEditingEnterprise(ent);
     openForm();
   };
 
-  const handleSuspendClick = (ent: SuperadminEnterpriseOut) => {
+  const handleSuspendClick = (e: React.MouseEvent, ent: SuperadminEnterpriseOut) => {
+    e.stopPropagation();
     setSuspendingEnterprise(ent);
     openSuspend();
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, ent: SuperadminEnterpriseOut) => {
+    e.stopPropagation();
+    setDeletingEnterprise(ent);
+    openDelete();
   };
 
   const handleConfirmSuspend = async () => {
@@ -116,7 +157,8 @@ export function SuperadminEnterprisesPage() {
     }
   };
 
-  const handleActivateClick = async (ent: SuperadminEnterpriseOut) => {
+  const handleActivateClick = async (e: React.MouseEvent, ent: SuperadminEnterpriseOut) => {
+    e.stopPropagation();
     try {
       await activateMutation.mutateAsync(ent.id);
       notifications.show({
@@ -130,6 +172,26 @@ export function SuperadminEnterprisesPage() {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deletingEnterprise) return;
+    try {
+      await deleteMutation.mutateAsync(deletingEnterprise.id);
+      notifications.show({
+        color: "red",
+        message: t("superadmin.messages.enterprise_deleted", {
+          name: deletingEnterprise.name,
+        }),
+      });
+      closeDelete();
+    } catch (err) {
+      showError(err);
+    }
+  };
+
+  const handleRowClick = (ent: SuperadminEnterpriseOut) => {
+    void navigate(`/superadmin/enterprises/${ent.id}`);
+  };
+
   return (
     <Stack gap="md">
       {/* Sarlavha */}
@@ -138,6 +200,29 @@ export function SuperadminEnterprisesPage() {
         <Button leftSection={<IconPlus size={16} />} onClick={handleCreateClick}>
           {t("superadmin.actions.create")}
         </Button>
+      </Group>
+
+      {/* Filtrlar */}
+      <Group gap="sm">
+        <TextInput
+          placeholder={t("superadmin.filter.search_placeholder")}
+          leftSection={<IconSearch size={16} />}
+          value={search}
+          onChange={(e) => handleSearchChange(e.currentTarget.value)}
+          w={260}
+          aria-label={t("superadmin.filter.search_placeholder")}
+        />
+        <Select
+          placeholder={t("superadmin.filter.all_statuses")}
+          value={statusFilter || null}
+          onChange={handleStatusChange}
+          data={[
+            { value: "active", label: t("superadmin.status.active") },
+            { value: "suspended", label: t("superadmin.status.suspended") },
+          ]}
+          clearable
+          w={180}
+        />
       </Group>
 
       {/* Jadval */}
@@ -171,7 +256,11 @@ export function SuperadminEnterprisesPage() {
             </Table.Thead>
             <Table.Tbody>
               {data.items.map((ent) => (
-                <Table.Tr key={ent.id}>
+                <Table.Tr
+                  key={ent.id}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => handleRowClick(ent)}
+                >
                   <Table.Td>
                     <Text size="sm" fw={500}>
                       {ent.name}
@@ -194,11 +283,11 @@ export function SuperadminEnterprisesPage() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap={4}>
+                    <Group gap={4} onClick={(e) => e.stopPropagation()}>
                       <Tooltip label={t("common.edit")}>
                         <ActionIcon
                           variant="subtle"
-                          onClick={() => handleEditClick(ent)}
+                          onClick={(e) => handleEditClick(e, ent)}
                           aria-label={t("common.edit")}
                         >
                           <IconEdit size={16} />
@@ -210,7 +299,7 @@ export function SuperadminEnterprisesPage() {
                           <ActionIcon
                             variant="subtle"
                             color="orange"
-                            onClick={() => handleSuspendClick(ent)}
+                            onClick={(e) => handleSuspendClick(e, ent)}
                             aria-label={t("superadmin.actions.suspend")}
                           >
                             <IconPlayerPause size={16} />
@@ -221,13 +310,24 @@ export function SuperadminEnterprisesPage() {
                           <ActionIcon
                             variant="subtle"
                             color="green"
-                            onClick={() => { void handleActivateClick(ent); }}
+                            onClick={(e) => { void handleActivateClick(e, ent); }}
                             aria-label={t("superadmin.actions.activate")}
                           >
                             <IconPlayerPlay size={16} />
                           </ActionIcon>
                         </Tooltip>
                       )}
+
+                      <Tooltip label={t("common.delete")}>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          onClick={(e) => handleDeleteClick(e, ent)}
+                          aria-label={t("common.delete")}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -267,6 +367,19 @@ export function SuperadminEnterprisesPage() {
             : ""
         }
         loading={suspendMutation.isPending}
+      />
+
+      <ConfirmDeleteModal
+        opened={deleteOpened}
+        onClose={closeDelete}
+        onConfirm={() => { void handleConfirmDelete(); }}
+        title={t("superadmin.delete.title")}
+        message={
+          deletingEnterprise
+            ? t("superadmin.delete.confirm", { name: deletingEnterprise.name })
+            : ""
+        }
+        loading={deleteMutation.isPending}
       />
     </Stack>
   );
