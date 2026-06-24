@@ -244,6 +244,12 @@ class _AgentQuickActions extends ConsumerWidget {
           color: Colors.purple,
           onTap: () => context.push('/home/attendance'),
         ),
+      _QuickAction(
+        icon: Icons.manage_accounts_outlined,
+        label: 'Kabinet',
+        color: Colors.blueGrey,
+        onTap: () => context.push('/home/agent/cabinet'),
+      ),
     ];
 
     if (actions.isEmpty) {

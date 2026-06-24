@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/agent_cabinet/agent_cabinet_screen.dart';
 import '../../features/attendance/attendance_screen.dart';
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/auth_repository.dart';
@@ -12,7 +13,10 @@ import '../../features/dashboard/agent_dashboard.dart';
 import '../../features/dashboard/courier_dashboard.dart';
 import '../../features/delivery/delivery_detail_screen.dart';
 import '../../features/delivery/delivery_list_screen.dart';
+import '../../features/delivery/delivery_map_screen.dart';
+import '../../features/delivery/store_delivery_screen.dart';
 import '../../features/finance/finance_screen.dart';
+import '../../features/finance/store_balance_screen.dart';
 import '../../features/home/home_shell.dart';
 import '../../features/marketplace/courier_mp_deliveries_screen.dart';
 import '../../features/marketplace/marketplace_accept_screen.dart';
@@ -47,9 +51,17 @@ const String routeOrders = '/home/orders';
 const String routeOrderCreate = '/home/orders/create';
 const String routeAttendance = '/home/attendance';
 
+// Agent cabinet
+const String routeAgentCabinet = '/home/agent/cabinet';
+
 // Courier routes
 const String routeDeliveries = '/home/deliveries';
 const String routeDeliveryDetail = '/home/deliveries/:deliveryId';
+const String routeDeliveryMap = '/home/deliveries/:deliveryId/map';
+
+// Store: moliya + yetkazish
+const String routeStoreBalance = '/home/store/balance';
+const String routeStoreDeliveries = '/home/store/deliveries';
 
 // Courier Marketplace routes
 const String routeCourierMpDeliveries = '/home/courier/mp-deliveries';
@@ -110,6 +122,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: routeAgent,
             builder: (context, state) => const AgentDashboard(),
+            routes: [
+              GoRoute(
+                path: 'cabinet',
+                builder: (context, state) => const AgentCabinetScreen(),
+              ),
+            ],
           ),
           GoRoute(
             path: routeCourier,
@@ -118,6 +136,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: routeStore,
             builder: (context, state) => const StoreDashboard(),
+            routes: [
+              GoRoute(
+                path: 'balance',
+                builder: (context, state) => const StoreBalanceScreen(),
+              ),
+              GoRoute(
+                path: 'deliveries',
+                builder: (context, state) => const StoreDeliveryScreen(),
+              ),
+            ],
           ),
 
           // --- Buxgalter ---
@@ -221,6 +249,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => DeliveryDetailScreen(
                   deliveryId: state.pathParameters['deliveryId']!,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'map',
+                    builder: (context, state) => DeliveryMapScreen(
+                      deliveryId: state.pathParameters['deliveryId']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

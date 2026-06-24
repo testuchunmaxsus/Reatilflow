@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
 import '../enterprise/enterprise_providers.dart';
@@ -24,6 +25,8 @@ class StoreDashboard extends ConsumerWidget {
     };
 
     final hasPos = ref.watch(moduleEnabledProvider('pos'));
+    final hasFinance = ref.watch(moduleEnabledProvider('finance'));
+    final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -95,6 +98,20 @@ class StoreDashboard extends ConsumerWidget {
                   color: Colors.green,
                   onTap: () => context.go('/home/pos/summary'),
                 ),
+                if (hasFinance)
+                  _QuickAction(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Balans',
+                    color: Colors.teal,
+                    onTap: () => context.go(routeStoreBalance),
+                  ),
+                if (hasDelivery)
+                  _QuickAction(
+                    icon: Icons.local_shipping_outlined,
+                    label: 'Yetkazish',
+                    color: Colors.purple,
+                    onTap: () => context.go(routeStoreDeliveries),
+                  ),
               ],
             ),
           ],

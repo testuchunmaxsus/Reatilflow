@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../data/local/database.dart';
 import 'delivery_providers.dart';
 import 'delivery_repository.dart';
@@ -146,6 +148,11 @@ class _DeliveryDetailBody extends ConsumerWidget {
           // GPS holati (faol holatda)
           if (kGpsActiveStatuses.contains(delivery.status))
             const _GpsActiveCard(),
+
+          const SizedBox(height: 8),
+
+          // Xaritada ko'rish havolasi
+          _MapLinkButton(deliveryId: deliveryId),
 
           const SizedBox(height: 16),
 
@@ -390,6 +397,28 @@ class _GpsActiveCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Xaritada ko'rish tugmasi — GPS trek ekraniga o'tish.
+class _MapLinkButton extends StatelessWidget {
+  const _MapLinkButton({required this.deliveryId});
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.blueGrey,
+        side: BorderSide(color: Colors.blueGrey.withValues(alpha: 0.4)),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        minimumSize: const Size.fromHeight(0),
+      ),
+      onPressed: () =>
+          context.push(routeDeliveryMap.replaceAll(':deliveryId', deliveryId)),
+      icon: const Icon(Icons.map_outlined, size: 18),
+      label: const Text('Xaritada ko\'rish'),
     );
   }
 }

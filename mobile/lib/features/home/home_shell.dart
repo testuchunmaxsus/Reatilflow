@@ -135,6 +135,12 @@ class _AgentNavBar extends ConsumerWidget {
           icon: Icons.fingerprint,
           label: 'Davomat',
         ),
+      const _NavTab(
+        route: '/home/agent/cabinet',
+        matchPrefix: '/home/agent/cabinet',
+        icon: Icons.manage_accounts_outlined,
+        label: 'Kabinet',
+      ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);
@@ -221,6 +227,8 @@ class _StoreNavBar extends ConsumerWidget {
 
     final hasPos = ref.watch(moduleEnabledProvider('pos'));
     final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
+    final hasFinance = ref.watch(moduleEnabledProvider('finance'));
+    final hasDelivery = ref.watch(moduleEnabledProvider('delivery'));
 
     final tabs = <_NavTab>[
       const _NavTab(
@@ -249,6 +257,20 @@ class _StoreNavBar extends ConsumerWidget {
           matchPrefix: '/home/marketplace',
           icon: Icons.storefront,
           label: 'Marketplace',
+        ),
+      if (hasFinance)
+        const _NavTab(
+          route: '/home/store/balance',
+          matchPrefix: '/home/store/balance',
+          icon: Icons.account_balance_wallet_outlined,
+          label: 'Balans',
+        ),
+      if (hasDelivery)
+        const _NavTab(
+          route: '/home/store/deliveries',
+          matchPrefix: '/home/store/deliveries',
+          icon: Icons.local_shipping_outlined,
+          label: 'Yetkazish',
         ),
     ];
 
@@ -333,9 +355,19 @@ class _NavTab {
   final String label;
 }
 
+/// Eng uzun mos keluvchi matchPrefix bo'yicha tab indeksini aniqlaydi.
+///
+/// Bu usul `/home/agent` va `/home/agent/cabinet` kabi ichma-ich yo'llar
+/// mavjud bo'lganda aniq tabni ajratib ko'rsatadi.
 int _resolveIndex(List<_NavTab> tabs, String location) {
+  int bestIndex = 0;
+  int bestLength = 0;
   for (int i = 0; i < tabs.length; i++) {
-    if (location.startsWith(tabs[i].matchPrefix)) return i;
+    final prefix = tabs[i].matchPrefix;
+    if (location.startsWith(prefix) && prefix.length > bestLength) {
+      bestIndex = i;
+      bestLength = prefix.length;
+    }
   }
-  return 0;
+  return bestIndex;
 }
