@@ -13,6 +13,7 @@ import {
   AppShell,
   Box,
   Burger,
+  Divider,
   Group,
   Menu,
   NavLink as MantineNavLink,
@@ -32,6 +33,7 @@ import {
   IconUsers,
   IconFileText,
   IconPhoto,
+  IconShieldLock,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -141,6 +143,7 @@ export function SuperadminLayout() {
       {/* Sidebar */}
       <AppShell.Navbar p="xs">
         <ScrollArea>
+          {/* Asosiy */}
           <MantineNavLink
             component={NavLink}
             to="/superadmin"
@@ -149,6 +152,9 @@ export function SuperadminLayout() {
             leftSection={<IconLayoutDashboard size={18} />}
             mb={2}
           />
+
+          <Divider my="xs" label={t("superadmin.nav.group_management")} labelPosition="left" />
+
           <MantineNavLink
             component={NavLink}
             to="/superadmin/enterprises"
@@ -163,6 +169,19 @@ export function SuperadminLayout() {
             leftSection={<IconUsers size={18} />}
             mb={2}
           />
+
+          <Divider my="xs" label={t("superadmin.nav.group_content")} labelPosition="left" />
+
+          <MantineNavLink
+            component={NavLink}
+            to="/superadmin/banners"
+            label={t("superadmin.nav.banners")}
+            leftSection={<IconPhoto size={18} />}
+            mb={2}
+          />
+
+          <Divider my="xs" label={t("superadmin.nav.group_system")} labelPosition="left" />
+
           <MantineNavLink
             component={NavLink}
             to="/superadmin/audit-logs"
@@ -172,9 +191,9 @@ export function SuperadminLayout() {
           />
           <MantineNavLink
             component={NavLink}
-            to="/superadmin/banners"
-            label={t("superadmin.nav.banners")}
-            leftSection={<IconPhoto size={18} />}
+            to="/superadmin/rbac"
+            label={t("nav.rbac")}
+            leftSection={<IconShieldLock size={18} />}
             mb={2}
           />
         </ScrollArea>

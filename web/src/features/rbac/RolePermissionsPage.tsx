@@ -55,6 +55,8 @@ const ROLE_COLORS: Record<RoleName, string> = {
 };
 
 // Matritsa ma'lumotlari (backend permissions.py §3.6 ga mos)
+// Module.* barcha qiymatlar: catalog, agent_cabinet, attendance, delivery, stock,
+// finance, tickets, customers, stats, contracts, promo, rbac, orders, gps, pos, marketplace
 const MATRIX: ModulePermissions[] = [
   {
     module: "catalog",
@@ -123,6 +125,17 @@ const MATRIX: ModulePermissions[] = [
     },
   },
   {
+    module: "stock",
+    labelKey: "rbac.matrix.modules.stock",
+    permissions: {
+      administrator: new Set(["view", "create", "edit", "delete"]),
+      accountant:    new Set(["view"]),
+      agent:         new Set(["view"]),
+      courier:       new Set(["view"]),
+      store:         new Set([]),
+    },
+  },
+  {
     module: "tickets",
     labelKey: "rbac.matrix.modules.tickets",
     permissions: {
@@ -167,14 +180,47 @@ const MATRIX: ModulePermissions[] = [
     },
   },
   {
-    module: "stock",
-    labelKey: "rbac.matrix.modules.stock",
+    module: "agent_cabinet",
+    labelKey: "rbac.matrix.modules.agent_cabinet",
     permissions: {
-      administrator: new Set(["view", "create", "edit", "delete"]),
+      administrator: new Set(["view"]),
       accountant:    new Set(["view"]),
-      agent:         new Set(["view"]),
-      courier:       new Set(["view"]),
+      agent:         new Set(["view", "edit"]),
+      courier:       new Set([]),
       store:         new Set([]),
+    },
+  },
+  {
+    module: "gps",
+    labelKey: "rbac.matrix.modules.gps",
+    permissions: {
+      administrator: new Set(["view"]),
+      accountant:    new Set([]),
+      agent:         new Set(["view", "create"]),
+      courier:       new Set(["view", "create"]),
+      store:         new Set([]),
+    },
+  },
+  {
+    module: "pos",
+    labelKey: "rbac.matrix.modules.pos",
+    permissions: {
+      administrator: new Set(["view", "create"]),
+      accountant:    new Set(["view"]),
+      agent:         new Set([]),
+      courier:       new Set([]),
+      store:         new Set(["view", "create"]),
+    },
+  },
+  {
+    module: "marketplace",
+    labelKey: "rbac.matrix.modules.marketplace",
+    permissions: {
+      administrator: new Set(["view", "create", "edit"]),
+      accountant:    new Set(["view", "create", "edit"]),
+      agent:         new Set(["view", "create"]),
+      courier:       new Set(["view", "edit"]),
+      store:         new Set(["view", "create", "edit"]),
     },
   },
   {

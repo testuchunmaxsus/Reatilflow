@@ -53,7 +53,10 @@
     "finance": "Moliya",
     "pos": "Kassa",
     "delivery": "Yetkazish",
-    "agent_cabinet": "Agent kabineti"
+    "agent_cabinet": "Agent kabineti",
+    "attendance": "Davomat",
+    "stock": "Ombor",
+    "gps": "GPS kuzatuv"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -607,7 +610,10 @@
     "nav": {
       "dashboard": "Bosh sahifa",
       "audit_logs": "Audit log",
-      "banners": "Bannerlar"
+      "banners": "Bannerlar",
+      "group_management": "Boshqaruv",
+      "group_content": "Kontent",
+      "group_system": "Tizim"
     },
     "dashboard": {
       "title": "Superadmin paneli",
@@ -698,7 +704,9 @@
       "delete_confirm": "{{count}} ta korxonani o'chirishni tasdiqlaysizmi? 422 xatoli (himoyalangan) korxonalar o'tkazib yuboriladi.",
       "suspended_count": "{{count}} ta korxona to'xtatildi",
       "activated_count": "{{count}} ta korxona faollashtirildi",
-      "deleted_count": "{{count}} ta korxona o'chirildi"
+      "deleted_count": "{{count}} ta korxona o'chirildi",
+      "failed_title": "Bajarilmadi",
+      "failed_names": "Quyidagi korxonalar o'tkazib yuborildi: {{names}}"
     },
     "audit": {
       "title": "Audit log",
@@ -918,6 +926,10 @@
         "promo": "Aksiyalar",
         "attendance": "Davomat",
         "stock": "Ombor",
+        "agent_cabinet": "Agent kabineti",
+        "gps": "GPS kuzatuv",
+        "pos": "POS sotuv",
+        "marketplace": "Marketplace",
         "rbac": "RBAC / Audit"
       }
     }

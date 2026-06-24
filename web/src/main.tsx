@@ -128,6 +128,24 @@ const AgentCabinetPage = lazy(() =>
     default: m.AgentCabinetPage,
   })),
 );
+// Attendance — code-split
+const AttendanceListPage = lazy(() =>
+  import("@/features/attendance/AttendanceListPage").then((m) => ({
+    default: m.AttendanceListPage,
+  })),
+);
+// Stock — code-split
+const StockListPage = lazy(() =>
+  import("@/features/stock/StockListPage").then((m) => ({
+    default: m.StockListPage,
+  })),
+);
+// GPS tracking — code-split
+const GpsTrackPage = lazy(() =>
+  import("@/features/gps/GpsTrackPage").then((m) => ({
+    default: m.GpsTrackPage,
+  })),
+);
 
 // ─── POS wrapper komponentlari ───────────────────────────────────────────
 
@@ -366,6 +384,33 @@ function App() {
                       element={
                         <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
                           <AgentCabinetPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /attendance — davomatni boshqarish */}
+                    <Route
+                      path="attendance"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <AttendanceListPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /stock — ombor qoldiqlari */}
+                    <Route
+                      path="stock"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <StockListPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /gps — GPS harakatni kuzatish */}
+                    <Route
+                      path="gps"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <GpsTrackPage />
                         </Suspense>
                       }
                     />

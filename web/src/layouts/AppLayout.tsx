@@ -43,6 +43,9 @@ import {
   IconReceipt,
   IconTruck,
   IconBriefcase,
+  IconCalendarStats,
+  IconBox,
+  IconMapPin,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -160,6 +163,27 @@ function useNavItems(): NavItem[] {
       icon: IconTruck,
       requiredPermission: "delivery:view",
       requiredModule: "delivery",
+    },
+    {
+      label: t("nav.attendance"),
+      path: "/attendance",
+      icon: IconCalendarStats,
+      requiredPermission: "attendance:view",
+      requiredModule: "attendance",
+    },
+    {
+      label: t("nav.stock"),
+      path: "/stock",
+      icon: IconBox,
+      requiredPermission: "stock:view",
+      requiredModule: "stock",
+    },
+    {
+      label: t("nav.gps"),
+      path: "/gps",
+      icon: IconMapPin,
+      requiredPermission: "gps:view",
+      requiredModule: "gps",
     },
     {
       label: t("nav.agent_cabinet"),

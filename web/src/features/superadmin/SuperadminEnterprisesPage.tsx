@@ -260,64 +260,100 @@ export function SuperadminEnterprisesPage() {
   };
 
   // ─── Bulk amallar ──────────────────────────────────────────────────────────
+  // Promise.allSettled — barcha so'rovlar parallel ketadi,
+  // muvaffaqiyatsiz bo'lganlar (422 default korxona va boshqa xatolar)
+  // notification'da ko'rsatiladi.
+
+  const getEnterpriseName = (id: string): string =>
+    items.find((e) => e.id === id)?.name ?? id;
 
   const handleBulkSuspend = async () => {
     const ids = Array.from(selectedIds);
-    let successCount = 0;
-    for (const id of ids) {
-      try {
-        await suspendMutation.mutateAsync(id);
-        successCount++;
-      } catch {
-        // 422 va boshqa xatolar yutiladi — qolganlarini bajarishda davom etamiz
-      }
-    }
+    const results = await Promise.allSettled(
+      ids.map((id) => suspendMutation.mutateAsync(id)),
+    );
     setSelectedIds(new Set());
+
+    const failedNames = results
+      .map((r, i) => (r.status === "rejected" ? getEnterpriseName(ids[i]) : null))
+      .filter(Boolean) as string[];
+    const successCount = results.filter((r) => r.status === "fulfilled").length;
+
     if (successCount > 0) {
       notifications.show({
         color: "orange",
         message: t("superadmin.bulk.suspended_count", { count: successCount }),
       });
     }
+    if (failedNames.length > 0) {
+      notifications.show({
+        color: "red",
+        title: t("superadmin.bulk.failed_title"),
+        message: t("superadmin.bulk.failed_names", {
+          names: failedNames.join(", "),
+        }),
+        autoClose: 8000,
+      });
+    }
   };
 
   const handleBulkActivate = async () => {
     const ids = Array.from(selectedIds);
-    let successCount = 0;
-    for (const id of ids) {
-      try {
-        await activateMutation.mutateAsync(id);
-        successCount++;
-      } catch {
-        // xato yutiladi
-      }
-    }
+    const results = await Promise.allSettled(
+      ids.map((id) => activateMutation.mutateAsync(id)),
+    );
     setSelectedIds(new Set());
+
+    const failedNames = results
+      .map((r, i) => (r.status === "rejected" ? getEnterpriseName(ids[i]) : null))
+      .filter(Boolean) as string[];
+    const successCount = results.filter((r) => r.status === "fulfilled").length;
+
     if (successCount > 0) {
       notifications.show({
         color: "green",
         message: t("superadmin.bulk.activated_count", { count: successCount }),
       });
     }
+    if (failedNames.length > 0) {
+      notifications.show({
+        color: "red",
+        title: t("superadmin.bulk.failed_title"),
+        message: t("superadmin.bulk.failed_names", {
+          names: failedNames.join(", "),
+        }),
+        autoClose: 8000,
+      });
+    }
   };
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
-    let successCount = 0;
-    for (const id of ids) {
-      try {
-        await deleteMutation.mutateAsync(id);
-        successCount++;
-      } catch {
-        // 422 (default korxona) va boshqa xatolar yutiladi
-      }
-    }
+    const results = await Promise.allSettled(
+      ids.map((id) => deleteMutation.mutateAsync(id)),
+    );
     setSelectedIds(new Set());
     closeBulkDelete();
+
+    const failedNames = results
+      .map((r, i) => (r.status === "rejected" ? getEnterpriseName(ids[i]) : null))
+      .filter(Boolean) as string[];
+    const successCount = results.filter((r) => r.status === "fulfilled").length;
+
     if (successCount > 0) {
       notifications.show({
         color: "red",
         message: t("superadmin.bulk.deleted_count", { count: successCount }),
+      });
+    }
+    if (failedNames.length > 0) {
+      notifications.show({
+        color: "orange",
+        title: t("superadmin.bulk.failed_title"),
+        message: t("superadmin.bulk.failed_names", {
+          names: failedNames.join(", "),
+        }),
+        autoClose: 8000,
       });
     }
   };

@@ -53,7 +53,10 @@
     "finance": "Финансы",
     "pos": "Касса",
     "delivery": "Доставка",
-    "agent_cabinet": "Кабинет агента"
+    "agent_cabinet": "Кабинет агента",
+    "attendance": "Посещаемость",
+    "stock": "Склад",
+    "gps": "GPS отслеживание"
   },
   "common": {
     "loading": "Загрузка...",
@@ -607,7 +610,10 @@
     "nav": {
       "dashboard": "Главная",
       "audit_logs": "Журнал аудита",
-      "banners": "Баннеры"
+      "banners": "Баннеры",
+      "group_management": "Управление",
+      "group_content": "Контент",
+      "group_system": "Система"
     },
     "dashboard": {
       "title": "Панель суперадмина",
@@ -698,7 +704,9 @@
       "delete_confirm": "Вы уверены, что хотите удалить {{count}} организаций? Защищённые (422) будут пропущены.",
       "suspended_count": "Приостановлено: {{count}}",
       "activated_count": "Активировано: {{count}}",
-      "deleted_count": "Удалено: {{count}}"
+      "deleted_count": "Удалено: {{count}}",
+      "failed_title": "Не выполнено",
+      "failed_names": "Следующие организации пропущены: {{names}}"
     },
     "audit": {
       "title": "Журнал аудита",
@@ -918,6 +926,10 @@
         "promo": "Акции",
         "attendance": "Посещаемость",
         "stock": "Склад",
+        "agent_cabinet": "Кабинет агента",
+        "gps": "GPS отслеживание",
+        "pos": "POS продажи",
+        "marketplace": "Маркетплейс",
         "rbac": "RBAC / Аудит"
       }
     }
