@@ -2,15 +2,15 @@
 Push moduli router — T19.
 
 Endpointlar:
-  PATCH /users/me/device-token — foydalanuvchi o'z FCM/APNs device_id ni ro'yxatdan o'tkazadi.
+  PATCH /push/device-token — foydalanuvchi o'z FCM/APNs device_id ni ro'yxatdan o'tkazadi.
 
 RBAC:
-  - Barcha autentifikatsiyalangan foydalanuvchilar o'z device_id ni yangilashi mumkin.
+  - push:create ruxsati talab qilinadi (barcha autentifikatsiyalangan rollar uchun bor).
   - Boshqa foydalanuvchi device_id ni yangilash taqiqlangan (IDOR himoyasi).
 
 Eslatma:
-  Bu endpoint /users prefixiga (yoki alohida /push prefixga) main.py da ulanadi.
-  Hozir /push/device-token sifatida ulanmoqda — main.py dagi include_router ni ko'ring.
+  Bu endpoint /push prefixiga main.py da ulanadi.
+  require_permission(Module.PUSH, Action.CREATE) orqali himoyalangan.
 """
 
 from __future__ import annotations
@@ -21,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.models.user import AppUser
-from app.modules.auth.router import get_current_user
+from app.modules.rbac.dependency import require_permission
+from app.modules.rbac.permissions import Action, Module
 
 router = APIRouter(tags=["push"])
 
@@ -73,13 +74,15 @@ class DeviceTokenResponse(BaseModel):
 )
 async def update_device_token(
     body: DeviceTokenUpdate,
-    current_user: AppUser = Depends(get_current_user),
+    current_user: AppUser = require_permission(Module.PUSH, Action.CREATE),
     db: AsyncSession = Depends(get_db),
 ) -> DeviceTokenResponse:
     """
     Foydalanuvchi o'z FCM/APNs tokenini yangilaydi.
 
-    RBAC: har autentifikatsiyalangan foydalanuvchi O'ZINING device_id ni yangilaydi.
+    RBAC: push:create ruxsati — barcha autentifikatsiyalangan rollar (administrator, agent,
+    courier, accountant, store) uchun mavjud. require_permission(Module.PUSH, Action.CREATE)
+    dependency orqali tekshiriladi.
     IDOR himoyasi: faqat joriy foydalanuvchi (current_user.id) yangilanadi — boshqasi emas.
     """
     # IDOR himoyasi: faqat joriy foydalanuvchi o'z device_id ni o'zgartiradi

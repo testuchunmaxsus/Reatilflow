@@ -34,6 +34,7 @@ _SENSITIVE_KEYS: frozenset[str] = frozenset(
         "owner_name",
         "secret",
         "jwt_secret_key",
+        "api_key",         # S2: API kalit — audit logda ko'rinmasin
     }
 )
 

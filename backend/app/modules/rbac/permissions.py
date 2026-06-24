@@ -1,7 +1,7 @@
 """
 RBAC ruxsat matritsasi — yagona haqiqat manbai (Python).
 
-ADR-001 §3.6 bo'yicha 5 rol × 11 modul + rbac/audit.
+ADR-001 §3.6 bo'yicha 5 rol × 11 modul + rbac/audit + push.
 
 Rollar (AppUser.role qiymatlari):
   administrator, agent, courier, accountant, store
@@ -59,6 +59,7 @@ class Module(StrEnum):
     GPS = "gps"              # T17: GPS Ingest (agent/courier trekking)
     POS = "pos"              # POS: Chakana sotuv yadrosi
     MARKETPLACE = "marketplace"  # MP1: B2B Marketplace katalog
+    PUSH = "push"            # S2: Push bildirishnomalar
 
 
 class Action(StrEnum):
@@ -107,6 +108,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # MP1: administrator marketplace browse + o'z mahsulotini publish qiladi
         # MP2: administrator buyurtma yaratadi va tasdiqlaydi/rad etadi
         | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT, Action.CREATE)
+        # S2: administrator push bildirishnomalar log'ini ko'radi va qurilma tokenini boshqaradi
+        | _p(Module.PUSH, Action.VIEW, Action.CREATE)
     ),
 
     # ─── Savdo agenti ──────────────────────────────────────────────────────────
@@ -142,6 +145,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # MP1: agent marketplace browse qiladi
         # MP2: agent buyurtma yaratadi (supplier sifatida emas, faqat buyer sifatida)
         | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE)
+        # S2: agent o'z qurilma tokenini ro'yxatdan o'tkazadi
+        | _p(Module.PUSH, Action.CREATE)
     ),
 
     # ─── Kuryer (yetkazib beruvchi) ────────────────────────────────────────────
@@ -172,6 +177,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # MP3: kuryer tayinlangan buyurtmani yetkazildi deb belgilaydi (deliver endpoint)
         | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT)
         # POS: agent — ruxsati yo'q (pos checkout faqat store roli uchun)
+        # S2: kuryer o'z qurilma tokenini ro'yxatdan o'tkazadi
+        | _p(Module.PUSH, Action.CREATE)
     ),
 
     # ─── Buxgalter ─────────────────────────────────────────────────────────────
@@ -208,6 +215,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # MP1: buxgalter marketplace browse qiladi
         # MP2: buxgalter kiruvchi buyurtmalarni tasdiqlaydi/rad etadi (supplier sifatida)
         | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT, Action.CREATE)
+        # S2: buxgalter o'z qurilma tokenini ro'yxatdan o'tkazadi
+        | _p(Module.PUSH, Action.CREATE)
     ),
 
     # ─── Do'kon (mijoz) ────────────────────────────────────────────────────────
@@ -240,6 +249,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # MP2: do'kon buyurtma yaratadi (faqat buyer sifatida, tasdiqlash/rad etish emas)
         # MP3: do'kon delivered buyurtmani qabul qiladi (accept endpoint)
         | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE, Action.EDIT)
+        # S2: do'kon (kassir) o'z qurilma tokenini ro'yxatdan o'tkazadi
+        | _p(Module.PUSH, Action.CREATE)
     ),
 
     # ─── Superadmin (platforma egasi) ─────────────────────────────────────────
