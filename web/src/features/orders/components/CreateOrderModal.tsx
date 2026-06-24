@@ -25,6 +25,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import { useForm } from "@mantine/form";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -124,8 +125,16 @@ export function CreateOrderModal({ opened, onClose }: CreateOrderModalProps) {
         <Stack gap="sm">
           {/* Do'kon ID */}
           <TextInput
-            label={t("orders.create.store_id")}
+            label={
+              <Group gap={4} component="span">
+                {t("orders.create.store_id")}
+                <UuidHelp />
+              </Group>
+            }
             placeholder={t("orders.create.store_id_placeholder")}
+            description={t("orders.create.store_id_hint", {
+              defaultValue: "UUID formatida (majburiy)",
+            })}
             required
             {...form.getInputProps("store_id")}
           />
@@ -150,7 +159,12 @@ export function CreateOrderModal({ opened, onClose }: CreateOrderModalProps) {
             <Table withTableBorder>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>{t("orders.create.product_id")}</Table.Th>
+                  <Table.Th>
+                    <Group gap={4} component="span">
+                      {t("orders.create.product_id")}
+                      <UuidHelp />
+                    </Group>
+                  </Table.Th>
                   <Table.Th w={120}>{t("orders.create.qty")}</Table.Th>
                   <Table.Th w={50}></Table.Th>
                 </Table.Tr>

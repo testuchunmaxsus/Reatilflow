@@ -17,6 +17,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import { DateInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
@@ -166,7 +167,12 @@ export function ContractFormModal({
         <Stack gap="sm">
           {!isEdit && (
             <TextInput
-              label={t("contracts.form.store_id")}
+              label={
+                <Group gap={4} component="span">
+                  {t("contracts.form.store_id")}
+                  <UuidHelp />
+                </Group>
+              }
               placeholder="UUID"
               description={t("contracts.form.store_id_hint")}
               required
@@ -220,7 +226,12 @@ export function ContractFormModal({
           />
 
           <TextInput
-            label={t("contracts.form.branch_id")}
+            label={
+              <Group gap={4} component="span">
+                {t("contracts.form.branch_id")}
+                <UuidHelp optional />
+              </Group>
+            }
             placeholder="UUID (ixtiyoriy)"
             description={t("contracts.form.branch_id_hint")}
             {...form.getInputProps("branch_id")}

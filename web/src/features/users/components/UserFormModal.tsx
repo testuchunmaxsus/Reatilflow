@@ -18,6 +18,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { useCreateUser, useUpdateUser } from "../api/usersApi";
@@ -200,7 +201,12 @@ export function UserFormModal({ opened, onClose, user }: UserFormModalProps) {
 
           <Group grow>
             <TextInput
-              label={t("users.form.branch_id")}
+              label={
+                <Group gap={4} component="span">
+                  {t("users.form.branch_id")}
+                  <UuidHelp optional />
+                </Group>
+              }
               placeholder="UUID (ixtiyoriy)"
               description={t("users.form.branch_id_hint")}
               {...form.getInputProps("branch_id")}

@@ -16,6 +16,7 @@ import {
   TextInput,
   Textarea,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { useCreateTicket } from "../api/ticketsApi";
@@ -123,7 +124,12 @@ export function TicketFormModal({ opened, onClose }: TicketFormModalProps) {
           />
 
           <TextInput
-            label={t("tickets.form.store_id")}
+            label={
+              <Group gap={4} component="span">
+                {t("tickets.form.store_id")}
+                <UuidHelp optional />
+              </Group>
+            }
             placeholder="UUID (ixtiyoriy)"
             description={t("tickets.form.store_id_hint")}
             {...form.getInputProps("store_id")}

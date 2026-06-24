@@ -34,6 +34,7 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -154,8 +155,16 @@ function AddEntryModal({ opened, onClose }: AddEntryModalProps) {
       <form onSubmit={form.onSubmit((v) => { void handleSubmit(v); })}>
         <Stack gap="sm">
           <TextInput
-            label={t("finance.form.store_id", { defaultValue: "Do'kon ID" })}
+            label={
+              <Group gap={4} component="span">
+                {t("finance.form.store_id", { defaultValue: "Do'kon ID" })}
+                <UuidHelp />
+              </Group>
+            }
             placeholder="uuid"
+            description={t("finance.form.store_id_hint", {
+              defaultValue: "UUID formatida (majburiy)",
+            })}
             required
             {...form.getInputProps("store_id")}
           />

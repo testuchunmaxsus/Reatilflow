@@ -34,6 +34,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import L from "leaflet";
 import { Component } from "react";
 import type { ReactNode } from "react";
@@ -592,7 +593,12 @@ export function GpsTrackPage() {
         <Group gap="sm" wrap="wrap">
           {/* TextInput — UUID qo'lda kiritish (test compatibility) */}
           <TextInput
-            label={t("gps.filter.user", { defaultValue: "Foydalanuvchi bo'yicha" })}
+            label={
+              <Group gap={4} component="span">
+                {t("gps.filter.user", { defaultValue: "Foydalanuvchi bo'yicha" })}
+                <UuidHelp optional />
+              </Group>
+            }
             placeholder="UUID"
             value={userId}
             onChange={(e) => setUserId(e.currentTarget.value)}

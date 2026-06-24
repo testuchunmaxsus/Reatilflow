@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { UuidHelp } from "@/components/UuidHelp";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { useAssignAgent } from "../api/customersApi";
@@ -85,7 +86,12 @@ export function AssignAgentModal({
       <form onSubmit={form.onSubmit((v) => { void handleSubmit(v); })}>
         <Stack gap="sm">
           <TextInput
-            label={t("customers.assign_agent.agent_id_label")}
+            label={
+              <Group gap={4} component="span">
+                {t("customers.assign_agent.agent_id_label")}
+                <UuidHelp />
+              </Group>
+            }
             placeholder="UUID"
             description={t("customers.assign_agent.agent_id_hint")}
             required
