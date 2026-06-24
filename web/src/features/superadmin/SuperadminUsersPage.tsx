@@ -66,8 +66,8 @@ export function SuperadminUsersPage() {
   const [enterpriseFilter, setEnterpriseFilter] = useState<string>("");
   const [roleFilter, setRoleFilter] = useState<string>("");
 
-  // Korxonalar ro'yxati (filter Select uchun)
-  const { data: enterprisesData } = useEnterprises({ limit: 200, offset: 0 });
+  // Korxonalar ro'yxati (filter Select uchun) — backend cap le=100
+  const { data: enterprisesData } = useEnterprises({ limit: 100, offset: 0 });
 
   const { data, isLoading, isError, error } = useSuperadminUsers({
     enterprise_id: enterpriseFilter,

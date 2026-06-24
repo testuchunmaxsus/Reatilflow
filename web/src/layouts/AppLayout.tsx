@@ -8,7 +8,7 @@
  * Nav elementlari RBAC.md §3.6 ga ko'ra ruxsatlarni tekshiradi.
  */
 
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, Navigate, useNavigate } from "react-router-dom";
 import {
   AppShell,
   Box,
@@ -274,6 +274,12 @@ export function AppLayout() {
   const { can } = usePermissions();
   const { hasModule } = useEnterprise();
   const navItems = useNavItems();
+
+  // Superadmin tenant qobig'iga (AppLayout) tegishli emas — superadmin paneliga
+  // yo'naltiramiz; aks holda tenant endpointlari 403 beradi (gps/users/h.k.).
+  if (user?.role === "superadmin") {
+    return <Navigate to="/superadmin" replace />;
+  }
 
   const visibleItems = navItems.filter((item) => {
     // RBAC ruxsat tekshiruvi
