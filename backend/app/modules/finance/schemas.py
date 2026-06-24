@@ -4,6 +4,7 @@ Buxgalteriya moduli Pydantic v2 sxemalari.
 Sxemalar:
   LedgerEntryCreate  — yangi yozuvni qayd etish
   LedgerEntryOut     — yozuv javob sxemasi
+  LedgerApproveOut   — tasdiqlash javob sxemasi
   AccountBalanceOut  — balans javob sxemasi
   PaginatedLedger    — paginated yozuvlar ro'yxati
 
@@ -71,6 +72,25 @@ class LedgerEntryOut(BaseModel):
     created_by: uuid.UUID | None
     client_uuid: uuid.UUID | None
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ─── LedgerApproveOut ─────────────────────────────────────────────────────────
+
+
+class LedgerApproveOut(BaseModel):
+    """
+    Tasdiqlash operatsiyasi javob sxemasi.
+
+    ledger_approval jadvalidan yaratiladi (entry_id bo'yicha).
+    ledger_entry APPEND-ONLY bo'lgani uchun holat alohida jadvalda saqlanadi.
+    """
+
+    id: uuid.UUID
+    entry_id: uuid.UUID
+    approved_by: uuid.UUID
+    approved_at: datetime
 
     model_config = {"from_attributes": True}
 

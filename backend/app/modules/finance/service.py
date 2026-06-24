@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.models.audit import AuditLog
-from app.models.finance import AccountBalance, LedgerEntry
+from app.models.finance import AccountBalance, LedgerApproval, LedgerEntry
 from app.models.outbox import OutboxEvent
 from app.models.store import Store
 from app.models.user import AppUser
@@ -390,6 +390,80 @@ async def _check_store_access(
 
     # Noma'lum rol — deny-by-default
     raise AppError("finance.store_not_found", status_code=404)
+
+
+# ─── approve_entry ───────────────────────────────────────────────────────────
+
+
+async def approve_entry(
+    db: AsyncSession,
+    entry_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None = None,
+) -> LedgerApproval:
+    """
+    Buxgalteriya yozuvini tasdiqlaydi — LedgerApproval yozuvi yaratadi.
+
+    ledger_entry APPEND-ONLY bo'lgani uchun tasdiqlash holati alohida
+    ledger_approval jadvalida saqlanadi. Bu event-sourcing naqshiga mos:
+    mavjud yozuv o'zgarmaydi, yangi tasdiqlash yozuvi qo'shiladi.
+
+    Qoidalar:
+      - entry_id mavjud bo'lishi shart (enterprise_id bilan izolyatsiya).
+      - Har bir entry faqat bir marta tasdiqlanishi mumkin (UNIQUE entry_id).
+        Ikkinchi urinish → 409.
+      - Audit log + outbox_event yoziladi.
+
+    Args:
+        db:            Primary DB sessiyasi.
+        entry_id:      Tasdiqlanacha ledger_entry ID.
+        actor_id:      Kim tasdiqladi (FK → app_user).
+        enterprise_id: Tenant izolyatsiyasi.
+
+    Returns:
+        Yangi LedgerApproval yozuvi.
+
+    Raises:
+        AppError("finance.entry_not_found", 404): yozuv topilmasa.
+        AppError("finance.entry_already_approved", 409): allaqachon tasdiqlangan.
+    """
+    # 1. Ledger yozuvini topish (enterprise filtr bilan)
+    entry_stmt = select(LedgerEntry).where(LedgerEntry.id == entry_id)
+    entry_stmt = apply_enterprise_filter(entry_stmt, enterprise_id, LedgerEntry.enterprise_id)
+    entry_result = await db.execute(entry_stmt)
+    entry = entry_result.scalar_one_or_none()
+
+    if entry is None:
+        raise AppError("finance.entry_not_found", status_code=404)
+
+    # 2. Allaqachon tasdiqlangan? (ledger_approval.entry_id UNIQUE)
+    existing_stmt = select(LedgerApproval).where(LedgerApproval.entry_id == entry_id)
+    existing_result = await db.execute(existing_stmt)
+    if existing_result.scalar_one_or_none() is not None:
+        raise AppError("finance.entry_already_approved", status_code=409)
+
+    # 3. Yangi tasdiqlash yozuvi — APPEND
+    now = _now()
+    approval = LedgerApproval(
+        entry_id=entry_id,
+        approved_by=actor_id,
+        approved_at=now,
+        enterprise_id=enterprise_id,
+    )
+    db.add(approval)
+    await db.flush()
+
+    # 4. Audit + Outbox
+    after_payload = {
+        "approval_id": str(approval.id),
+        "entry_id": str(entry_id),
+        "approved_by": str(actor_id),
+        "approved_at": str(now),
+    }
+    await _write_audit(db, actor_id, "approve", str(entry_id), after=after_payload)
+    await _write_outbox(db, str(entry_id), "ledger_entry.approved", after_payload)
+
+    return approval
 
 
 # ─── list_entries ─────────────────────────────────────────────────────────────

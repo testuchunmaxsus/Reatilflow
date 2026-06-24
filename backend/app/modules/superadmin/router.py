@@ -12,6 +12,8 @@ Endpointlar (faqat superadmin roli):
   POST   /superadmin/enterprises/{id}/reset-admin-password — admin parolini tiklash
   GET    /superadmin/stats                                — platforma statistikasi
   GET    /superadmin/users                                — cross-tenant foydalanuvchilar
+  GET    /superadmin/audit-logs                           — audit log ko'ruvchi (cross-tenant)
+  GET    /superadmin/banners                              — barcha bannerlar (moderatsiya, cross-tenant)
 
 CORE modul: module gate YO'Q.
 superadmin dependency har endpointda tekshiriladi.
@@ -32,6 +34,7 @@ from app.models.user import AppUser
 from app.modules.superadmin.dependency import require_superadmin
 from app.modules.superadmin.schemas import (
     AdminOut,
+    AuditLogOut,
     EnterpriseAdminListItem,
     EnterpriseAdminOut,
     EnterpriseCreate,
@@ -39,10 +42,13 @@ from app.modules.superadmin.schemas import (
     EnterpriseOut,
     EnterprisePaginated,
     EnterpriseUpdate,
+    PaginatedAuditLogs,
+    PaginatedSuperadminBanners,
     PaginatedSuperadminUsers,
     ResetPasswordIn,
     ResetPasswordOut,
     StatsOut,
+    SuperadminBannerOut,
     SuperadminUserOut,
 )
 from app.modules.superadmin.service import (
@@ -51,6 +57,8 @@ from app.modules.superadmin.service import (
     delete_enterprise,
     get_enterprise_detail,
     get_platform_stats,
+    list_all_banners,
+    list_audit_logs,
     list_enterprises,
     list_superadmin_users,
     reset_admin_password,
@@ -403,6 +411,112 @@ async def get_all_users(
 
     return PaginatedSuperadminUsers(
         items=user_items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# ─── GET /superadmin/audit-logs ───────────────────────────────────────────────
+
+
+@router.get(
+    "/audit-logs",
+    response_model=PaginatedAuditLogs,
+    status_code=status.HTTP_200_OK,
+    summary="Audit log ko'ruvchi (cross-tenant)",
+    description=(
+        "Barcha korxonalar audit loglari. "
+        "action, entity_type, entity_id, enterprise_id bo'yicha ixtiyoriy AND filtrlash. "
+        "Tartib: at DESC. Faqat superadmin."
+    ),
+    responses={
+        200: {"description": "Audit loglar ro'yxati"},
+        403: {"description": "Faqat superadmin"},
+    },
+)
+async def get_audit_logs(
+    action: str | None = Query(None, description="Harakat turi (create|update|delete|login|...)"),
+    entity_type: str | None = Query(None, description="Model nomi (app_user|enterprise|product|...)"),
+    entity_id: str | None = Query(None, description="Yozuv identifikatori"),
+    enterprise_id: uuid.UUID | None = Query(None, description="Korxona UUID bo'yicha filtr"),
+    limit: int = Query(50, ge=1, le=200, description="Sahifadagi yozuvlar soni"),
+    offset: int = Query(0, ge=0, description="Boshlash joyi"),
+    current_user: AppUser = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedAuditLogs:
+    """Audit loglar ro'yxatini qaytaradi (cross-tenant)."""
+    items, total = await list_audit_logs(
+        db,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        enterprise_id=enterprise_id,
+        limit=limit,
+        offset=offset,
+    )
+    return PaginatedAuditLogs(
+        items=[AuditLogOut.model_validate(log) for log in items],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# ─── GET /superadmin/banners ──────────────────────────────────────────────────
+
+
+@router.get(
+    "/banners",
+    response_model=PaginatedSuperadminBanners,
+    status_code=status.HTTP_200_OK,
+    summary="Barcha bannerlar (moderatsiya, cross-tenant)",
+    description=(
+        "Barcha korxonalar bannerlari — BARCHA holat (aktiv ham, nofaol ham). "
+        "enterprise_id va is_active bo'yicha ixtiyoriy filtr. "
+        "Tartib: priority DESC, created_at DESC. Faqat superadmin."
+    ),
+    responses={
+        200: {"description": "Bannerlar ro'yxati"},
+        403: {"description": "Faqat superadmin"},
+    },
+)
+async def get_all_banners(
+    enterprise_id: uuid.UUID | None = Query(None, description="Korxona UUID bo'yicha filtr"),
+    is_active: bool | None = Query(None, description="Aktiv holat filtri"),
+    limit: int = Query(50, ge=1, le=200, description="Sahifadagi yozuvlar soni"),
+    offset: int = Query(0, ge=0, description="Boshlash joyi"),
+    current_user: AppUser = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedSuperadminBanners:
+    """Barcha korxonalar bannerlarini qaytaradi (moderatsiya uchun)."""
+    items, total = await list_all_banners(
+        db,
+        enterprise_id=enterprise_id,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
+    banner_items = [
+        SuperadminBannerOut(
+            id=banner.id,
+            enterprise_id=banner.enterprise_id,
+            enterprise_name=ent_name,
+            title=banner.title,
+            image_url=banner.image_url,
+            target_url=banner.target_url,
+            target_product_id=banner.target_product_id,
+            is_active=banner.is_active,
+            priority=banner.priority,
+            valid_from=banner.valid_from,
+            valid_to=banner.valid_to,
+            created_at=banner.created_at,
+            updated_at=banner.updated_at,
+        )
+        for banner, ent_name in items
+    ]
+    return PaginatedSuperadminBanners(
+        items=banner_items,
         total=total,
         limit=limit,
         offset=offset,

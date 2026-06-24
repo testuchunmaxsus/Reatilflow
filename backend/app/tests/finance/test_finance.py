@@ -24,7 +24,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.finance import AccountBalance, LedgerEntry
+from app.models.finance import AccountBalance, LedgerApproval, LedgerEntry
 from app.modules.finance import service
 from app.modules.finance.schemas import LedgerEntryCreate
 from app.tests.finance.conftest import get_token
@@ -669,3 +669,300 @@ async def test_idempotency_set_nx_single_entry(
     # Balans faqat bir marta o'zgargan
     balance = await service.get_balance(db_session, store.id)
     assert balance.balance == Decimal("20000.00")
+
+
+# ─── 13. Approve: service qatlami ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_approve_entry_creates_approval_record(
+    db_session: AsyncSession,
+    fake_redis,
+    make_store,
+    accountant_user,
+) -> None:
+    """approve_entry → LedgerApproval yozuvi yaratadi (entry_id, approved_by, approved_at)."""
+    store = await make_store()
+
+    data = LedgerEntryCreate(
+        store_id=store.id,
+        type="debit",
+        amount=Decimal("15000.00"),
+        currency="UZS",
+    )
+    entry = await service.record_entry(db_session, data, actor_id=accountant_user.id, redis=fake_redis)
+    await db_session.flush()
+
+    approval = await service.approve_entry(
+        db_session,
+        entry_id=entry.id,
+        actor_id=accountant_user.id,
+    )
+    await db_session.commit()
+
+    assert approval.entry_id == entry.id
+    assert approval.approved_by == accountant_user.id
+    assert approval.approved_at is not None
+    assert approval.id is not None
+
+    # DB da yozuv mavjud
+    from sqlalchemy import select
+    stmt = select(LedgerApproval).where(LedgerApproval.entry_id == entry.id)
+    result = await db_session.execute(stmt)
+    db_approval = result.scalar_one_or_none()
+    assert db_approval is not None
+    assert db_approval.approved_by == accountant_user.id
+
+
+@pytest.mark.asyncio
+async def test_approve_entry_not_found_raises_404(
+    db_session: AsyncSession,
+    accountant_user,
+) -> None:
+    """Mavjud bo'lmagan yozuv → AppError 404."""
+    from app.core.errors import AppError
+
+    with pytest.raises(AppError) as exc_info:
+        await service.approve_entry(
+            db_session,
+            entry_id=uuid.uuid4(),
+            actor_id=accountant_user.id,
+        )
+
+    assert exc_info.value.message_key == "finance.entry_not_found"
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_approve_entry_already_approved_raises_409(
+    db_session: AsyncSession,
+    fake_redis,
+    make_store,
+    accountant_user,
+) -> None:
+    """Allaqachon tasdiqlangan yozuv → AppError 409."""
+    from app.core.errors import AppError
+
+    store = await make_store()
+    data = LedgerEntryCreate(
+        store_id=store.id,
+        type="credit",
+        amount=Decimal("7000.00"),
+    )
+    entry = await service.record_entry(db_session, data, actor_id=accountant_user.id, redis=fake_redis)
+    await db_session.flush()
+
+    # Birinchi tasdiqlash — muvaffaqiyatli
+    await service.approve_entry(db_session, entry_id=entry.id, actor_id=accountant_user.id)
+    await db_session.flush()
+
+    # Ikkinchi tasdiqlash — 409
+    with pytest.raises(AppError) as exc_info:
+        await service.approve_entry(db_session, entry_id=entry.id, actor_id=accountant_user.id)
+
+    assert exc_info.value.message_key == "finance.entry_already_approved"
+    assert exc_info.value.status_code == 409
+
+
+# ─── 14. Approve: HTTP endpoint ──────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_accountant_can_approve_entry_via_http(
+    finance_client: AsyncClient,
+    accountant_user,
+    make_store,
+) -> None:
+    """Buxgalter POST /finance/ledger/{id}/approve → 200, entry_id va approved_by to'ldiriladi."""
+    store = await make_store()
+    token = await get_token(finance_client, accountant_user)
+
+    # Yozuv yaratish
+    create_resp = await finance_client.post(
+        "/finance/ledger",
+        json={
+            "store_id": str(store.id),
+            "type": "debit",
+            "amount": "25000.00",
+            "currency": "UZS",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    entry_id = create_resp.json()["id"]
+
+    # Tasdiqlash
+    approve_resp = await finance_client.post(
+        f"/finance/ledger/{entry_id}/approve",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert approve_resp.status_code == 200, approve_resp.text
+
+    data = approve_resp.json()
+    assert data["entry_id"] == entry_id
+    assert data["approved_at"] is not None
+    assert data["approved_by"] == str(accountant_user.id)
+    assert "id" in data  # LedgerApproval.id (UUID)
+
+
+@pytest.mark.asyncio
+async def test_store_cannot_approve_entry(
+    finance_client: AsyncClient,
+    store_user,
+    accountant_user,
+    make_store,
+) -> None:
+    """Store roli finance:approve ruxsatiga ega emas → 403."""
+    store = await make_store(user_id=store_user.id)
+    acc_token = await get_token(finance_client, accountant_user)
+    store_token = await get_token(finance_client, store_user)
+
+    # Yozuv yaratish (buxgalter orqali)
+    create_resp = await finance_client.post(
+        "/finance/ledger",
+        json={
+            "store_id": str(store.id),
+            "type": "debit",
+            "amount": "5000.00",
+        },
+        headers={"Authorization": f"Bearer {acc_token}"},
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    entry_id = create_resp.json()["id"]
+
+    # Store roli tasdiqlashga urinadi → 403
+    approve_resp = await finance_client.post(
+        f"/finance/ledger/{entry_id}/approve",
+        headers={"Authorization": f"Bearer {store_token}"},
+    )
+    assert approve_resp.status_code == 403, approve_resp.text
+
+
+@pytest.mark.asyncio
+async def test_agent_cannot_approve_entry(
+    finance_client: AsyncClient,
+    agent_user,
+    accountant_user,
+    make_store,
+) -> None:
+    """Agent roli finance:approve ruxsatiga ega emas → 403."""
+    store = await make_store(agent_id=agent_user.id)
+    acc_token = await get_token(finance_client, accountant_user)
+    agent_token = await get_token(finance_client, agent_user)
+
+    create_resp = await finance_client.post(
+        "/finance/ledger",
+        json={
+            "store_id": str(store.id),
+            "type": "debit",
+            "amount": "3000.00",
+        },
+        headers={"Authorization": f"Bearer {acc_token}"},
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    entry_id = create_resp.json()["id"]
+
+    approve_resp = await finance_client.post(
+        f"/finance/ledger/{entry_id}/approve",
+        headers={"Authorization": f"Bearer {agent_token}"},
+    )
+    assert approve_resp.status_code == 403, approve_resp.text
+
+
+@pytest.mark.asyncio
+async def test_approve_nonexistent_entry_returns_404(
+    finance_client: AsyncClient,
+    accountant_user,
+) -> None:
+    """Mavjud bo'lmagan yozuv ID → 404."""
+    token = await get_token(finance_client, accountant_user)
+
+    resp = await finance_client.post(
+        f"/finance/ledger/{uuid.uuid4()}/approve",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_approve_twice_returns_409(
+    finance_client: AsyncClient,
+    accountant_user,
+    make_store,
+) -> None:
+    """Ikki marta tasdiqlash → 409 (allaqachon tasdiqlangan)."""
+    store = await make_store()
+    token = await get_token(finance_client, accountant_user)
+
+    create_resp = await finance_client.post(
+        "/finance/ledger",
+        json={
+            "store_id": str(store.id),
+            "type": "credit",
+            "amount": "10000.00",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    entry_id = create_resp.json()["id"]
+
+    # Birinchi tasdiqlash
+    r1 = await finance_client.post(
+        f"/finance/ledger/{entry_id}/approve",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r1.status_code == 200, r1.text
+
+    # Ikkinchi tasdiqlash
+    r2 = await finance_client.post(
+        f"/finance/ledger/{entry_id}/approve",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 409, r2.text
+
+
+@pytest.mark.asyncio
+async def test_created_entry_response_has_no_approval_fields(
+    finance_client: AsyncClient,
+    accountant_user,
+    make_store,
+) -> None:
+    """
+    Yangi yaratilgan yozuv (LedgerEntryOut) asosiy maydonlarni o'z ichiga oladi.
+    Tasdiqlash alohida endpoint orqali amalga oshiriladi.
+    """
+    store = await make_store()
+    token = await get_token(finance_client, accountant_user)
+
+    resp = await finance_client.post(
+        "/finance/ledger",
+        json={
+            "store_id": str(store.id),
+            "type": "debit",
+            "amount": "8000.00",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["type"] == "debit"
+    assert Decimal(data["amount"]) == Decimal("8000.00")
+    assert "id" in data
+    assert "created_at" in data
+
+
+@pytest.mark.asyncio
+async def test_approve_messages_keys_exist() -> None:
+    """finance.entry_not_found va finance.entry_already_approved kalitlari mavjud."""
+    from app.core.messages import MESSAGES, translate
+
+    keys = [
+        "finance.entry_not_found",
+        "finance.entry_already_approved",
+    ]
+    for key in keys:
+        assert key in MESSAGES, f"Kalit topilmadi: {key}"
+        msg_uz = translate(key, locale="uz")
+        msg_ru = translate(key, locale="ru")
+        assert msg_uz != key
+        assert msg_ru != key

@@ -206,6 +206,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Valyuta mos kelmadi: do'kon balansi '{existing}' valyutasida, yangi yozuv '{incoming}' valyutasida",
         "ru": "Несоответствие валюты: баланс магазина в валюте '{existing}', новая запись в валюте '{incoming}'",
     },
+    "finance.entry_not_found": {
+        "uz": "Buxgalteriya yozuvi topilmadi",
+        "ru": "Запись в бухгалтерской книге не найдена",
+    },
+    "finance.entry_already_approved": {
+        "uz": "Yozuv allaqachon tasdiqlangan",
+        "ru": "Запись уже подтверждена",
+    },
 
     # ── Buyurtma (orders) — T11 ──────────────────────────────────────────────
     "orders.order_not_found": {

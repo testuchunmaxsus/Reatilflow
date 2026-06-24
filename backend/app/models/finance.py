@@ -227,3 +227,65 @@ class AccountBalance(Base):
             f"<AccountBalance store={self.store_id} "
             f"balance={self.balance} {self.currency}>"
         )
+
+
+class LedgerApproval(Base):
+    """
+    Ledger yozuvini tasdiqlash yozuvi — APPEND-ONLY.
+
+    ledger_entry APPEND-ONLY bo'lgani uchun tasdiqlash holati alohida jadvalda
+    saqlanadi. Bu event-sourcing naqshiga mos: har bir holat o'zgarishi yangi
+    yozuv sifatida qayd etiladi, mavjud yozuv o'zgarmaydi.
+
+    Cheklovlar:
+      - entry_id UNIQUE: har bir ledger_entry uchun faqat bitta tasdiqlash mumkin.
+      - Yozuv yaratilgandan keyin o'zgarmaydi (service darajasida himoya).
+
+    Migratsiya: 0028_ledger_approval.py zarur (Postgres uchun).
+    """
+
+    __tablename__ = "ledger_approval"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid7,
+        comment="UUID v7 — vaqt-tartibli birlamchi kalit",
+    )
+
+    entry_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("ledger_entry.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+        comment="Tasdiqlangan ledger yozuvi FK → ledger_entry (UNIQUE: bitta yozuv — bitta tasdiqlash)",
+    )
+
+    approved_by: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="RESTRICT"),
+        nullable=False,
+        comment="Kim tasdiqladi (FK → app_user)",
+    )
+
+    approved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_now_utc,
+        nullable=False,
+        comment="Tasdiqlangan vaqt (UTC)",
+    )
+
+    # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Korxona FK → enterprise (MT1)",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<LedgerApproval entry={self.entry_id} "
+            f"approved_by={self.approved_by} at={self.approved_at}>"
+        )

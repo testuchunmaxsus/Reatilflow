@@ -15,12 +15,16 @@ Sxemalar:
   ResetPasswordOut          — POST reset-admin-password javob
   SuperadminUserOut         — cross-tenant users elementi
   PaginatedSuperadminUsers  — GET /superadmin/users paginated javob
+  AuditLogOut               — GET /superadmin/audit-logs elementi
+  PaginatedAuditLogs        — GET /superadmin/audit-logs paginated javob
+  SuperadminBannerOut       — GET /superadmin/banners elementi (enterprise_name bilan)
+  PaginatedSuperadminBanners — GET /superadmin/banners paginated javob
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -200,6 +204,67 @@ class PaginatedSuperadminUsers(BaseModel):
     """GET /superadmin/users paginated javob."""
 
     items: list[SuperadminUserOut]
+    total: int
+    limit: int
+    offset: int
+
+
+# ─── Audit Logs ───────────────────────────────────────────────────────────────
+
+
+class AuditLogOut(BaseModel):
+    """GET /superadmin/audit-logs — bitta audit yozuvi elementi."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    actor_id: uuid.UUID | None
+    action: str
+    entity_type: str
+    entity_id: str | None
+    before_json: str | None
+    after_json: str | None
+    ip: str | None
+    at: datetime
+    enterprise_id: uuid.UUID | None
+
+
+class PaginatedAuditLogs(BaseModel):
+    """GET /superadmin/audit-logs paginated javob."""
+
+    items: list[AuditLogOut]
+    total: int
+    limit: int
+    offset: int
+
+
+# ─── Superadmin Banners ───────────────────────────────────────────────────────
+
+
+class SuperadminBannerOut(BaseModel):
+    """GET /superadmin/banners — bitta banner elementi (enterprise_name bilan)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    enterprise_id: uuid.UUID
+    enterprise_name: str | None
+    title: str
+    image_url: str | None
+    target_url: str | None
+    target_product_id: uuid.UUID | None
+    is_active: bool
+    priority: int
+    valid_from: date
+    valid_to: date
+    created_at: datetime
+    updated_at: datetime
+
+
+class PaginatedSuperadminBanners(BaseModel):
+    """GET /superadmin/banners paginated javob."""
+
+    items: list[SuperadminBannerOut]
     total: int
     limit: int
     offset: int

@@ -13,6 +13,8 @@ Funksiyalar:
   get_platform_stats            — platforma statistikasi (cross-tenant)
   reset_admin_password          — foydalanuvchi parolini tiklash
   list_superadmin_users         — cross-tenant foydalanuvchilar ro'yxati
+  list_audit_logs               — audit log ko'ruvchi (cross-tenant, filtrlangan)
+  list_all_banners              — barcha korxonalar bannerlari (moderatsiya uchun)
 
 Qoidalar:
   - superadmin enterprise_id=NULL.
@@ -535,6 +537,113 @@ async def list_superadmin_users(
         .outerjoin(EnterpriseAlias, AppUser.enterprise_id == EnterpriseAlias.id)
         .where(*conditions)
         .order_by(AppUser.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = (await db.execute(list_stmt)).all()
+
+    items = [(row[0], row[1]) for row in rows]
+    return items, total
+
+
+# ─── Audit log ro'yxati ───────────────────────────────────────────────────────
+
+
+async def list_audit_logs(
+    db: AsyncSession,
+    *,
+    action: str | None = None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    enterprise_id: uuid.UUID | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list, int]:
+    """
+    Audit loglarni ko'radi (cross-tenant, superadmin).
+
+    Ixtiyoriy AND filtrlar:
+      action        — harakat turi (create, update, delete, login, ...)
+      entity_type   — model nomi (app_user, enterprise, product, ...)
+      entity_id     — yozuv ID (string)
+      enterprise_id — korxona UUID
+
+    Returns:
+        (audit_log_items, total)
+    """
+    from app.models.audit import AuditLog
+
+    base = select(AuditLog)
+
+    if action is not None:
+        base = base.where(AuditLog.action == action)
+    if entity_type is not None:
+        base = base.where(AuditLog.entity_type == entity_type)
+    if entity_id is not None:
+        base = base.where(AuditLog.entity_id == entity_id)
+    if enterprise_id is not None:
+        base = base.where(AuditLog.enterprise_id == enterprise_id)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    list_stmt = base.order_by(AuditLog.at.desc()).limit(limit).offset(offset)
+    result = await db.execute(list_stmt)
+    items = list(result.scalars().all())
+
+    return items, total
+
+
+# ─── Barcha bannerlar ro'yxati (moderatsiya) ─────────────────────────────────
+
+
+async def list_all_banners(
+    db: AsyncSession,
+    *,
+    enterprise_id: uuid.UUID | None = None,
+    is_active: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[tuple], int]:
+    """
+    Barcha korxonalar bannerlari (moderatsiya uchun — barcha holat, cross-tenant).
+
+    Ixtiyoriy AND filtrlar:
+      enterprise_id — korxona UUID
+      is_active     — bool holat filtri
+
+    Enterprise nomi JOIN orqali qo'shiladi.
+
+    Returns:
+        ([(banner, enterprise_name), ...], total)
+    """
+    from sqlalchemy.orm import aliased
+
+    from app.models.ad_banner import AdBanner
+
+    EnterpriseAlias = aliased(Enterprise)
+
+    base = (
+        select(AdBanner, EnterpriseAlias.name.label("enterprise_name"))
+        .outerjoin(EnterpriseAlias, AdBanner.enterprise_id == EnterpriseAlias.id)
+    )
+
+    if enterprise_id is not None:
+        base = base.where(AdBanner.enterprise_id == enterprise_id)
+    if is_active is not None:
+        base = base.where(AdBanner.is_active == is_active)
+
+    # Count — faqat AdBanner ustida
+    count_base = select(func.count()).select_from(AdBanner)
+    if enterprise_id is not None:
+        count_base = count_base.where(AdBanner.enterprise_id == enterprise_id)
+    if is_active is not None:
+        count_base = count_base.where(AdBanner.is_active == is_active)
+    total = (await db.execute(count_base)).scalar_one()
+
+    list_stmt = (
+        base
+        .order_by(AdBanner.priority.desc(), AdBanner.created_at.desc())
         .limit(limit)
         .offset(offset)
     )

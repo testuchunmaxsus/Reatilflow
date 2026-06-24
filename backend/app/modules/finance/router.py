@@ -3,11 +3,13 @@ Buxgalteriya moduli router — /finance prefiksi bilan main.py ga ulanadi.
 
 Endpointlar:
   POST /finance/ledger                — yozuv qayd etish (accountant: finance:create)
+  POST /finance/ledger/{id}/approve   — yozuvni tasdiqlash (accountant: finance:approve)
   GET  /finance/balance/{store_id}    — balans (finance:view + scope/IDOR)
   GET  /finance/ledger                — paginated yozuvlar ro'yxati (finance:view + scope)
 
 RBAC:
   - POST: faqat accountant (finance:create).
+  - POST approve: faqat accountant (finance:approve).
   - GET balance: finance:view — lekin scope bilan:
     * store: faqat o'z store_id
     * agent: o'z do'konlari
@@ -31,6 +33,7 @@ from app.models.user import AppUser
 from app.modules.finance import service
 from app.modules.finance.schemas import (
     AccountBalanceOut,
+    LedgerApproveOut,
     LedgerEntryCreate,
     LedgerEntryOut,
     PaginatedLedger,
@@ -74,6 +77,43 @@ async def create_ledger_entry(
     await db.commit()
     await db.refresh(entry)
     return LedgerEntryOut.model_validate(entry)
+
+
+# ─── Yozuvni tasdiqlash ───────────────────────────────────────────────────────
+
+
+@router.post(
+    "/ledger/{entry_id}/approve",
+    response_model=LedgerApproveOut,
+    status_code=200,
+    summary="Buxgalteriya yozuvini tasdiqlash",
+    description=(
+        "Ledger yozuvini 'approved' holatiga o'tkazadi. "
+        "Faqat 'pending' holatdagi yozuvni tasdiqlash mumkin. "
+        "Allaqachon tasdiqlangan yozuv → 409. "
+        "Topilmasa → 404. "
+        "Faqat buxgalter (finance:approve)."
+    ),
+    responses={
+        404: {"description": "Yozuv topilmadi"},
+        409: {"description": "Yozuv allaqachon tasdiqlangan"},
+    },
+)
+async def approve_ledger_entry(
+    entry_id: uuid.UUID,
+    current_user: AppUser = require_permission(Module.FINANCE, Action.APPROVE),
+    db: AsyncSession = Depends(get_db),
+) -> LedgerApproveOut:
+    enterprise_id = get_current_enterprise_id(current_user)
+    entry = await service.approve_entry(
+        db,
+        entry_id=entry_id,
+        actor_id=current_user.id,
+        enterprise_id=enterprise_id,
+    )
+    await db.commit()
+    await db.refresh(entry)
+    return LedgerApproveOut.model_validate(entry)
 
 
 # ─── Balans olish ─────────────────────────────────────────────────────────────
