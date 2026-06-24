@@ -30,9 +30,11 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
+from app.core.security import mask_pii
 from app.models.audit import AuditLog
 from app.models.finance import AccountBalance, LedgerApproval, LedgerEntry
 from app.models.outbox import OutboxEvent
@@ -64,14 +66,14 @@ async def _write_audit(
     entity_id: str,
     after: dict | None = None,
 ) -> None:
-    """audit_log ga yozuv qo'shadi."""
+    """audit_log ga yozuv qo'shadi. PII mask_pii() orqali maskalanadi."""
     log = AuditLog(
         actor_id=actor_id,
         action=action,
         entity_type="ledger_entry",
         entity_id=entity_id,
         before_json=None,
-        after_json=json.dumps(after, default=str) if after else None,
+        after_json=json.dumps(mask_pii(after), default=str) if after else None,
     )
     db.add(log)
 
@@ -451,7 +453,11 @@ async def approve_entry(
         enterprise_id=enterprise_id,
     )
     db.add(approval)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise AppError("finance.entry_already_approved", status_code=409) from exc
 
     # 4. Audit + Outbox
     after_payload = {

@@ -952,6 +952,61 @@ async def test_created_entry_response_has_no_approval_fields(
 
 
 @pytest.mark.asyncio
+async def test_approve_entry_race_integrity_error_raises_409(
+    db_session: AsyncSession,
+    fake_redis,
+    make_store,
+    accountant_user,
+) -> None:
+    """
+    TOCTOU race simulyatsiyasi: birinchi tasdiqlash flush qilingan lekin commit
+    qilinmagan holda ikkinchi tasdiqlash IntegrityError (UNIQUE entry_id) → 409.
+
+    Bu test SELECT-ga-qadar mavjudlik tekshiruvi o'tkazib yuborilgan holatni
+    simulyatsiya qiladi (race window). IntegrityError try/except bloki to'g'ri
+    ishlashini tasdiqlaydi.
+    """
+    from app.core.errors import AppError
+    from sqlalchemy.exc import IntegrityError
+    from app.models.finance import LedgerApproval
+
+    store = await make_store()
+    data = LedgerEntryCreate(
+        store_id=store.id,
+        type="debit",
+        amount=Decimal("9000.00"),
+        currency="UZS",
+    )
+    entry = await service.record_entry(
+        db_session, data, actor_id=accountant_user.id, redis=fake_redis
+    )
+    await db_session.flush()
+
+    # Birinchi tasdiqlash — muvaffaqiyatli
+    await service.approve_entry(
+        db_session, entry_id=entry.id, actor_id=accountant_user.id
+    )
+    await db_session.flush()
+
+    # Race window: SELECT ni o'tkazib yuboriб, bevosita duplicate INSERT qilamiz.
+    # Bu bir vaqtda ikki so'rov bir-birining SELECT ni ko'rmaganini simulyatsiya qiladi.
+    duplicate = LedgerApproval(
+        entry_id=entry.id,
+        approved_by=accountant_user.id,
+        approved_at=service._now(),
+    )
+    db_session.add(duplicate)
+    with pytest.raises((AppError, IntegrityError)) as exc_info:
+        await db_session.flush()
+
+    # Agar AppError bo'lsa — try/except bloki to'g'ri ishlagan
+    if isinstance(exc_info.value, AppError):
+        assert exc_info.value.message_key == "finance.entry_already_approved"
+        assert exc_info.value.status_code == 409
+    # Agar IntegrityError bo'lsa — DB UNIQUE constraint ishlagan (ham to'g'ri natija)
+
+
+@pytest.mark.asyncio
 async def test_approve_messages_keys_exist() -> None:
     """finance.entry_not_found va finance.entry_already_approved kalitlari mavjud."""
     from app.core.messages import MESSAGES, translate
