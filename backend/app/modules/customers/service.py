@@ -515,6 +515,13 @@ async def assign_agent(
     if agent is None:
         raise AppError("customers.agent_not_found", status_code=404)
 
+    # Store'ning ASOSIY agentini ham o'rnatamiz. Backend scope (apply_store_scope)
+    # `Store.agent_id == user.id OR agent_store link` ni qo'llaydi, LEKIN mobil ilova
+    # faqat store.agent_id'ga tayanadi (watchByAgentId). Faqat link yozsak — agent
+    # mobil ilovada do'konni TOPA OLMAYDI. Shu sabab store.agent_id'ni ham yangilaymiz
+    # (idempotent re-assign ham eski NULL agent_id'ni tuzatadi — router commit qiladi).
+    store.agent_id = agent_id
+
     # Allaqachon biriktirilganmi?
     existing_stmt = select(AgentStore).where(
         AgentStore.agent_id == agent_id,
