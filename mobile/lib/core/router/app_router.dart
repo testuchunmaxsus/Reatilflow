@@ -7,10 +7,12 @@ import '../../features/auth/auth_providers.dart';
 import '../../features/auth/auth_repository.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
+import '../../features/dashboard/accountant_dashboard.dart';
 import '../../features/dashboard/agent_dashboard.dart';
 import '../../features/dashboard/courier_dashboard.dart';
 import '../../features/delivery/delivery_detail_screen.dart';
 import '../../features/delivery/delivery_list_screen.dart';
+import '../../features/finance/finance_screen.dart';
 import '../../features/home/home_shell.dart';
 import '../../features/marketplace/courier_mp_deliveries_screen.dart';
 import '../../features/marketplace/marketplace_accept_screen.dart';
@@ -32,6 +34,10 @@ const String routeHome = '/home';
 const String routeAgent = '/home/agent';
 const String routeCourier = '/home/courier';
 const String routeStore = '/home/store';
+const String routeAccountant = '/home/accountant';
+
+// Accountant routes
+const String routeAccountantFinance = '/home/accountant/finance';
 
 // Agent routes
 const String routeStores = '/home/stores';
@@ -81,6 +87,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             'agent' => routeAgent,
             'courier' => routeCourier,
             'store' => routeStore,
+            'accountant' => routeAccountant,
             _ => routeHome,
           };
         }
@@ -111,6 +118,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: routeStore,
             builder: (context, state) => const StoreDashboard(),
+          ),
+
+          // --- Buxgalter ---
+          GoRoute(
+            path: routeAccountant,
+            builder: (context, state) => const AccountantDashboard(),
+          ),
+          GoRoute(
+            path: routeAccountantFinance,
+            builder: (context, state) => const FinanceScreen(),
           ),
 
           // --- Do'konlar ---

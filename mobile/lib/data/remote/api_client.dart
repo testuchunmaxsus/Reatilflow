@@ -185,6 +185,41 @@ class ApiClient {
     return response.data!;
   }
 
+  // ---- Finance ----
+
+  /// GET /finance/balance/{store_id} — do'kon moliyaviy balansi.
+  ///
+  /// RBAC (STOCK_FINANCE.md §2.4): accountant barcha do'konlarga kirishadi.
+  /// Boshqa rollar uchun backend 403/404 qaytaradi.
+  Future<Map<String, dynamic>> getFinanceBalance(String storeId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/finance/balance/$storeId',
+    );
+    return response.data!;
+  }
+
+  /// GET /finance/ledger — yozuvlar ro'yxati (paginated).
+  ///
+  /// Filtr parametrlari ixtiyoriy: store_id, entry_type, limit, offset.
+  Future<Map<String, dynamic>> getFinanceLedger({
+    String? storeId,
+    String? entryType,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final params = <String, dynamic>{
+      'limit': limit,
+      'offset': offset,
+      if (storeId != null && storeId.isNotEmpty) 'store_id': storeId,
+      if (entryType != null && entryType.isNotEmpty) 'entry_type': entryType,
+    };
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/finance/ledger',
+      queryParameters: params,
+    );
+    return response.data!;
+  }
+
   // ---- Marketplace ----
 
   /// GET /marketplace/banners?limit=N — reklama bannerlari.

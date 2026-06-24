@@ -30,6 +30,7 @@ class HomeShell extends ConsumerWidget {
     final isAgent = role == 'agent';
     final isCourier = role == 'courier';
     final isStore = role == 'store';
+    final isAccountant = role == 'accountant';
 
     return Scaffold(
       appBar: AppBar(
@@ -59,7 +60,9 @@ class HomeShell extends ConsumerWidget {
               ? _CourierNavBar()
               : isStore
                   ? _StoreNavBar()
-                  : null,
+                  : isAccountant
+                      ? _AccountantNavBar()
+                      : null,
     );
   }
 }
@@ -247,6 +250,53 @@ class _StoreNavBar extends ConsumerWidget {
           icon: Icons.storefront,
           label: 'Marketplace',
         ),
+    ];
+
+    final currentIndex = _resolveIndex(tabs, location);
+
+    return BottomNavigationBar(
+      currentIndex: currentIndex,
+      type: BottomNavigationBarType.fixed,
+      selectedFontSize: 11,
+      unselectedFontSize: 10,
+      onTap: (index) => context.go(tabs[index].route),
+      items: tabs
+          .map((t) => BottomNavigationBarItem(
+                icon: Icon(t.icon),
+                label: t.label,
+              ))
+          .toList(),
+    );
+  }
+}
+
+/// Buxgalter pastki navigatsiya paneli.
+///
+/// Bo'limlar: Bosh sahifa | Moliya | Davomat.
+class _AccountantNavBar extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).matchedLocation;
+
+    final tabs = <_NavTab>[
+      const _NavTab(
+        route: '/home/accountant',
+        matchPrefix: '/home/accountant',
+        icon: Icons.home,
+        label: 'Bosh',
+      ),
+      const _NavTab(
+        route: '/home/accountant/finance',
+        matchPrefix: '/home/accountant/finance',
+        icon: Icons.account_balance_wallet,
+        label: 'Moliya',
+      ),
+      const _NavTab(
+        route: '/home/attendance',
+        matchPrefix: '/home/attendance',
+        icon: Icons.fingerprint,
+        label: 'Davomat',
+      ),
     ];
 
     final currentIndex = _resolveIndex(tabs, location);
