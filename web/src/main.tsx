@@ -15,7 +15,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { MantineProvider, createTheme, Center, Loader } from "@mantine/core";
+import { MantineProvider, createTheme, Center, Loader, Text } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 
 // i18n — import before App (yuklash va konfiguratsiya)
@@ -152,17 +152,30 @@ const GpsTrackPage = lazy(() =>
 /**
  * PosSalePage storeId: string (required) qabul qiladi.
  * branch_id ni foydalanuvchi kontekstidan olib beramiz.
- * store roli uchun branch_id avtomatik to'ldiriladi;
- * boshqa rollar uchun "unknown" — sahifaning o'zi boshqaradi.
+ * store roli uchun branch_id avtomatik to'ldiriladi.
+ *
+ * FIX #14: branch_id yo'q bo'lsa "unknown" sentinel backendga YUBORILMAYDI —
+ * aniq xabar ko'rsatiladi va PosSalePage render bo'lmaydi.
  */
 function PosSalePageWrapper() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const storeId = user?.branch_id ?? "unknown";
+
+  // branch_id yo'q (store roli emas yoki biriktirish bo'lmagan) — xabar ko'rsat
+  if (!user?.branch_id) {
+    return (
+      <Center py="xl">
+        <Text c="dimmed" size="sm">
+          Do'kon (branch_id) biriktirilmagan. Administratorga murojaat qiling.
+        </Text>
+      </Center>
+    );
+  }
+
   return (
     <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
       <PosSalePage
-        storeId={storeId}
+        storeId={user.branch_id}
         onSaleComplete={() => navigate("/pos", { replace: true })}
       />
     </Suspense>

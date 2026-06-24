@@ -184,10 +184,11 @@ function EditProfileModal({ opened, onClose }: EditProfileModalProps) {
 
   const handleSubmit = async (values: typeof form.values) => {
     if (!profile) return;
+    // FIX #3: version mutationFn ichida GET /users/{id} orqali olinadi — bu yerda yo'q
     const data: AgentProfileUpdate = {
       full_name: values.full_name.trim(),
       locale: values.locale,
-      version: 1, // Profil versiyasi — /auth/me UserOut dan olinadi
+      version: 0, // placeholder — useUpdateAgentProfile ichida haqiqiy version bilan almashtiriladi
     };
     try {
       await updateProfile.mutateAsync({ id: profile.id, data });

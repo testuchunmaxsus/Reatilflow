@@ -71,8 +71,10 @@ function InventoryResultRow({
 }) {
   const { t } = useTranslation();
 
-  const blocked = item.is_expired || item.status === "expired";
-  const nearExpiry = item.is_near_expiry && !blocked;
+  // FIX #6: is_near_expiry ham QIZIL + savatga qo'shish DISABLED
+  // Backend baribir 422 beradi, lekin UI ham bloklasin
+  // near_expiry endi alohida sariq holat yo'q — to'g'ridan qizil-blok
+  const blocked = item.is_expired || item.is_near_expiry || item.status === "expired";
 
   return (
     <Table.Tr style={{ opacity: blocked ? 0.6 : 1 }}>
@@ -81,16 +83,12 @@ function InventoryResultRow({
           <Text size="sm" fw={500}>
             {item.product_id}
           </Text>
+          {/* FIX #6: is_expired yoki is_near_expiry — ikkalasi ham QIZIL blok */}
           {blocked && (
             <Badge color="red" size="xs">
-              {t("pos.product.expiry_blocked", "Muddati o'tgan — sotish taqiqlangan")}
-            </Badge>
-          )}
-          {nearExpiry && (
-            <Badge color="yellow" size="xs">
-              {t("pos.expiry.expiring_soon", "Muddat yaqin — {{days}} kun qoldi", {
-                days: item.days_to_expiry ?? "?",
-              })}
+              {item.is_near_expiry && !item.is_expired && item.status !== "expired"
+                ? t("pos.expiry.expiring_soon_blocked", "Muddat yaqin — sotish taqiqlangan")
+                : t("pos.product.expiry_blocked", "Muddati o'tgan — sotish taqiqlangan")}
             </Badge>
           )}
         </Stack>
@@ -102,8 +100,8 @@ function InventoryResultRow({
         {item.expiry_date ? (
           <Text
             size="sm"
-            c={blocked ? "red" : nearExpiry ? "yellow.7" : undefined}
-            fw={blocked || nearExpiry ? 600 : undefined}
+            c={blocked ? "red" : undefined}
+            fw={blocked ? 600 : undefined}
           >
             {item.expiry_date}
           </Text>
@@ -157,9 +155,10 @@ function CartRow({
           <Text size="sm" fw={500}>
             {item.product_name}
           </Text>
-          {item.is_near_expiry && !item.is_expired && (
-            <Badge color="yellow" size="xs">
-              {t("pos.expiry.expiring_soon", "Muddat yaqin")}
+          {/* FIX #6: near-expiry ham qizil — to'g'ridan blok */}
+          {(item.is_near_expiry || item.is_expired) && (
+            <Badge color="red" size="xs">
+              {t("pos.product.expiry_blocked", "Muddati o'tgan — sotish taqiqlangan")}
             </Badge>
           )}
         </Stack>
@@ -227,7 +226,8 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
 
   const handleAddToCart = useCallback(
     (item: PosInventoryItem) => {
-      if (item.is_expired || item.status === "expired") return;
+      // FIX #6: is_near_expiry ham blok — UI himoyasi (backend baribir 422)
+      if (item.is_expired || item.is_near_expiry || item.status === "expired") return;
 
       setCart((prev) => {
         const exists = prev.find((c) => c.product_id === item.product_id);

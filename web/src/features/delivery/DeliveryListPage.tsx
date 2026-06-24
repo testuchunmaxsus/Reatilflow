@@ -12,7 +12,6 @@
  */
 
 import {
-  Badge,
   Box,
   Button,
   Group,
@@ -28,27 +27,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useDeliveries } from "./api/deliveryApi";
-import type { Delivery, DeliveryStatus } from "./types";
+import type { Delivery } from "./types";
+// FIX #11: umumiy komponent — DeliveryDetailPage ham shu fayldan import qiladi
+import { DeliveryStatusBadge } from "./components/DeliveryStatusBadge";
 
 const PAGE_SIZE = 20;
-
-// ─── Holat badge ─────────────────────────────────────────────────────────────
-
-function DeliveryStatusBadge({ status }: { status: DeliveryStatus | string }) {
-  const { t } = useTranslation();
-  const colorMap: Record<string, string> = {
-    assigned: "blue",
-    started: "cyan",
-    delivering: "teal",
-    delivered: "green",
-    failed: "red",
-  };
-  return (
-    <Badge color={colorMap[status] ?? "gray"} variant="light" size="sm">
-      {t(`delivery.status.${status}`, { defaultValue: status })}
-    </Badge>
-  );
-}
 
 // ─── Sana formatlash ─────────────────────────────────────────────────────────
 

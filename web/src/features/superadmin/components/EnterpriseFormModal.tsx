@@ -41,12 +41,23 @@ import { ALL_MODULE_KEYS_FRONTEND } from "../constants";
 const PASSWORD_CHARS =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
+// FIX #7: rejection sampling — modulo bias yo'q.
+// floor(256 / charsLen) * charsLen = 248 (62 ta belgi uchun).
+// 248 va undan katta baytlar tashlanadi va yangi bayt olinadi.
 function generateStrongPassword(length = 14): string {
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array)
-    .map((b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length])
-    .join("");
+  const charsLen = PASSWORD_CHARS.length; // 62
+  const limit = Math.floor(256 / charsLen) * charsLen; // 248
+  const result: string[] = [];
+  while (result.length < length) {
+    const batch = new Uint8Array(length * 2); // zapas bilan olish
+    crypto.getRandomValues(batch);
+    for (const b of batch) {
+      if (b >= limit) continue; // tashlab yuboriladi — bias oldini olish
+      result.push(PASSWORD_CHARS[b % charsLen]);
+      if (result.length === length) break;
+    }
+  }
+  return result.join("");
 }
 
 interface EnterpriseFormModalProps {

@@ -35,6 +35,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Can } from "@/rbac/Can";
 import { usePosSales, usePosSummary } from "./api/posApi";
+import { toLocalYMD } from "@/utils/date";
 
 const PAGE_SIZE = 20;
 
@@ -84,16 +85,20 @@ export function PosSalesListPage({ storeId, onNewSale }: PosSalesListPageProps) 
   const offset = (page - 1) * PAGE_SIZE;
 
   // API
-  const todayStr = new Date().toISOString().split("T")[0];
+  // FIX #1: toLocalYMD — UTC emas, mahalliy sana (UZ UTC+5 tongida noto'g'ri kun muammosi yo'q)
+  const todayStr = toLocalYMD(new Date());
+  // FIX #4: summary ham storeIdFilter || storeId ishlatadi — ro'yxat bilan bir xil scope
+  const effectiveStoreId = storeIdFilter || storeId;
   const { data: summary, isLoading: summaryLoading } = usePosSummary(
     todayStr,
-    storeId,
+    effectiveStoreId,
   );
 
   const { data: salesData, isLoading: salesLoading } = usePosSales({
     store_id: storeIdFilter || undefined,
-    date_from: dateFrom ? dateFrom.toISOString() : undefined,
-    date_to: dateTo ? dateTo.toISOString() : undefined,
+    // FIX #1: mahalliy sana chegaralari — backend YYYY-MM-DD kutadi
+    date_from: dateFrom ? toLocalYMD(dateFrom) : undefined,
+    date_to: dateTo ? toLocalYMD(dateTo) : undefined,
     limit: PAGE_SIZE,
     offset,
   });

@@ -190,6 +190,8 @@ function useNavItems(): NavItem[] {
       path: "/agent-cabinet",
       icon: IconBriefcase,
       requiredPermission: "agent_cabinet:view",
+      // FIX #9: agent_cabinet ALL_MODULE_KEYS_FRONTEND da yo'q — modul emas, rol-based feature.
+      // requiredModule qo'shilmaydi: barcha enterpriselar uchun mavjud (modul gating kerak emas).
     },
     {
       label: t("nav.settings"),

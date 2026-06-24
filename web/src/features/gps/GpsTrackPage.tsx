@@ -62,6 +62,14 @@ function toFloat(v: number | string | null | undefined): number {
   return isNaN(n) ? 0 : n;
 }
 
+// FIX #8: koordinatasi yaroqsiz (NaN yoki 0,0 "null island") nuqtalarni
+// marker/polyline dan tashlab yuborish uchun — Number.isFinite tekshiruvi.
+function isValidCoord(lat: number | string | null | undefined, lng: number | string | null | undefined): boolean {
+  const la = toFloat(lat);
+  const ln = toFloat(lng);
+  return Number.isFinite(la) && Number.isFinite(ln) && (la !== 0 || ln !== 0);
+}
+
 // ─── Vaqt formatlash ─────────────────────────────────────────────────────────
 
 function fmtTime(iso: string): string {
@@ -189,17 +197,31 @@ interface MapViewProps {
 function GpsLeafletMap({ points }: MapViewProps) {
   const { t } = useTranslation();
 
+  // FIX #8: yaroqsiz koordinatali nuqtalarni tashlab yuborish (0,0 null island, NaN)
+  const validPoints = points.filter((p) => isValidCoord(p.lat, p.lng));
+
+  if (validPoints.length === 0) {
+    return (
+      <Box py="xl" ta="center" data-testid="gps-no-valid-coords">
+        <Text c="dimmed">
+          {t("gps.map.no_valid_coords", { defaultValue: "Yaroqli koordinatalar topilmadi" })}
+        </Text>
+      </Box>
+    );
+  }
+
   const center: [number, number] = [
-    toFloat(points[0].lat),
-    toFloat(points[0].lng),
+    toFloat(validPoints[0].lat),
+    toFloat(validPoints[0].lng),
   ];
 
-  const polylinePositions: [number, number][] = points.map((p) => [
+  const polylinePositions: [number, number][] = validPoints.map((p) => [
     toFloat(p.lat),
     toFloat(p.lng),
   ]);
 
-  const lastPoint = points[points.length - 1];
+  // FIX #8: lastPoint ham validPoints ichidan (yaroqli koordinata bilan)
+  const lastPoint = validPoints[validPoints.length - 1];
 
   return (
     <Box
@@ -216,17 +238,17 @@ function GpsLeafletMap({ points }: MapViewProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {/* Marshrut chizig'i */}
+        {/* Marshrut chizig'i — faqat yaroqli nuqtalar */}
         <Polyline positions={polylinePositions} color="#228be6" weight={3} />
-        {/* Boshlang'ich nuqta */}
-        <Marker position={[toFloat(points[0].lat), toFloat(points[0].lng)]}>
+        {/* Boshlang'ich nuqta — validPoints[0] */}
+        <Marker position={[toFloat(validPoints[0].lat), toFloat(validPoints[0].lng)]}>
           <Popup>
             {t("gps.map.track_history", { defaultValue: "Harakat tarixi" })}{" "}
-            — {fmtTime(points[0].recorded_at)}
+            — {fmtTime(validPoints[0].recorded_at)}
           </Popup>
         </Marker>
-        {/* Oxirgi nuqta (joriy joylashuv) */}
-        {points.length > 1 && (
+        {/* Oxirgi nuqta (joriy joylashuv) — faqat validPoints.length > 1 */}
+        {validPoints.length > 1 && (
           <Marker
             position={[toFloat(lastPoint.lat), toFloat(lastPoint.lng)]}
           >

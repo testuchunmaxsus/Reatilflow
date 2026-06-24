@@ -13,7 +13,6 @@
 
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Divider,
@@ -45,33 +44,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Can } from "@/rbac/Can";
 import { useApiError } from "@/hooks/useApiError";
-import { useCouriers } from "@/features/marketplace/api/marketplaceApi";
 import {
   useDelivery,
   useUpdateDeliveryStatus,
   useUploadProofPhoto,
-  useAssignCourier,
 } from "./api/deliveryApi";
+// FIX #2: useAssignCourier (POST /delivery) bu sahifada ISHLATILMAYDI —
+// mavjud delivery uchun kuryer o'zgartirish dublikat delivery yaratadi.
+// To'g'ri yechim: backend PATCH /delivery/{id}/assign endpoint'i (kelajak ishlanma).
 import type { DeliveryStatus } from "./types";
 import { DELIVERY_VALID_TRANSITIONS } from "./types";
-
-// ─── Holat badge ─────────────────────────────────────────────────────────────
-
-function DeliveryStatusBadge({ status }: { status: DeliveryStatus | string }) {
-  const { t } = useTranslation();
-  const colorMap: Record<string, string> = {
-    assigned: "blue",
-    started: "cyan",
-    delivering: "teal",
-    delivered: "green",
-    failed: "red",
-  };
-  return (
-    <Badge color={colorMap[status] ?? "gray"} variant="filled" size="md">
-      {t(`delivery.status.${status}`, { defaultValue: status })}
-    </Badge>
-  );
-}
+// FIX #11: umumiy komponent — DeliveryListPage ham shu fayldan import qiladi
+import { DeliveryStatusBadge } from "./components/DeliveryStatusBadge";
 
 // ─── Holat Timeline ───────────────────────────────────────────────────────────
 
@@ -391,95 +375,6 @@ function ProofPhotoModal({
   );
 }
 
-// ─── Kuryer tayinlash modal (admin) ───────────────────────────────────────────
-
-function AssignCourierModal({
-  opened,
-  onClose,
-  orderId,
-}: {
-  opened: boolean;
-  onClose: () => void;
-  orderId: string;
-}) {
-  const { t } = useTranslation();
-  const { showError } = useApiError();
-  const [courierId, setCourierId] = useState<string | null>(null);
-  const { data: couriersData } = useCouriers();
-  const assignCourier = useAssignCourier();
-
-  const courierOptions =
-    couriersData?.items.map((c) => ({
-      value: c.id,
-      label: c.full_name,
-    })) ?? [];
-
-  const handleClose = () => {
-    setCourierId(null);
-    onClose();
-  };
-
-  const handleSubmit = async () => {
-    if (!courierId) return;
-    try {
-      await assignCourier.mutateAsync({ order_id: orderId, courier_id: courierId });
-      notifications.show({
-        color: "teal",
-        message: t("delivery.assign.success", {
-          defaultValue: "Kuryer muvaffaqiyatli tayinlandi",
-        }),
-      });
-      handleClose();
-    } catch (err) {
-      showError(err);
-    }
-  };
-
-  return (
-    <Modal
-      opened={opened}
-      onClose={handleClose}
-      title={
-        <Text fw={600}>
-          {t("delivery.assign.title", { defaultValue: "Kuryer tayinlash" })}
-        </Text>
-      }
-      size="sm"
-      centered
-    >
-      <Stack gap="md">
-        <Select
-          label={t("delivery.assign.courier_label", { defaultValue: "Kuryer" })}
-          placeholder={t("delivery.assign.courier_placeholder", {
-            defaultValue: "Kuryerni tanlang",
-          })}
-          data={courierOptions}
-          value={courierId}
-          onChange={setCourierId}
-          searchable
-          required
-        />
-        <Group justify="flex-end">
-          <Button
-            variant="subtle"
-            onClick={handleClose}
-            disabled={assignCourier.isPending}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            onClick={() => { void handleSubmit(); }}
-            disabled={!courierId}
-            loading={assignCourier.isPending}
-          >
-            {t("delivery.assign.submit", { defaultValue: "Tayinlash" })}
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
-}
-
 // ─── Asosiy sahifa ────────────────────────────────────────────────────────────
 
 export function DeliveryDetailPage() {
@@ -492,8 +387,6 @@ export function DeliveryDetailPage() {
   const [statusModalOpened, { open: openStatusModal, close: closeStatusModal }] =
     useDisclosure(false);
   const [proofModalOpened, { open: openProofModal, close: closeProofModal }] =
-    useDisclosure(false);
-  const [assignModalOpened, { open: openAssignModal, close: closeAssignModal }] =
     useDisclosure(false);
 
   if (isLoading) {
@@ -530,7 +423,7 @@ export function DeliveryDetailPage() {
             {t("delivery.detail.title", { defaultValue: "Yetkazish tafsiloti" })}
           </Title>
         </Group>
-        <DeliveryStatusBadge status={delivery.status} />
+        <DeliveryStatusBadge status={delivery.status} variant="filled" size="md" />
       </Group>
 
       {/* Asosiy ma'lumot */}
@@ -643,19 +536,9 @@ export function DeliveryDetailPage() {
           </Button>
         </Can>
 
-        {/* Admin uchun kuryer qayta tayinlash */}
-        <Can permission="delivery:create">
-          <Button
-            leftSection={<IconTruck size={16} />}
-            variant="light"
-            color="orange"
-            onClick={openAssignModal}
-          >
-            {t("delivery.actions.assign_courier", {
-              defaultValue: "Kuryer tayinlash",
-            })}
-          </Button>
-        </Can>
+        {/* Kuryer qayta tayinlash bu sahifada o'chirilgan:
+            POST /delivery yangi delivery yaratadi — dublikat hosil bo'ladi.
+            To'g'ri yechim: backend PATCH /delivery/{id}/assign (kelajak ishlanma). */}
 
         {/* Faqat ko'rish uchun — isbot rasm preview */}
         {delivery.proof_photo_url && (
@@ -685,13 +568,6 @@ export function DeliveryDetailPage() {
         deliveryId={delivery.id}
       />
 
-      <Can permission="delivery:create">
-        <AssignCourierModal
-          opened={assignModalOpened}
-          onClose={closeAssignModal}
-          orderId={delivery.order_id}
-        />
-      </Can>
     </Stack>
   );
 }
