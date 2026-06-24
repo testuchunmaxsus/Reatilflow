@@ -36,6 +36,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from redis.asyncio import Redis
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db, get_timescale_db
@@ -55,6 +56,25 @@ from app.modules.rbac.permissions import Action, Module
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["gps"])
+
+
+async def _safe_track(**kwargs):
+    """service.get_track ni TimescaleDB uzilganda graceful (bo'sh) qaytaradi.
+
+    GPS time-series alohida TimescaleDB'da (settings.timescale_url). Agar u
+    prod'da sozlanmagan/ulanib bo'lmasa — 500 (+ CORS buzilishi) o'rniga bo'sh
+    natija qaytaramiz; UI "ma'lumot yo'q" deb ko'rsatadi.
+
+    DIQQAT: faqat DB/ulanish xatolari (SQLAlchemyError/OSError) tutiladi.
+    AppError (IDOR/ruxsat 403/404) SQLAlchemyError EMAS — u propagatsiya qiladi.
+    """
+    try:
+        return await service.get_track(**kwargs)
+    except (SQLAlchemyError, OSError) as exc:
+        logger.warning(
+            "gps track: TimescaleDB mavjud emas, bo'sh natija qaytarildi (%r)", exc
+        )
+        return [], 0
 
 # ─── Rate-limit konstantalari ─────────────────────────────────────────────────
 
@@ -186,7 +206,7 @@ async def get_track_by_delivery(
         _TRACK_RATE_WINDOW,
     )
 
-    items, total = await service.get_track(
+    items, total = await _safe_track(
         db=db,
         user=current_user,
         delivery_id=delivery_id,
@@ -253,7 +273,7 @@ async def get_track_by_user(
         _TRACK_RATE_WINDOW,
     )
 
-    items, total = await service.get_track(
+    items, total = await _safe_track(
         db=db,
         user=current_user,
         delivery_id=None,
