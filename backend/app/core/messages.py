@@ -84,6 +84,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Noto'g'ri status: faqat 'active' yoki 'suspended' qabul qilinadi",
         "ru": "Неверный статус: допустимы только 'active' или 'suspended'",
     },
+    "superadmin.cannot_delete_default": {
+        "uz": "Default korxonani o'chirib bo'lmaydi",
+        "ru": "Невозможно удалить корпорацию по умолчанию",
+    },
+    "superadmin.user_not_found": {
+        "uz": "Foydalanuvchi topilmadi yoki bu korxonaga tegishli emas",
+        "ru": "Пользователь не найден или не принадлежит этому предприятию",
+    },
 
     # ── Katalog ─────────────────────────────────────────────────────────────
     "catalog.product_not_found": {

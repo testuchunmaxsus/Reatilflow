@@ -8,6 +8,13 @@ Sxemalar:
   EnterpriseAdminOut        — POST javob: korxona + admin (parolsiz)
   EnterprisePaginated       — GET ro'yxat javob
   AdminOut                  — birinchi admin javob sxemasi (parol QAYTARILMAYDI)
+  StatsOut                  — GET /superadmin/stats javob
+  EnterpriseAdminListItem   — admins[] ichidagi element
+  EnterpriseDetailOut       — GET /superadmin/enterprises/{id} kengaytirilgan javob
+  ResetPasswordIn           — POST reset-admin-password so'rovi
+  ResetPasswordOut          — POST reset-admin-password javob
+  SuperadminUserOut         — cross-tenant users elementi
+  PaginatedSuperadminUsers  — GET /superadmin/users paginated javob
 """
 
 from __future__ import annotations
@@ -103,6 +110,96 @@ class EnterprisePaginated(BaseModel):
     """GET /superadmin/enterprises paginated javob."""
 
     items: list[EnterpriseOut]
+    total: int
+    limit: int
+    offset: int
+
+
+# ─── Stats ───────────────────────────────────────────────────────────────────
+
+
+class StatsOut(BaseModel):
+    """GET /superadmin/stats javob."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    enterprises_total: int
+    enterprises_active: int
+    enterprises_suspended: int
+    users_total: int
+    enterprises_new_7d: int
+
+
+# ─── Enterprise Detail ────────────────────────────────────────────────────────
+
+
+class EnterpriseAdminListItem(BaseModel):
+    """admins[] ro'yxatidagi administrator elementi."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    full_name: str
+    phone: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+
+class EnterpriseDetailOut(EnterpriseOut):
+    """
+    GET /superadmin/enterprises/{id} kengaytirilgan javob.
+
+    EnterpriseOut barcha maydonlari + user_count + admins.
+    """
+
+    user_count: int
+    admins: list[EnterpriseAdminListItem]
+
+
+# ─── Reset Admin Password ─────────────────────────────────────────────────────
+
+
+class ResetPasswordIn(BaseModel):
+    """POST /superadmin/enterprises/{id}/reset-admin-password so'rovi."""
+
+    user_id: uuid.UUID = Field(..., description="Paroli tiklanadigian foydalanuvchi ID")
+    new_password: str | None = Field(
+        None,
+        min_length=12,
+        description="Yangi parol (null bo'lsa server kuchli parol generatsiya qiladi)",
+    )
+
+
+class ResetPasswordOut(BaseModel):
+    """POST /superadmin/enterprises/{id}/reset-admin-password javob."""
+
+    user_id: uuid.UUID
+    new_password: str = Field(..., description="Yangi parol (faqat shu javobda bir marta ko'rsatiladi)")
+
+
+# ─── Cross-tenant Users ───────────────────────────────────────────────────────
+
+
+class SuperadminUserOut(BaseModel):
+    """GET /superadmin/users — bitta foydalanuvchi elementi."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    full_name: str
+    phone: str
+    role: str
+    is_active: bool
+    enterprise_id: uuid.UUID | None
+    enterprise_name: str | None
+    created_at: datetime
+
+
+class PaginatedSuperadminUsers(BaseModel):
+    """GET /superadmin/users paginated javob."""
+
+    items: list[SuperadminUserOut]
     total: int
     limit: int
     offset: int
