@@ -95,6 +95,20 @@ export function UserFormModal({ opened, onClose, user }: UserFormModalProps) {
       },
       role: (v) =>
         !v ? t("users.form.role_required") : null,
+      branch_id: (v) => {
+        // Ixtiyoriy: bo'sh bo'lsa "barcha filiallar" (null). To'ldirilsa — UUID bo'lishi shart
+        // (aks holda backend 422 "uuid_parsing" beradi).
+        if (!v.trim()) return null;
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            v.trim(),
+          );
+        return isUuid
+          ? null
+          : t("users.form.branch_invalid", {
+              defaultValue: "Filial ID UUID formatida bo'lishi kerak (yoki bo'sh qoldiring)",
+            });
+      },
     },
   });
 
