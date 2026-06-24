@@ -79,3 +79,20 @@ class MeResponse(BaseModel):
     )
 
     model_config = {"from_attributes": True}
+
+
+class SelfProfileUpdate(BaseModel):
+    """
+    PATCH /auth/me — foydalanuvchi O'ZINING profilini yangilaydi.
+
+    FAQAT full_name va locale o'zgartiriladi. Telefon (login), rol, korxona,
+    filial va holat O'ZGARTIRILMAYDI — ular administrator nazoratida.
+    Har qanday autentifikatsiyalangan rol uchun (alohida RBAC ruxsati kerak emas).
+    """
+
+    full_name: str | None = Field(
+        None, min_length=1, max_length=255, description="To'liq ism"
+    )
+    locale: str | None = Field(
+        None, pattern=r"^(uz|ru)$", description="Til: uz | ru"
+    )

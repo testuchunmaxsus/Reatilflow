@@ -183,15 +183,13 @@ function EditProfileModal({ opened, onClose }: EditProfileModalProps) {
   };
 
   const handleSubmit = async (values: typeof form.values) => {
-    if (!profile) return;
-    // FIX #3: version mutationFn ichida GET /users/{id} orqali olinadi — bu yerda yo'q
+    // PATCH /auth/me — self-service (id/version kerak emas)
     const data: AgentProfileUpdate = {
       full_name: values.full_name.trim(),
       locale: values.locale,
-      version: 0, // placeholder — useUpdateAgentProfile ichida haqiqiy version bilan almashtiriladi
     };
     try {
-      await updateProfile.mutateAsync({ id: profile.id, data });
+      await updateProfile.mutateAsync(data);
       notifications.show({
         color: "green",
         message: t("agentCabinet.edit.saved", { defaultValue: "Profil saqlandi" }),

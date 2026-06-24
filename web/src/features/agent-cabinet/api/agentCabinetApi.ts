@@ -10,8 +10,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
-import type { MeResponse, AppUserOut } from "@/api/types";
-import type { StoreOut } from "@/api/types";
+import type { MeResponse } from "@/api/types";
 import { agentProfileFromMe } from "../types";
 import type { AgentProfileUpdate, AgentStoreFilters, AgentStoresPage } from "../types";
 
@@ -39,23 +38,16 @@ export function useAgentProfile() {
 }
 
 // ─── Profil yangilash ──────────────────────────────────────────────────────────
-// Endpoint: PATCH /users/{id} — foydalanuvchi o'zini tahrirlaydi
-//
-// FIX #3: version:1 hardcode → takroriy tahrirlashda 409 Conflict berardi.
-// Yechim: PATCH oldidan GET /users/{id} orqali haqiqiy version'ni olamiz.
-// Bu har doim to'g'ri version bilan PATCH qilishni ta'minlaydi.
+// Endpoint: PATCH /auth/me — self-service profil (full_name + locale).
+// Har qanday autentifikatsiyalangan rol O'Z profilini yangilay oladi
+// (alohida RBAC ruxsati kerak emas — /users/{id} admin-gated edi, agent uchun 403).
 
 export function useUpdateAgentProfile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: AgentProfileUpdate }) => {
-      // Haqiqiy version'ni olish — hardcode emas
-      const currentUser = await apiClient.get<AppUserOut>(`/users/${id}`);
-      const payload: AgentProfileUpdate = { ...data, version: currentUser.version };
-      return apiClient.patch<StoreOut>(`/users/${id}`, payload);
-    },
+    mutationFn: (data: AgentProfileUpdate) =>
+      apiClient.patch<MeResponse>("/auth/me", data),
     onSuccess: () => {
-      // Profilni va auth cache ni yangilaymiz
       void queryClient.invalidateQueries({ queryKey: agentCabinetKeys.profile() });
     },
   });

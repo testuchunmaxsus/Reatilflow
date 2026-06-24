@@ -41,11 +41,10 @@ export function agentProfileFromMe(me: MeResponse): AgentProfile {
 
 // ─── Profil yangilash ─────────────────────────────────────────────────────────
 
+/** PATCH /auth/me tanasi — self-service profil (full_name + locale) */
 export interface AgentProfileUpdate {
   full_name?: string;
   locale?: "uz" | "ru";
-  /** optimistik lock — majburiy */
-  version: number;
 }
 
 // ─── Do'konlar ────────────────────────────────────────────────────────────────

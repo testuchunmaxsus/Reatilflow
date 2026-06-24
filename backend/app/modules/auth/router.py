@@ -36,6 +36,7 @@ from app.modules.auth.schemas import (
     LogoutRequest,
     MeResponse,
     RefreshRequest,
+    SelfProfileUpdate,
     TokenPair,
 )
 from app.modules.auth.service import login, logout, refresh_tokens
@@ -218,6 +219,45 @@ async def auth_me(
     T2 kengaytmasi: `permissions` maydoni rolning barcha ruxsatlarini o'z ichiga oladi
     (Redis kesh orqali, graceful degradation mavjud).
     """
+    perms = await get_permissions_for_role(current_user.role, redis)
+    data = MeResponse.model_validate(current_user)
+    data.permissions = sorted(perms)
+    return data
+
+
+@router.patch(
+    "/me",
+    response_model=MeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="O'z profilini yangilash",
+    description=(
+        "Joriy foydalanuvchi O'ZINING profilini yangilaydi (full_name, locale). "
+        "Telefon, rol, korxona, filial va holat o'zgartirilmaydi (administrator nazorati). "
+        "Har qanday autentifikatsiyalangan rol uchun — alohida RBAC ruxsati kerak emas."
+    ),
+    responses={
+        200: {"description": "Profil yangilandi"},
+        401: {"description": "Token yaroqsiz yoki yo'q"},
+    },
+)
+async def auth_update_me(
+    body: SelfProfileUpdate,
+    current_user: AppUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> MeResponse:
+    """
+    Joriy foydalanuvchi o'z full_name/locale ni yangilaydi (self-service).
+
+    XAVFSIZLIK: faqat full_name + locale. phone/role/enterprise_id/branch_id/
+    is_active O'ZGARTIRILMAYDI — bu maydonlar SelfProfileUpdate sxemasida yo'q.
+    """
+    if body.full_name is not None:
+        current_user.full_name = body.full_name
+    if body.locale is not None:
+        current_user.locale = body.locale
+    await db.flush()
+
     perms = await get_permissions_for_role(current_user.role, redis)
     data = MeResponse.model_validate(current_user)
     data.permissions = sorted(perms)
