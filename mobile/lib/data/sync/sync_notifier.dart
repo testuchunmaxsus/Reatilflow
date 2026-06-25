@@ -45,8 +45,8 @@ class SyncNotifier extends StateNotifier<SyncState> {
       }
     });
 
-    // Periodik sync (5 daqiqada bir)
-    _periodicTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+    // Periodik sync (1 daqiqada bir — GPS nuqtalari tez serverga yetishi uchun)
+    _periodicTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (_isOnline) triggerSync();
     });
 

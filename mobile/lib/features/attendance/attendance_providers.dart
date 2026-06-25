@@ -74,8 +74,9 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
   final BiometricService _biometricService;
   final GpsService _gpsService;
 
-  /// ADR §3.7: agent uchun 2-5 daqiqa interval GPS
-  static const _gpsInterval = Duration(minutes: 3);
+  /// GPS yig'ish intervali — deyarli jonli kuzatuv uchun 30s (foydalanuvchi so'rovi).
+  /// (Avval ADR §3.7 bo'yicha 3 daqiqa edi; 30s — batareya/trafik biroz ko'proq.)
+  static const _gpsInterval = Duration(seconds: 30);
   Timer? _gpsTimer;
 
   /// Check-in: biometrik → GPS → outbox
@@ -100,7 +101,11 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
 
       state = AttendanceCheckedIn(record: record, lastGps: gps);
 
-      // 4. Davriy GPS yig'ish (ish vaqtida)
+      // 4. DARHOL birinchi GPS nuqtasini yuborish — xaritada tez ko'rinishi uchun
+      //    (timer'ning birinchi tiki kutilmaydi), so'ng davriy yig'ish.
+      if (gps != null) {
+        await _repository.ingestGps(position: gps);
+      }
       _startGpsTracking();
     } on BiometricRequiredException {
       state = const AttendanceError(
