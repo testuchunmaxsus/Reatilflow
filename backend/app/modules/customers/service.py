@@ -241,6 +241,7 @@ async def create_store(
     actor_id: uuid.UUID | None = None,
     redis=None,
     enterprise_id: uuid.UUID | None = None,
+    actor: AppUser | None = None,
 ) -> Store:
     """
     Yangi do'kon yaratadi.
@@ -248,6 +249,11 @@ async def create_store(
     PII (inn, inps, owner_name, phone) EncryptedString orqali shifrlangan saqlanadi.
     inn_bi, phone_bi blind-index yoziladi.
     Idempotentlik: Redis kalit idem:customers:create:{actor_id}:{client_uuid}.
+
+    Server-avtoritar agent_id:
+      Agar yaratuvchi "agent" rolida bo'lsa, yangi do'konning agent_id si
+      server tomonidan actor.id ga o'rnatiladi (klient yuborgan agent_id e'tiborga
+      olinmaydi). Bu mobil ilova watchByAgentId va backend scope uchun zarur.
     """
     # ── Redis idempotentlik ──────────────────────────────────────────────────
     idem_key: str | None = None
@@ -279,6 +285,13 @@ async def create_store(
     # ── INN unikalligi (enterprise bo'yicha) ──────────────────────────────────
     await _check_inn_unique(db, data.inn, enterprise_id=enterprise_id)
 
+    # ── Agent roli: agent_id server-avtoritar tarzda o'rnatiladi ─────────────
+    # Mobil ilova yuborgan agent_id e'tiborga olinmaydi — IDOR xavfidan himoya.
+    # agent o'zi yaratgan do'kon o'ziga birikadi (watchByAgentId + backend scope).
+    resolved_agent_id: uuid.UUID | None = data.agent_id
+    if actor is not None and actor.role == "agent":
+        resolved_agent_id = actor.id
+
     # ── Do'kon yaratish ──────────────────────────────────────────────────────
     # PII maydonlar EncryptedString TypeDecorator orqali shifrlangan saqlanadi.
     # enterprise_id SERVER tomonidan o'rnatiladi (klient bera olmaydi)
@@ -292,7 +305,7 @@ async def create_store(
         gps_lat=data.gps_lat,
         gps_lng=data.gps_lng,
         segment_id=data.segment_id,
-        agent_id=data.agent_id,
+        agent_id=resolved_agent_id,
         branch_id=data.branch_id,
         credit_limit=data.credit_limit,
         user_id=data.user_id,

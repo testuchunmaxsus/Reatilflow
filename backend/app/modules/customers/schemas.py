@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ─── StoreCreate ─────────────────────────────────────────────────────────────
@@ -35,9 +35,25 @@ class StoreCreate(BaseModel):
     owner_name: str | None = Field(None, max_length=255, description="Egasi ismi (PII, shifrlanadi)")
     phone: str | None = Field(None, max_length=20, description="Telefon (PII, shifrlanadi)")
     address: str | None = Field(None, description="Manzil (matnli)")
-    gps_lat: Decimal | None = Field(None, description="Kenglik koordinatasi")
-    gps_lng: Decimal | None = Field(None, description="Uzunlik koordinatasi")
+    gps_lat: Decimal | None = Field(None, description="Kenglik koordinatasi (-90..90)")
+    gps_lng: Decimal | None = Field(None, description="Uzunlik koordinatasi (-180..180)")
     segment_id: uuid.UUID | None = Field(None, description="Narx segmenti ID")
+
+    @field_validator("gps_lat")
+    @classmethod
+    def validate_gps_lat(cls, v: Decimal | None) -> Decimal | None:
+        """Kenglik: -90 dan 90 gacha."""
+        if v is not None and not (Decimal("-90") <= v <= Decimal("90")):
+            raise ValueError("gps_lat -90 va 90 oralig'ida bo'lishi kerak")
+        return v
+
+    @field_validator("gps_lng")
+    @classmethod
+    def validate_gps_lng(cls, v: Decimal | None) -> Decimal | None:
+        """Uzunlik: -180 dan 180 gacha."""
+        if v is not None and not (Decimal("-180") <= v <= Decimal("180")):
+            raise ValueError("gps_lng -180 va 180 oralig'ida bo'lishi kerak")
+        return v
     agent_id: uuid.UUID | None = Field(None, description="Asosiy agent ID")
     branch_id: uuid.UUID | None = Field(None, description="Filial ID")
     credit_limit: Decimal | None = Field(None, description="Kredit limiti (so'm)")

@@ -135,7 +135,7 @@ async def create_store(
     redis: Redis = Depends(get_redis),
 ) -> StoreOut:
     enterprise_id = get_current_enterprise_id(current_user)
-    store = await service.create_store(db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id)
+    store = await service.create_store(db, body, actor_id=current_user.id, redis=redis, enterprise_id=enterprise_id, actor=current_user)
     await db.commit()
     await db.refresh(store)
     return StoreOut.model_validate(store)

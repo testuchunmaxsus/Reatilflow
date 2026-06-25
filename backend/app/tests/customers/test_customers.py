@@ -803,18 +803,60 @@ async def test_store_role_no_stores_if_no_user_id(
 # ─── POST /stores: faqat admin yaratishi kerak ───────────────────────────────
 
 @pytest.mark.asyncio
-async def test_agent_cannot_create_store(
+async def test_agent_can_create_store(
     customers_client: AsyncClient,
     agent_user,
 ) -> None:
-    """Agent POST /stores → 403 (faqat admin yaratadi)."""
+    """Agent POST /stores → 201 (agent yangi do'kon yarata oladi)."""
     token = await get_token(customers_client, agent_user)
     resp = await customers_client.post(
         "/customers/stores",
-        json={"name": "Agent Created Store"},
+        json={
+            "name": "Agent Created Store",
+            "owner_name": "Karim Karimov",
+            "phone": "+998901112233",
+            "gps_lat": "41.2995",
+            "gps_lng": "69.2401",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 403, resp.text
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["name"] == "Agent Created Store"
+    # Server-avtoritar: agent_id avtomatik o'rnatilgan
+    assert data["agent_id"] == str(agent_user.id)
+    assert Decimal(data["gps_lat"]) == Decimal("41.2995")
+    assert Decimal(data["gps_lng"]) == Decimal("69.2401")
+
+
+@pytest.mark.asyncio
+async def test_agent_create_store_agent_id_server_authoritative(
+    customers_client: AsyncClient,
+    agent_user,
+    make_user,
+) -> None:
+    """
+    Agent do'kon yaratganda agent_id server tomonidan o'rnatiladi.
+
+    Klient boshqa agent_id yuborsa ham — server actor.id ni ishlatadi (IDOR himoya).
+    """
+    other_agent = await make_user("agent")
+    token = await get_token(customers_client, agent_user)
+    resp = await customers_client.post(
+        "/customers/stores",
+        json={
+            "name": "Agent ID Override Store",
+            "agent_id": str(other_agent.id),   # klient boshqa agent yubordi
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    # Server agent_id ni agent_user.id ga o'zgartirishi kerak
+    assert data["agent_id"] == str(agent_user.id), (
+        f"Server agent_id={agent_user.id} bo'lishi kerak, "
+        f"lekin {data['agent_id']} qaytdi"
+    )
 
 
 @pytest.mark.asyncio
@@ -1036,6 +1078,61 @@ async def test_patch_duplicate_inn_returns_409(
     )
     assert resp.status_code == 409, resp.text
     assert resp.json()["message_key"] == "customers.duplicate_inn"
+
+
+# ─── GPS validatsiya testlari ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_admin_create_store_with_gps(
+    customers_client: AsyncClient,
+    admin_user,
+) -> None:
+    """Admin GPS koordinata bilan do'kon yaratadi — StoreOut da gps_lat/gps_lng qaytadi."""
+    token = await get_token(customers_client, admin_user)
+    resp = await customers_client.post(
+        "/customers/stores",
+        json={
+            "name": "GPS Store",
+            "gps_lat": "41.2995",
+            "gps_lng": "69.2401",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert Decimal(data["gps_lat"]) == Decimal("41.2995")
+    assert Decimal(data["gps_lng"]) == Decimal("69.2401")
+
+
+@pytest.mark.asyncio
+async def test_create_store_invalid_gps_lat(
+    customers_client: AsyncClient,
+    admin_user,
+) -> None:
+    """gps_lat > 90 → 422 validatsiya xatosi."""
+    token = await get_token(customers_client, admin_user)
+    resp = await customers_client.post(
+        "/customers/stores",
+        json={"name": "Bad GPS Store", "gps_lat": "91.0", "gps_lng": "69.0"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_create_store_invalid_gps_lng(
+    customers_client: AsyncClient,
+    admin_user,
+) -> None:
+    """gps_lng > 180 → 422 validatsiya xatosi."""
+    token = await get_token(customers_client, admin_user)
+    resp = await customers_client.post(
+        "/customers/stores",
+        json={"name": "Bad LNG Store", "gps_lat": "41.0", "gps_lng": "181.0"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422, resp.text
 
 
 # ─── crypto unit testlar ──────────────────────────────────────────────────────
