@@ -87,6 +87,8 @@ export function useAssignCourier() {
       apiClient.post<Delivery>("/delivery", data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: deliveryKeys.all });
+      // Buyurtmalar ro'yxatini ham yangilaymiz (status o'zgarishi uchun)
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }

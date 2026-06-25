@@ -1147,6 +1147,13 @@
       "submit": "Tayinlash",
       "success": "Kuryer muvaffaqiyatli tayinlandi"
     },
+    "assign_courier": {
+      "title": "Kuryer tayinlash",
+      "courier_label": "Kuryer",
+      "placeholder": "Kuryerni tanlang",
+      "submit": "Tayinlash",
+      "success": "Kuryer tayinlandi"
+    },
     "proof": {
       "title": "Isbot rasmini yuklash",
       "hint": "Yetkazish isboti uchun rasm yuklang (JPEG, PNG, WebP, maks 10 MB)",

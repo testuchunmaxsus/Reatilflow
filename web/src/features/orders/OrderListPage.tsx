@@ -27,7 +27,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconEye, IconPlus } from "@tabler/icons-react";
+import { IconEye, IconPlus, IconTruck } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Can } from "@/rbac/Can";
@@ -35,7 +35,8 @@ import { useOrders } from "./api/ordersApi";
 import { OrderStatusBadge } from "./components/OrderStatusBadge";
 import { OrderDetailModal } from "./components/OrderDetailModal";
 import { CreateOrderModal } from "./components/CreateOrderModal";
-import type { OrderStatus } from "./types";
+import { AssignCourierModal } from "@/features/delivery/components/AssignCourierModal";
+import type { OrderOut, OrderStatus } from "./types";
 
 const PAGE_SIZE = 20;
 
@@ -63,7 +64,9 @@ export function OrderListPage() {
   // Modal holatlari
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+  const [assignOpened, { open: openAssign, close: closeAssign }] = useDisclosure(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedAssignOrder, setSelectedAssignOrder] = useState<OrderOut | null>(null);
 
   // API
   const { data, isLoading, isError, error } = useOrders({
@@ -77,6 +80,11 @@ export function OrderListPage() {
   const handleViewOrder = (orderId: string) => {
     setSelectedOrderId(orderId);
     openDetail();
+  };
+
+  const handleAssignCourier = (order: OrderOut) => {
+    setSelectedAssignOrder(order);
+    openAssign();
   };
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
@@ -199,16 +207,37 @@ export function OrderListPage() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Tooltip label={t("orders.actions.view")}>
-                      <Button
-                        variant="subtle"
-                        size="xs"
-                        leftSection={<IconEye size={14} />}
-                        onClick={() => handleViewOrder(order.id)}
-                      >
-                        {t("orders.actions.view")}
-                      </Button>
-                    </Tooltip>
+                    <Group gap={4} wrap="nowrap">
+                      <Tooltip label={t("orders.actions.view")}>
+                        <Button
+                          variant="subtle"
+                          size="xs"
+                          leftSection={<IconEye size={14} />}
+                          onClick={() => handleViewOrder(order.id)}
+                        >
+                          {t("orders.actions.view")}
+                        </Button>
+                      </Tooltip>
+                      {order.status === "confirmed" && (
+                        <Can permission="delivery:create">
+                          <Tooltip
+                            label={t("delivery.assign_courier.title", {
+                              defaultValue: "Kuryer tayinlash",
+                            })}
+                          >
+                            <Button
+                              variant="subtle"
+                              size="xs"
+                              color="teal"
+                              leftSection={<IconTruck size={14} />}
+                              onClick={() => handleAssignCourier(order)}
+                            >
+                              {t("delivery.actions.assign_courier")}
+                            </Button>
+                          </Tooltip>
+                        </Can>
+                      )}
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -236,6 +265,11 @@ export function OrderListPage() {
         orderId={selectedOrderId}
       />
       <CreateOrderModal opened={createOpened} onClose={closeCreate} />
+      <AssignCourierModal
+        opened={assignOpened}
+        onClose={closeAssign}
+        order={selectedAssignOrder}
+      />
     </Stack>
   );
 }
