@@ -34,9 +34,10 @@ from app.core.redis import get_redis
 from app.core.storage import FakeStorage, get_storage
 from app.main import app
 from app.models.base import Base
+from app.models.catalog import Product
 from app.models.delivery import Delivery
 from app.models.enterprise import ALL_MODULE_KEYS, Enterprise
-from app.models.order import Order
+from app.models.order import Order, OrderLine
 from app.models.store import AgentStore, Store
 from app.models.user import AppUser
 from app.tests.conftest import TEST_ENTERPRISE_UUID
@@ -236,6 +237,66 @@ def make_order(db_session: AsyncSession, default_enterprise: Enterprise):
         db_session.add(order)
         await db_session.flush()
         return order
+
+    return _factory
+
+
+# ─── Product factory ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def make_product(db_session: AsyncSession):
+    async def _factory(
+        name: str = "Test Mahsulot",
+        unit: str = "dona",
+    ) -> Product:
+        from app.core.uuid7 import uuid7
+
+        product = Product(
+            id=uuid7(),
+            name_uz=name,
+            name_ru=name,
+            unit=unit,
+            is_active=True,
+            version=1,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db_session.add(product)
+        await db_session.flush()
+        return product
+
+    return _factory
+
+
+# ─── OrderLine factory ────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def make_order_line(db_session: AsyncSession, default_enterprise: Enterprise):
+    async def _factory(
+        order_id: uuid.UUID,
+        product_id: uuid.UUID,
+        qty: Decimal = Decimal("10.0000"),
+        unit_price: Decimal = Decimal("5000.00"),
+        enterprise_id: uuid.UUID | None = None,
+    ) -> OrderLine:
+        from app.core.uuid7 import uuid7
+
+        line_total = qty * unit_price
+        line = OrderLine(
+            id=uuid7(),
+            order_id=order_id,
+            product_id=product_id,
+            qty=qty,
+            unit_price=unit_price,
+            discount=Decimal("0"),
+            line_total=line_total,
+            enterprise_id=enterprise_id if enterprise_id is not None else default_enterprise.id,
+        )
+        db_session.add(line)
+        await db_session.flush()
+        return line
 
     return _factory
 

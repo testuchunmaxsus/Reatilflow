@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from app.models.store import Store
     from app.models.catalog import Product
     from app.models.marketplace import MarketplaceOrder
+    from app.models.delivery import Delivery
 
 
 def _now_utc() -> datetime:
@@ -89,6 +90,8 @@ class StoreInventory(Base):
         Index("ix_store_inv_store_product", "store_id", "product_id"),
         # Expiry monitoring (MP4 cron/bildirishnoma uchun)
         Index("ix_store_inv_expiry", "expiry_date"),
+        # Yetkazish manbasi bo'yicha qidiruv + idempotentlik
+        Index("ix_store_inv_source_delivery", "source_delivery_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -180,6 +183,13 @@ class StoreInventory(Base):
         comment="Manba buyurtma FK → marketplace_order (qaysi buyurtmadan kelgani)",
     )
 
+    source_delivery_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("delivery.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Manba yetkazish FK → delivery (agent buyurtmasi yetkazilganda yaratiladi)",
+    )
+
     # ─── Vaqt ────────────────────────────────────────────────────────────────
 
     created_at: Mapped[datetime] = mapped_column(
@@ -212,6 +222,12 @@ class StoreInventory(Base):
     source_order: Mapped["MarketplaceOrder | None"] = relationship(
         "MarketplaceOrder",
         foreign_keys="[StoreInventory.source_order_id]",
+        lazy="select",
+    )
+
+    source_delivery: Mapped["Delivery | None"] = relationship(
+        "Delivery",
+        foreign_keys="[StoreInventory.source_delivery_id]",
         lazy="select",
     )
 

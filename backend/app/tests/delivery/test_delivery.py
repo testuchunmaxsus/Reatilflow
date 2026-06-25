@@ -24,9 +24,12 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.models.delivery import Delivery, VALID_TRANSITIONS
 from app.models.order import Order
 from app.models.store import AgentStore
+from app.models.store_inventory import StoreInventory
 from app.models.user import AppUser
 from app.modules.delivery import service as delivery_service
 from app.modules.delivery.schemas import DeliveryCreate, DeliveryStatusUpdate
@@ -1218,3 +1221,268 @@ async def test_already_assigned_message_key_in_messages(db_session: AsyncSession
     # Mazmuni to'g'ri
     assert "aktiv" in uz_text.lower() or "allaqachon" in uz_text.lower()
     assert "активн" in ru_text.lower() or "уже" in ru_text.lower()
+
+
+# ─── DELIVERED → STORE INVENTORY TESTLARI ────────────────────────────────────
+
+
+async def test_delivered_creates_store_inventory(
+    db_session: AsyncSession,
+    make_store,
+    make_order,
+    make_order_line,
+    make_product,
+    make_user,
+    make_delivery,
+):
+    """
+    [CRITICAL] delivered holatiga o'tganda order qatorlari StoreInventory ga tushadi.
+
+    Har order line uchun bitta StoreInventory yozuvi yaratiladi:
+      - to'g'ri store_id, enterprise_id, product_id, qty, cost_price
+      - source_delivery_id = delivery.id
+      - markup_percent = 0, sale_price = cost_price
+      - status = "active"
+    """
+    from decimal import Decimal
+
+    store = await make_store()
+    courier = await make_user("courier")
+    order = await make_order(store_id=store.id, status="confirmed")
+    product1 = await make_product(name="Mahsulot 1")
+    product2 = await make_product(name="Mahsulot 2")
+
+    line1 = await make_order_line(
+        order_id=order.id,
+        product_id=product1.id,
+        qty=Decimal("5.0000"),
+        unit_price=Decimal("10000.00"),
+    )
+    line2 = await make_order_line(
+        order_id=order.id,
+        product_id=product2.id,
+        qty=Decimal("3.0000"),
+        unit_price=Decimal("7500.00"),
+    )
+
+    delivery = await make_delivery(
+        order_id=order.id,
+        courier_id=courier.id,
+        status="delivering",
+    )
+    delivery.version = 3
+    await db_session.flush()
+
+    # delivering → delivered
+    updated = await delivery_service.update_status(
+        db_session,
+        delivery.id,
+        DeliveryStatusUpdate(status="delivered", version=3),
+        user=courier,
+    )
+    assert updated.status == "delivered"
+
+    # StoreInventory yaratilganmi tekshir
+    inv_stmt = select(StoreInventory).where(
+        StoreInventory.source_delivery_id == delivery.id
+    )
+    inv_result = await db_session.execute(inv_stmt)
+    inventories = list(inv_result.scalars().all())
+
+    assert len(inventories) == 2, f"2 inventar yozuvi kutilgan, {len(inventories)} topildi"
+
+    inv_by_product = {inv.product_id: inv for inv in inventories}
+
+    # line1 tekshiruv
+    inv1 = inv_by_product[product1.id]
+    assert inv1.store_id == order.store_id
+    assert inv1.enterprise_id == order.enterprise_id
+    assert inv1.qty == Decimal("5.0000")
+    assert inv1.cost_price == Decimal("10000.00")
+    assert inv1.markup_percent == Decimal("0")
+    assert inv1.sale_price == Decimal("10000.00")
+    assert inv1.source_delivery_id == delivery.id
+    assert inv1.source_order_id is None  # marketplace FK ishlatilmaydi
+    assert inv1.status == "active"
+    assert inv1.expiry_date is None
+
+    # line2 tekshiruv
+    inv2 = inv_by_product[product2.id]
+    assert inv2.store_id == order.store_id
+    assert inv2.enterprise_id == order.enterprise_id
+    assert inv2.qty == Decimal("3.0000")
+    assert inv2.cost_price == Decimal("7500.00")
+    assert inv2.sale_price == Decimal("7500.00")
+    assert inv2.source_delivery_id == delivery.id
+
+
+async def test_delivered_inventory_idempotency_via_guard(
+    db_session: AsyncSession,
+    make_store,
+    make_order,
+    make_order_line,
+    make_product,
+    make_user,
+    make_delivery,
+):
+    """
+    [HIGH] Idempotentlik: source_delivery_id guard to'g'ri ishlaydi.
+
+    Holat mashinasi delivered ni terminal holat deb bloklaydi (qayta chaqirib bo'lmaydi).
+    Shuning uchun _create_inventory_from_delivery ni to'g'ridan-to'g'ri ikki marta chaqirib,
+    source_delivery_id guard dublikat yaratmasligini tekshiramiz.
+    """
+    from decimal import Decimal
+
+    from app.modules.delivery.service import _create_inventory_from_delivery
+
+    store = await make_store()
+    courier = await make_user("courier")
+    order = await make_order(store_id=store.id, status="confirmed")
+    product = await make_product(name="Idempotent Mahsulot")
+
+    await make_order_line(
+        order_id=order.id,
+        product_id=product.id,
+        qty=Decimal("2.0000"),
+        unit_price=Decimal("3000.00"),
+    )
+
+    delivery = await make_delivery(
+        order_id=order.id,
+        courier_id=courier.id,
+        status="delivered",
+    )
+    await db_session.flush()
+
+    # Birinchi marta chaqirish
+    await _create_inventory_from_delivery(db_session, delivery)
+    await db_session.flush()
+
+    inv_stmt = select(StoreInventory).where(
+        StoreInventory.source_delivery_id == delivery.id
+    )
+    inv_result = await db_session.execute(inv_stmt)
+    inventories_after_first = list(inv_result.scalars().all())
+    assert len(inventories_after_first) == 1
+
+    # Ikkinchi marta chaqirish — dublikat yaratilmasligi kerak
+    await _create_inventory_from_delivery(db_session, delivery)
+    await db_session.flush()
+
+    inv_result2 = await db_session.execute(inv_stmt)
+    inventories_after_second = list(inv_result2.scalars().all())
+    assert len(inventories_after_second) == 1, (
+        f"Idempotentlik buzilgan: 1 yozuv kutilgan, {len(inventories_after_second)} topildi"
+    )
+
+
+async def test_delivered_no_inventory_if_no_lines(
+    db_session: AsyncSession,
+    make_store,
+    make_order,
+    make_user,
+    make_delivery,
+):
+    """
+    Order lines bo'sh bo'lsa — xato bermaydi, faqat log warning (delivered holati saqlanadi).
+    """
+    store = await make_store()
+    courier = await make_user("courier")
+    # Lines YO'Q order
+    order = await make_order(store_id=store.id, status="confirmed")
+    delivery = await make_delivery(
+        order_id=order.id,
+        courier_id=courier.id,
+        status="delivering",
+    )
+    delivery.version = 3
+    await db_session.flush()
+
+    # Xato bermasdan o'tishi kerak
+    updated = await delivery_service.update_status(
+        db_session,
+        delivery.id,
+        DeliveryStatusUpdate(status="delivered", version=3),
+        user=courier,
+    )
+    assert updated.status == "delivered"
+
+    # Inventar yaratilmaganini tekshir
+    inv_stmt = select(StoreInventory).where(
+        StoreInventory.source_delivery_id == delivery.id
+    )
+    inv_result = await db_session.execute(inv_stmt)
+    assert list(inv_result.scalars().all()) == []
+
+
+async def test_store_inventory_source_delivery_id_column_exists():
+    """
+    [MODEL] StoreInventory modelida source_delivery_id ustuni mavjud va to'g'ri konfigurlangan.
+    """
+    columns = {col.key for col in StoreInventory.__table__.columns}  # type: ignore
+    assert "source_delivery_id" in columns
+
+    col = StoreInventory.__table__.c["source_delivery_id"]  # type: ignore
+    # Nullable bo'lishi kerak
+    assert col.nullable is True
+    # FK delivery.id ga bo'lishi kerak
+    fk_tables = {fk.column.table.name for fk in col.foreign_keys}
+    assert "delivery" in fk_tables
+
+
+async def test_non_delivered_status_does_not_create_inventory(
+    db_session: AsyncSession,
+    make_store,
+    make_order,
+    make_order_line,
+    make_product,
+    make_user,
+    make_delivery,
+):
+    """
+    started, delivering, failed holatlarga o'tganda inventar yaratilmaydi.
+    """
+    from decimal import Decimal
+
+    store = await make_store()
+    courier = await make_user("courier")
+    order = await make_order(store_id=store.id, status="confirmed")
+    product = await make_product(name="Non-delivered Mahsulot")
+    await make_order_line(
+        order_id=order.id,
+        product_id=product.id,
+        qty=Decimal("1.0000"),
+        unit_price=Decimal("1000.00"),
+    )
+    delivery = await make_delivery(
+        order_id=order.id,
+        courier_id=courier.id,
+        status="assigned",
+    )
+
+    # assigned → started
+    await delivery_service.update_status(
+        db_session,
+        delivery.id,
+        DeliveryStatusUpdate(status="started", version=1),
+        user=courier,
+    )
+
+    # Inventar yaratilmagan
+    inv_stmt = select(StoreInventory).where(
+        StoreInventory.source_delivery_id == delivery.id
+    )
+    inv_result = await db_session.execute(inv_stmt)
+    assert list(inv_result.scalars().all()) == []
+
+    # started → delivering
+    await delivery_service.update_status(
+        db_session,
+        delivery.id,
+        DeliveryStatusUpdate(status="delivering", version=2),
+        user=courier,
+    )
+
+    inv_result2 = await db_session.execute(inv_stmt)
+    assert list(inv_result2.scalars().all()) == []

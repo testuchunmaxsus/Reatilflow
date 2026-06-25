@@ -45,9 +45,10 @@ from app.core.errors import AppError
 from app.core.uuid7 import uuid7
 from app.models.audit import AuditLog
 from app.models.delivery import Delivery, VALID_TRANSITIONS
-from app.models.order import Order
+from app.models.order import Order, OrderLine
 from app.models.outbox import OutboxEvent
 from app.models.store import AgentStore, Store
+from app.models.store_inventory import StoreInventory
 from app.models.user import AppUser
 from app.modules.delivery.schemas import DeliveryCreate, DeliveryStatusUpdate
 from app.modules.rbac.enterprise_scope import apply_enterprise_filter
@@ -374,6 +375,110 @@ async def create_delivery(
     return delivery
 
 
+# ─── _create_inventory_from_delivery ─────────────────────────────────────────
+
+
+async def _create_inventory_from_delivery(
+    db: AsyncSession,
+    delivery: Delivery,
+) -> None:
+    """
+    Yetkazish "delivered" bo'lganda order qatorlarini StoreInventory ga yozadi.
+
+    IDEMPOTENTLIK:
+      Avval shu delivery uchun inventar yaratilganmi tekshiradi.
+      Agar bor bo'lsa — qayta yaratmasdan chiqib ketadi (skip).
+
+    XATO TOLERANTLIK:
+      Order topilmasa yoki lines bo'sh bo'lsa — warning log yozib chiqadi.
+      Delivery baribir "delivered" bo'ladi — inventar xatosi holat mashinasini bloklamas.
+
+    NARX MANTIQI:
+      cost_price  = line.unit_price (ulgurji narx — do'kon korxonaga to'lagani)
+      markup_percent = 0 (keyinroq POS darajasida o'zgartiriladi)
+      sale_price  = cost_price * (1 + 0/100) = cost_price (markup 0 bo'lsa)
+
+    TENANCY:
+      enterprise_id va store_id ALBATTA order dan olinadi (server-avtoritar).
+    """
+    # Idempotentlik: shu delivery uchun inventar allaqachon bor-yo'qligini tekshir
+    idem_stmt = select(StoreInventory.id).where(
+        StoreInventory.source_delivery_id == delivery.id
+    ).limit(1)
+    idem_result = await db.execute(idem_stmt)
+    if idem_result.scalar_one_or_none() is not None:
+        logger.info(
+            "_create_inventory_from_delivery: delivery_id=%s uchun inventar allaqachon mavjud, skip.",
+            delivery.id,
+        )
+        return
+
+    # Order ni lines bilan yukla (selectinload — N+1 yo'q).
+    # populate_existing=True: identity map da allaqachon bor ob'ektni ham yangilab,
+    # lines ni qayta yuklab oladi (test muhitida session ichida lines pending bo'lishi mumkin).
+    order_stmt = (
+        select(Order)
+        .where(
+            Order.id == delivery.order_id,
+            Order.deleted_at.is_(None),
+        )
+        .options(selectinload(Order.lines))
+        .execution_options(populate_existing=True)
+    )
+    order_result = await db.execute(order_stmt)
+    order = order_result.scalar_one_or_none()
+
+    if order is None:
+        logger.warning(
+            "_create_inventory_from_delivery: delivery_id=%s uchun order_id=%s topilmadi. "
+            "Inventar yaratilmadi.",
+            delivery.id,
+            delivery.order_id,
+        )
+        return
+
+    if not order.lines:
+        logger.warning(
+            "_create_inventory_from_delivery: delivery_id=%s, order_id=%s qatorlari bo'sh. "
+            "Inventar yaratilmadi.",
+            delivery.id,
+            order.id,
+        )
+        return
+
+    now = datetime.now(timezone.utc)
+
+    for line in order.lines:
+        # markup 0 → sale_price = cost_price
+        sale_price = line.unit_price * (1 + Decimal("0") / Decimal("100"))
+        sale_price = sale_price.quantize(Decimal("0.01"))
+
+        inv = StoreInventory(
+            id=uuid7(),
+            enterprise_id=order.enterprise_id,
+            store_id=order.store_id,
+            product_id=line.product_id,
+            qty=line.qty,
+            cost_price=line.unit_price,
+            markup_percent=Decimal("0"),
+            sale_price=sale_price,
+            expiry_date=None,
+            status="active",
+            source_order_id=None,        # marketplace_order FK — oddiy order uchun emas
+            source_delivery_id=delivery.id,
+            created_at=now,
+        )
+        db.add(inv)
+
+    await db.flush()
+    logger.info(
+        "_create_inventory_from_delivery: delivery_id=%s, order_id=%s → %d inventar yozuvi yaratildi.",
+        delivery.id,
+        order.id,
+        len(order.lines),
+    )
+
+
 # ─── update_status ────────────────────────────────────────────────────────────
 
 
@@ -485,6 +590,10 @@ async def update_status(
     delivery.version = delivery.version + 1
     delivery.updated_at = now
     await db.flush()
+
+    # ── delivered holatida POS inventar yaratish ──────────────────────────
+    if data.status == "delivered":
+        await _create_inventory_from_delivery(db, delivery)
 
     # Audit + Outbox
     after_payload = {
