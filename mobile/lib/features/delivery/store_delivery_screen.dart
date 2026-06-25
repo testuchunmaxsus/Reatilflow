@@ -8,6 +8,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
+import '../home/sync_providers.dart';
 import 'delivery_providers.dart';
 
 /// Do'kon roli uchun o'z yetkazishlarini kuzatish ekrani.
@@ -92,7 +93,11 @@ class _StoreDeliveryBody extends ConsumerWidget {
           );
         }
         return RefreshIndicator(
-          onRefresh: () async {},
+          onRefresh: () async {
+            await ref
+                .read(syncNotifierProvider.notifier)
+                .triggerSync();
+          },
           child: Column(
             children: [
               _SummaryBanner(deliveries: deliveries),

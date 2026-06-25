@@ -42,6 +42,31 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 2;
 
+  /// Lokal bazani to'liq tozalaydi — logout va qurilma almashinuvi uchun.
+  ///
+  /// Tozalanadigan jadvallar:
+  ///   products, price_segments, stores, orders, order_lines,
+  ///   outbox_queue, sync_cursors, deliveries
+  ///
+  /// Tranzaksiyada bajariladi: qisman tozalanmaydi.
+  /// DIQQAT: outbox'dagi yuborilmagan operatsiyalar yo'qoladi —
+  /// bu boshqa foydalanuvchi nomidan yuborilmasligidan muhimroq.
+  Future<void> clearAllData() => transaction(() async {
+        await delete(products).go();
+        await delete(priceSegments).go();
+        await delete(stores).go();
+        await delete(orderLines).go();
+        await delete(orders).go();
+        await delete(outboxQueue).go();
+        await delete(deliveries).go();
+        // sync_cursors ni tozalab, standart qatorni qayta kiriting
+        // Keyingi login since=0 dan to'liq sync qiladi
+        await delete(syncCursors).go();
+        await into(syncCursors).insertOnConflictUpdate(
+          SyncCursorsCompanion.insert(id: const Value('default')),
+        );
+      });
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {

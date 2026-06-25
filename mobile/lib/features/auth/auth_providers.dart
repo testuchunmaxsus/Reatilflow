@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
+import '../../data/local/database_provider.dart';
 import '../../data/remote/api_client.dart';
 import '../../data/remote/auth_interceptor.dart';
 import '../../data/remote/models/auth_models.dart';
@@ -102,6 +103,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _repository.logout();
     // Enterprise keshni tozalash
     await _ref.read(enterpriseNotifierProvider.notifier).clear();
+    // Lokal Drift bazasini tozalash — qurilma almashinuvida
+    // yangi agent o'z do'konlarini to'liq sync qilishi uchun
+    await _ref.read(databaseProvider).clearAllData();
     state = const AuthStateUnauthenticated();
   }
 

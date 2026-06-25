@@ -7,6 +7,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
+import '../home/sync_providers.dart';
 import 'stores_providers.dart';
 
 /// Do'konlar ro'yxati ekrani — lokal Drift'dan (offline).
@@ -77,7 +78,11 @@ class _StoreList extends ConsumerWidget {
           );
         }
         return RefreshIndicator(
-          onRefresh: () async {},
+          onRefresh: () async {
+            await ref
+                .read(syncNotifierProvider.notifier)
+                .triggerSync();
+          },
           child: ListView.separated(
             padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: stores.length,

@@ -50,10 +50,14 @@ class SyncNotifier extends StateNotifier<SyncState> {
       if (_isOnline) triggerSync();
     });
 
-    // Boshlang'ich tarmoq holatini tekshirish
+    // Boshlang'ich tarmoq holatini tekshirish — online bo'lsa darhol sync
     _connectivity.checkConnectivity().then((results) {
       _isOnline = results.any((r) => r != ConnectivityResult.none);
-      if (!_isOnline) state = SyncState.offline;
+      if (_isOnline) {
+        triggerSync();
+      } else {
+        state = SyncState.offline;
+      }
     });
   }
 
