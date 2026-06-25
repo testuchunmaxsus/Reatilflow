@@ -37,6 +37,10 @@ export function useGpsTrack(filters: GpsTrackFilters = {}) {
     queryKey: gpsKeys.track(filters),
     queryFn: () => apiClient.get<PaginatedTrack>(`/gps/track?${qs}`),
     placeholderData: (prev) => prev,
+    // Jonli kuzatuv — har 20 soniyada avtomatik yangilanadi (faol agent/kuryer
+    // qo'lda yangilashsiz xaritada paydo bo'ladi). Tab fonda bo'lsa to'xtaydi.
+    refetchInterval: 20000,
+    refetchIntervalInBackground: false,
   });
 }
 
