@@ -29,6 +29,7 @@ import '../../features/pos/pos_inventory_screen.dart';
 import '../../features/pos/pos_sale_screen.dart';
 import '../../features/pos/pos_summary_screen.dart';
 import '../../features/pos/store_dashboard.dart';
+import '../../features/stores/create_store_screen.dart';
 import '../../features/stores/store_detail_screen.dart';
 import '../../features/stores/store_list_screen.dart';
 
@@ -45,6 +46,7 @@ const String routeAccountantFinance = '/home/accountant/finance';
 
 // Agent routes
 const String routeStores = '/home/stores';
+const String routeStoreCreate = '/home/stores/create';
 const String routeStoreDetail = '/home/stores/:storeId';
 const String routeCatalog = '/home/catalog';
 const String routeOrders = '/home/orders';
@@ -163,6 +165,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: routeStores,
             builder: (context, state) => const StoreListScreen(),
             routes: [
+              GoRoute(
+                path: 'create',
+                builder: (context, state) => const CreateStoreScreen(),
+              ),
               GoRoute(
                 path: ':storeId',
                 builder: (context, state) => StoreDetailScreen(

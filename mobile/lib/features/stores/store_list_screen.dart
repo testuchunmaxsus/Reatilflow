@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
@@ -42,6 +43,11 @@ class StoreListScreen extends ConsumerWidget {
         ),
       ),
       body: _StoreList(agentId: user.id),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push(routeStoreCreate),
+        tooltip: "Yangi do'kon qo'shish",
+        child: const Icon(Icons.add_business),
+      ),
     );
   }
 }

@@ -295,5 +295,32 @@ class ApiClient {
     );
     return response.data!;
   }
+
+  // ---- Customers / Stores ----
+
+  /// POST /customers/stores — yangi do'kon yaratish.
+  ///
+  /// Backend agent_id ni avtomatik o'rnatadi (JWT dan).
+  /// Body: { name, owner_name, phone, gps_lat, gps_lng }
+  Future<Map<String, dynamic>> createStore({
+    required String name,
+    required String ownerName,
+    required String phone,
+    required String gpsLat,
+    required String gpsLng,
+  }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'owner_name': ownerName,
+      'phone': phone,
+      'gps_lat': gpsLat,
+      'gps_lng': gpsLng,
+    };
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/customers/stores',
+      data: body,
+    );
+    return response.data!;
+  }
 }
 
