@@ -19,4 +19,6 @@ export const ALL_MODULE_KEYS_FRONTEND: string[] = [
   "promo",
   "stats",
   "push",
+  "pos",
+  "marketplace",
 ];
