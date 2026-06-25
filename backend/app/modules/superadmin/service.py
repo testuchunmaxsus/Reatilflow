@@ -384,9 +384,13 @@ async def get_platform_stats(db: AsyncSession) -> StatsOut:
     )
     ent_suspended = (await db.execute(ent_suspended_stmt)).scalar_one()
 
-    # Tenant foydalanuvchilari (enterprise_id IS NOT NULL — superadminlar yo'q)
-    users_total_stmt = select(func.count()).select_from(AppUser).where(
-        AppUser.enterprise_id.is_not(None)
+    # Tenant foydalanuvchilari — faqat AKTIV korxonalarniki (superadmin va soft-delete
+    # korxona foydalanuvchilari hisobga olinmaydi; users ro'yxati bilan mos).
+    users_total_stmt = (
+        select(func.count())
+        .select_from(AppUser)
+        .join(Enterprise, AppUser.enterprise_id == Enterprise.id)
+        .where(Enterprise.deleted_at.is_(None))
     )
     users_total = (await db.execute(users_total_stmt)).scalar_one()
 
@@ -521,20 +525,31 @@ async def list_superadmin_users(
     EnterpriseAlias = aliased(Enterprise)
 
     # Bazaviy where shartlar (filter)
-    conditions = [AppUser.enterprise_id.is_not(None)]
+    conditions = [
+        AppUser.enterprise_id.is_not(None),
+        # Soft-delete (o'chirilgan) korxonalarning foydalanuvchilarini KO'RSATMAYMIZ —
+        # ular orphaned bo'lib qoladi (masalan eski/test korxonalar). Faqat AKTIV
+        # korxona foydalanuvchilari ro'yxatda ko'rinadi.
+        EnterpriseAlias.deleted_at.is_(None),
+    ]
     if enterprise_id is not None:
         conditions.append(AppUser.enterprise_id == enterprise_id)
     if role is not None:
         conditions.append(AppUser.role == role)
 
-    # Count
-    count_stmt = select(func.count()).select_from(AppUser).where(*conditions)
+    # Count — enterprise INNER join (deleted_at filtri qo'llanishi uchun)
+    count_stmt = (
+        select(func.count())
+        .select_from(AppUser)
+        .join(EnterpriseAlias, AppUser.enterprise_id == EnterpriseAlias.id)
+        .where(*conditions)
+    )
     total = (await db.execute(count_stmt)).scalar_one()
 
-    # Items — enterprise nomi join orqali
+    # Items — enterprise nomi INNER join orqali (aktiv korxona kafolatlangan)
     list_stmt = (
         select(AppUser, EnterpriseAlias.name.label("enterprise_name"))
-        .outerjoin(EnterpriseAlias, AppUser.enterprise_id == EnterpriseAlias.id)
+        .join(EnterpriseAlias, AppUser.enterprise_id == EnterpriseAlias.id)
         .where(*conditions)
         .order_by(AppUser.created_at.desc())
         .limit(limit)
