@@ -106,6 +106,7 @@ vi.mock("@/api/client", async (importOriginal) => {
       get: vi.fn((path: string) => {
         if (path.startsWith("/gps/track")) return Promise.resolve(trackResponse);
         if (path.startsWith("/users")) return Promise.resolve({ items: [], total: 0, limit: 100, offset: 0 });
+        if (path.startsWith("/customers/stores")) return Promise.resolve({ items: [], total: 0, limit: 200, offset: 0 });
         return Promise.resolve({});
       }),
       post: vi.fn(() => Promise.resolve({})),

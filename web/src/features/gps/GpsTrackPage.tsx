@@ -3,9 +3,10 @@
  *
  * Fleet view (default, user_id filtr bo'sh):
  *   - Har bir foydalanuvchi uchun ALOHIDA marker — eng oxirgi nuqtada.
- *   - Agentlar ko'k, kuryerlar yashil rangli divIcon.
+ *   - Agentlar ko'k (odam ikonkasi), kuryerlar yashil (skuter ikonkasi) divIcon.
  *   - Har foydalanuvchining to'liq treki — alohida rangli polyline.
  *   - Marker popup: ism, rol, oxirgi ko'ringan vaqt.
+ *   - Do'konlar — to'q sariq do'kon ikonkasi (gps_lat/gps_lng bor bo'lsa).
  *
  * Single-user view (user_id berilgan):
  *   - O'sha foydalanuvchining to'liq treki + boshlang'ich/oxirgi marker.
@@ -44,9 +45,11 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useGpsTrack } from "./api/gpsApi";
 import { useUsers } from "@/features/users/api/usersApi";
+import { useStores } from "@/features/customers/api/customersApi";
 import { formatDateTime } from "@/utils/date";
 import type { GpsPoint } from "./types";
 import type { UserOut } from "@/features/users/types";
+import type { StoreOut } from "@/api/types";
 
 // ─── Leaflet default icon tuzatish (Vite PNG yo'llari muammosi) ──────────────
 
@@ -79,12 +82,86 @@ const ROLE_COLORS: Record<string, string> = {
   courier: "#40c057",
 };
 
+const STORE_COLOR = "#f59f00";
+
 const POLYLINE_COLORS = [
   "#228be6", "#40c057", "#fa5252", "#fd7e14", "#7950f2",
   "#15aabf", "#e64980", "#82c91e", "#fab005", "#339af0",
 ];
 
-// ─── Rangli divIcon yaratish ──────────────────────────────────────────────────
+// ─── Agent ikonkasi (ko'k, odam SVG) ─────────────────────────────────────────
+
+function createAgentIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #228be6;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+    ">&#x1F9D1;</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -18],
+  });
+}
+
+// ─── Kuryer ikonkasi (yashil, skuter SVG) ────────────────────────────────────
+
+function createCourierIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #40c057;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+    ">&#x1F6F5;</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -18],
+  });
+}
+
+// ─── Do'kon ikonkasi (to'q sariq, market belgisi) ────────────────────────────
+
+function createStoreIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #f59f00;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      line-height: 1;
+    ">&#x1F3EA;</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+}
+
+// ─── Rangli divIcon yaratish (boshlang'ich marker uchun) ─────────────────────
 
 function createColoredIcon(color: string): L.DivIcon {
   return L.divIcon({
@@ -101,6 +178,12 @@ function createColoredIcon(color: string): L.DivIcon {
     iconAnchor: [11, 11],
     popupAnchor: [0, -14],
   });
+}
+
+function getRoleIcon(role: string | undefined): L.DivIcon {
+  if (role === "agent") return createAgentIcon();
+  if (role === "courier") return createCourierIcon();
+  return createColoredIcon(ROLE_COLORS[role ?? ""] ?? "#868e96");
 }
 
 function getRoleColor(role: string | undefined): string {
@@ -270,14 +353,68 @@ class MapErrorBoundary extends Component<
   }
 }
 
+// ─── Do'kon markerlari komponenti ────────────────────────────────────────────
+
+interface StoreMarkersProps {
+  stores: StoreOut[];
+}
+
+function StoreMarkers({ stores }: StoreMarkersProps) {
+  const { t } = useTranslation();
+  const storeIcon = useMemo(() => createStoreIcon(), []);
+
+  const validStores = stores.filter((s) => isValidCoord(s.gps_lat, s.gps_lng));
+
+  return (
+    <>
+      {validStores.map((store) => (
+        <Marker
+          key={store.id}
+          position={[toFloat(store.gps_lat), toFloat(store.gps_lng)]}
+          icon={storeIcon}
+        >
+          <Popup>
+            <strong>{store.name}</strong>
+            {store.owner_name && (
+              <>
+                <br />
+                <span style={{ fontSize: "0.85em", color: "#444" }}>
+                  {t("stores.owner", { defaultValue: "Egasi" })}: {store.owner_name}
+                </span>
+              </>
+            )}
+            {store.phone && (
+              <>
+                <br />
+                <span style={{ fontSize: "0.85em", color: "#444" }}>
+                  {t("stores.phone", { defaultValue: "Telefon" })}: {store.phone}
+                </span>
+              </>
+            )}
+            {store.address && (
+              <>
+                <br />
+                <span style={{ fontSize: "0.85em", color: "#666" }}>
+                  {store.address}
+                </span>
+              </>
+            )}
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  );
+}
+
 // ─── Fleet Leaflet xaritasi (user_id bo'sh — barcha agentlar/kuryerlar) ──────
 
 interface FleetMapProps {
   grouped: Map<string, GpsPoint[]>;
   userMap: Map<string, UserOut>;
+  stores: StoreOut[];
 }
 
-function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
+function FleetLeafletMap({ grouped, userMap, stores }: FleetMapProps) {
   const { t } = useTranslation();
 
   // Xarita markazi: barcha oxirgi nuqtalar o'rtasi
@@ -290,7 +427,7 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
     return pts;
   }, [grouped]);
 
-  // Nuqta yo'q bo'lsa Toshkent markazi, bor bo'lsa o'rta nuqta
+  // Nuqta yo'q bo'lsa Farg'ona markazi, bor bo'lsa o'rta nuqta
   const isEmpty = lastPoints.length === 0;
 
   const center: [number, number] = isEmpty
@@ -310,7 +447,7 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
 
   const userIds = Array.from(grouped.keys());
 
-  // fitBounds uchun barcha oxirgi nuqtalar pozitsiyalari
+  // fitBounds uchun barcha oxirgi nuqtalar pozitsiyalari (agent/kuryerlar)
   const allLastPositions: [number, number][] = lastPoints.map(({ point: p }) => [
     toFloat(p.lat),
     toFloat(p.lng),
@@ -342,8 +479,7 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
           const arr = grouped.get(userId) ?? [];
           const role = userRole(userId, userMap);
           const color = POLYLINE_COLORS[idx % POLYLINE_COLORS.length];
-          const markerColor = getRoleColor(role);
-          const icon = createColoredIcon(markerColor);
+          const icon = getRoleIcon(role);
           const lastPt = arr[arr.length - 1];
           const name = userLabel(userId, userMap);
           const roleLabel =
@@ -391,9 +527,12 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
             </span>
           );
         })}
+
+        {/* Do'konlar markerlari */}
+        <StoreMarkers stores={stores} />
       </MapContainer>
 
-      {/* Nuqta yo'q bo'lganda xarita USTIDA kichik, bloklamaydi gan eslatma */}
+      {/* Nuqta yo'q bo'lganda xarita USTIDA kichik, bloklamas gan eslatma */}
       {isEmpty && (
         <Box
           style={{
@@ -448,7 +587,7 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
   const role = userRole(userId, userMap);
   const name = userLabel(userId, userMap);
   const markerColor = getRoleColor(role);
-  const icon = createColoredIcon(markerColor);
+  const icon = getRoleIcon(role);
 
   return (
     <Box
@@ -534,10 +673,11 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
 interface MapViewProps {
   points: GpsPoint[];
   userMap: Map<string, UserOut>;
+  stores: StoreOut[];
   isFleetMode: boolean;
 }
 
-function GpsMapView({ points, userMap, isFleetMode }: MapViewProps) {
+function GpsMapView({ points, userMap, stores, isFleetMode }: MapViewProps) {
   // Xarita DOIMO render bo'ladi — nuqta yo'q bo'lsa ham.
   // Bo'sh holat eslatmasi xarita ICHIDA (overlay sifatida) ko'rsatiladi.
 
@@ -545,7 +685,7 @@ function GpsMapView({ points, userMap, isFleetMode }: MapViewProps) {
     const grouped = groupByUser(points);
     return (
       <MapErrorBoundary fallback={<GpsMapFallback points={points} />}>
-        <FleetLeafletMap grouped={grouped} userMap={userMap} />
+        <FleetLeafletMap grouped={grouped} userMap={userMap} stores={stores} />
       </MapErrorBoundary>
     );
   }
@@ -554,6 +694,82 @@ function GpsMapView({ points, userMap, isFleetMode }: MapViewProps) {
     <MapErrorBoundary fallback={<GpsMapFallback points={points} />}>
       <SingleUserLeafletMap points={points} userMap={userMap} />
     </MapErrorBoundary>
+  );
+}
+
+// ─── Legend komponenti ────────────────────────────────────────────────────────
+
+function MapLegend() {
+  const { t } = useTranslation();
+  return (
+    <Group gap="md" mb="xs" wrap="wrap">
+      {/* Agent */}
+      <Group gap={4}>
+        <Box
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: ROLE_COLORS.agent,
+            border: "2px solid #fff",
+            boxShadow: `0 0 0 1px ${ROLE_COLORS.agent}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+          }}
+        >
+          &#x1F9D1;
+        </Box>
+        <Text size="xs" c="dimmed">
+          {t("roles.agent", { defaultValue: "Agent" })}
+        </Text>
+      </Group>
+      {/* Kuryer */}
+      <Group gap={4}>
+        <Box
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: ROLE_COLORS.courier,
+            border: "2px solid #fff",
+            boxShadow: `0 0 0 1px ${ROLE_COLORS.courier}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+          }}
+        >
+          &#x1F6F5;
+        </Box>
+        <Text size="xs" c="dimmed">
+          {t("roles.courier", { defaultValue: "Kuryer" })}
+        </Text>
+      </Group>
+      {/* Do'kon */}
+      <Group gap={4}>
+        <Box
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 4,
+            background: STORE_COLOR,
+            border: "2px solid #fff",
+            boxShadow: `0 0 0 1px ${STORE_COLOR}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+          }}
+        >
+          &#x1F3EA;
+        </Box>
+        <Text size="xs" c="dimmed">
+          {t("gps.legend.store", { defaultValue: "Do'kon" })}
+        </Text>
+      </Group>
+    </Group>
   );
 }
 
@@ -592,7 +808,17 @@ export function GpsTrackPage() {
     offset: 0,
   });
 
+  // Do'konlar (GPS koordinatali) — faqat fleet rejimida xaritada ko'rsatiladi
+  const { data: storesData } = useStores({ limit: 200, offset: 0 });
+
   const points = data?.items ?? [];
+
+  // GPS koordinatali do'konlar
+  const storesWithGps = useMemo<StoreOut[]>(() => {
+    return (storesData?.items ?? []).filter((s) =>
+      isValidCoord(s.gps_lat, s.gps_lng),
+    );
+  }, [storesData]);
 
   // user_id -> UserOut map (ism/rol tezkor qidirish)
   const userMap = useMemo<Map<string, UserOut>>(() => {
@@ -727,45 +953,13 @@ export function GpsTrackPage() {
                   </Text>
                 )}
               </Text>
-              {/* Rang izoh (fleet rejimida) */}
-              {isFleetMode && points.length > 0 && (
-                <Group gap="md" mb="xs">
-                  <Group gap={4}>
-                    <Box
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        background: ROLE_COLORS.agent,
-                        border: "2px solid #fff",
-                        boxShadow: "0 0 0 1px #228be6",
-                      }}
-                    />
-                    <Text size="xs" c="dimmed">
-                      {t("roles.agent", { defaultValue: "Agent" })}
-                    </Text>
-                  </Group>
-                  <Group gap={4}>
-                    <Box
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        background: ROLE_COLORS.courier,
-                        border: "2px solid #fff",
-                        boxShadow: "0 0 0 1px #40c057",
-                      }}
-                    />
-                    <Text size="xs" c="dimmed">
-                      {t("roles.courier", { defaultValue: "Kuryer" })}
-                    </Text>
-                  </Group>
-                </Group>
-              )}
+              {/* Rang/ikonka izoh (fleet rejimida doim ko'rsatiladi) */}
+              {isFleetMode && <MapLegend />}
             </Box>
             <GpsMapView
               points={points}
               userMap={userMap}
+              stores={isFleetMode ? storesWithGps : []}
               isFleetMode={isFleetMode}
             />
           </Paper>
