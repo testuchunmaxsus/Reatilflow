@@ -22,6 +22,7 @@
 import "leaflet/dist/leaflet.css";
 
 import {
+  Alert,
   Box,
   Button,
   Group,
@@ -38,7 +39,7 @@ import { UuidHelp } from "@/components/UuidHelp";
 import L from "leaflet";
 import { Component } from "react";
 import type { ReactNode } from "react";
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useGpsTrack } from "./api/gpsApi";
@@ -65,6 +66,11 @@ L.Icon.Default.mergeOptions({
     import.meta.url,
   ).href,
 });
+
+// ─── Toshkent/O'zbekiston markazi (nuqta yo'q bo'lganda standart ko'rinish) ────
+
+const TASHKENT_CENTER: [number, number] = [41.3111, 69.2797];
+const TASHKENT_ZOOM = 11;
 
 // ─── Rang konstantalari (agent = ko'k, courier = yashil, boshqa = to'q sariq) ─
 
@@ -150,6 +156,28 @@ function groupByUser(points: GpsPoint[]): Map<string, GpsPoint[]> {
     arr.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   }
   return map;
+}
+
+// ─── FitBoundsController — bir nechta marker bo'lsa barcha ko'rsatish ────────
+
+interface FitBoundsProps {
+  positions: [number, number][];
+}
+
+function FitBoundsController({ positions }: FitBoundsProps) {
+  const map = useMap();
+  useEffect(() => {
+    if (positions.length < 2) return;
+    try {
+      const bounds = L.latLngBounds(positions.map(([lat, lng]) => L.latLng(lat, lng)));
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    } catch {
+      // bounds hisoblashda xato — xaritani o'zgartirmaymiz
+    }
+  }, [map, positions]);
+  return null;
 }
 
 // ─── Fallback: oddiy jadval + OSM havola ─────────────────────────────────────
@@ -262,27 +290,35 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
     return pts;
   }, [grouped]);
 
-  if (lastPoints.length === 0) {
-    return null; // GpsFleetMapView da bo'sh holat ko'rsatiladi
-  }
+  // Nuqta yo'q bo'lsa Toshkent markazi, bor bo'lsa o'rta nuqta
+  const isEmpty = lastPoints.length === 0;
 
-  // Markazni hisoblash — o'rta nuqta
-  const avgLat =
-    lastPoints.reduce((s, { point: p }) => s + toFloat(p.lat), 0) /
-    lastPoints.length;
-  const avgLng =
-    lastPoints.reduce((s, { point: p }) => s + toFloat(p.lng), 0) /
-    lastPoints.length;
-  const center: [number, number] = [avgLat, avgLng];
+  const center: [number, number] = isEmpty
+    ? TASHKENT_CENTER
+    : [
+        lastPoints.reduce((s, { point: p }) => s + toFloat(p.lat), 0) /
+          lastPoints.length,
+        lastPoints.reduce((s, { point: p }) => s + toFloat(p.lng), 0) /
+          lastPoints.length,
+      ];
 
-  // Zoom: bir nechta marker bo'lsa 12, bitta bo'lsa 14
-  const zoom = lastPoints.length === 1 ? 14 : 12;
+  const zoom = isEmpty
+    ? TASHKENT_ZOOM
+    : lastPoints.length === 1
+      ? 14
+      : 12;
 
   const userIds = Array.from(grouped.keys());
 
+  // fitBounds uchun barcha oxirgi nuqtalar pozitsiyalari
+  const allLastPositions: [number, number][] = lastPoints.map(({ point: p }) => [
+    toFloat(p.lat),
+    toFloat(p.lng),
+  ]);
+
   return (
     <Box
-      style={{ height: 480, borderRadius: 8, overflow: "hidden" }}
+      style={{ height: 480, borderRadius: 8, overflow: "hidden", position: "relative" }}
       data-testid="gps-map-wrapper"
     >
       <MapContainer
@@ -295,6 +331,11 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {/* Bir nechta marker bo'lsa barcha ko'rsatish uchun bounds */}
+        {!isEmpty && allLastPositions.length > 1 && (
+          <FitBoundsController positions={allLastPositions} />
+        )}
 
         {/* Har foydalanuvchi uchun polyline + oxirgi marker */}
         {userIds.map((userId, idx) => {
@@ -351,6 +392,29 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
           );
         })}
       </MapContainer>
+
+      {/* Nuqta yo'q bo'lganda xarita USTIDA kichik, bloklamaydi gan eslatma */}
+      {isEmpty && (
+        <Box
+          style={{
+            position: "absolute",
+            bottom: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            maxWidth: 480,
+            width: "calc(100% - 24px)",
+          }}
+          data-testid="gps-empty-notice"
+        >
+          <Alert color="blue" variant="light" radius="md">
+            {t("gps.map.fleet_empty", {
+              defaultValue:
+                "Hozircha faol agent/kuryer yo'q — ular ish vaqtida (davomat check-in + ilova ochiq) xaritada ko'rinadi.",
+            })}
+          </Alert>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -366,23 +430,13 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
   const { t } = useTranslation();
 
   const validPoints = points.filter((p) => isValidCoord(p.lat, p.lng));
+  const isEmpty = validPoints.length === 0;
 
-  if (validPoints.length === 0) {
-    return (
-      <Box py="xl" ta="center" data-testid="gps-no-valid-coords">
-        <Text c="dimmed">
-          {t("gps.map.no_valid_coords", {
-            defaultValue: "Yaroqli koordinatalar topilmadi",
-          })}
-        </Text>
-      </Box>
-    );
-  }
+  const center: [number, number] = isEmpty
+    ? TASHKENT_CENTER
+    : [toFloat(validPoints[0].lat), toFloat(validPoints[0].lng)];
 
-  const center: [number, number] = [
-    toFloat(validPoints[0].lat),
-    toFloat(validPoints[0].lng),
-  ];
+  const zoom = isEmpty ? TASHKENT_ZOOM : 13;
 
   const polylinePositions: [number, number][] = validPoints.map((p) => [
     toFloat(p.lat),
@@ -390,7 +444,7 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
   ]);
 
   const lastPoint = validPoints[validPoints.length - 1];
-  const userId = validPoints[0].user_id;
+  const userId = validPoints[0]?.user_id ?? "";
   const role = userRole(userId, userMap);
   const name = userLabel(userId, userMap);
   const markerColor = getRoleColor(role);
@@ -398,36 +452,41 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
 
   return (
     <Box
-      style={{ height: 480, borderRadius: 8, overflow: "hidden" }}
+      style={{ height: 480, borderRadius: 8, overflow: "hidden", position: "relative" }}
       data-testid="gps-map-wrapper"
     >
       <MapContainer
         data-testid="gps-map-container"
         center={center}
-        zoom={13}
+        zoom={zoom}
         style={{ height: "100%", width: "100%" }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {/* Trek chizig'i */}
-        <Polyline positions={polylinePositions} color={markerColor} weight={3} />
+
+        {/* Trek chizig'i (faqat validPoints bor bo'lsa) */}
+        {!isEmpty && (
+          <Polyline positions={polylinePositions} color={markerColor} weight={3} />
+        )}
         {/* Boshlang'ich marker */}
-        <Marker
-          position={[toFloat(validPoints[0].lat), toFloat(validPoints[0].lng)]}
-          icon={createColoredIcon("#adb5bd")}
-        >
-          <Popup>
-            <strong>{name}</strong>
-            <br />
-            {t("gps.map.track_history", { defaultValue: "Harakat tarixi" })}
-            {" — "}
-            {formatDateTime(validPoints[0].recorded_at)}
-          </Popup>
-        </Marker>
+        {!isEmpty && (
+          <Marker
+            position={[toFloat(validPoints[0].lat), toFloat(validPoints[0].lng)]}
+            icon={createColoredIcon("#adb5bd")}
+          >
+            <Popup>
+              <strong>{name}</strong>
+              <br />
+              {t("gps.map.track_history", { defaultValue: "Harakat tarixi" })}
+              {" — "}
+              {formatDateTime(validPoints[0].recorded_at)}
+            </Popup>
+          </Marker>
+        )}
         {/* Oxirgi marker */}
-        {validPoints.length > 1 && (
+        {!isEmpty && validPoints.length > 1 && (
           <Marker
             position={[toFloat(lastPoint.lat), toFloat(lastPoint.lng)]}
             icon={icon}
@@ -444,6 +503,28 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
           </Marker>
         )}
       </MapContainer>
+
+      {/* Koordinata yo'q bo'lganda xarita USTIDA kichik eslatma */}
+      {isEmpty && (
+        <Box
+          style={{
+            position: "absolute",
+            bottom: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1000,
+            maxWidth: 480,
+            width: "calc(100% - 24px)",
+          }}
+          data-testid="gps-no-valid-coords"
+        >
+          <Alert color="gray" variant="light" radius="md">
+            {t("gps.map.no_valid_coords", {
+              defaultValue: "Yaroqli koordinatalar topilmadi",
+            })}
+          </Alert>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -457,36 +538,11 @@ interface MapViewProps {
 }
 
 function GpsMapView({ points, userMap, isFleetMode }: MapViewProps) {
-  const { t } = useTranslation();
-
-  if (points.length === 0) {
-    return (
-      <Box py="xl" ta="center" data-testid="gps-no-data">
-        <Text c="dimmed" maw={480} mx="auto">
-          {t("gps.map.fleet_empty", {
-            defaultValue:
-              "Hozircha hech bir agent/kuryer GPS yubormayapti. Ular faqat ish vaqtida (davomat check-in + mobil ilova ochiq) xaritada ko'rinadi.",
-          })}
-        </Text>
-      </Box>
-    );
-  }
+  // Xarita DOIMO render bo'ladi — nuqta yo'q bo'lsa ham.
+  // Bo'sh holat eslatmasi xarita ICHIDA (overlay sifatida) ko'rsatiladi.
 
   if (isFleetMode) {
     const grouped = groupByUser(points);
-
-    if (grouped.size === 0) {
-      return (
-        <Box py="xl" ta="center" data-testid="gps-no-data">
-          <Text c="dimmed">
-            {t("gps.map.no_valid_coords", {
-              defaultValue: "Yaroqli koordinatalar topilmadi",
-            })}
-          </Text>
-        </Box>
-      );
-    }
-
     return (
       <MapErrorBoundary fallback={<GpsMapFallback points={points} />}>
         <FleetLeafletMap grouped={grouped} userMap={userMap} />

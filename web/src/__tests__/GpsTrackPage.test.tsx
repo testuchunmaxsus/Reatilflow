@@ -52,6 +52,8 @@ vi.mock("react-leaflet", () => ({
   Popup: ({ children }: { children?: React.ReactNode }) => (
     <div data-testid="map-popup">{children}</div>
   ),
+  // useMap — FitBoundsController uchun stub
+  useMap: () => ({ fitBounds: vi.fn() }),
 }));
 
 // leaflet CSS import ni ham mock qilamiz
@@ -201,13 +203,17 @@ describe("GpsTrackPage — smoke test", () => {
     });
   });
 
-  it("bo'sh holat ko'rsatiladi", async () => {
+  it("bo'sh holatda ham xarita ko'rsatiladi va eslatma chiqadi", async () => {
     trackResponse = mockTrackEmpty;
     renderPage();
+    // Xarita konteyneri DOIM render bo'lishi kerak (nuqta yo'q bo'lsa ham)
     await waitFor(() => {
-      expect(
-        screen.getByTestId("gps-no-data"),
-      ).toBeInTheDocument();
+      const maps = screen.getAllByTestId("gps-map-container");
+      expect(maps.length).toBeGreaterThan(0);
+    });
+    // Bo'sh holat eslatmasi xarita ichida (overlay) ko'rinadi
+    await waitFor(() => {
+      expect(screen.getByTestId("gps-empty-notice")).toBeInTheDocument();
     });
   });
 
