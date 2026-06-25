@@ -163,6 +163,238 @@ async def _handle_order_create(
         )
 
 
+async def _handle_attendance_check_in(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"attendance.check_in" — mobil ilova outbox orqali yuborgan kirish operatsiyasi.
+
+    Mobil payload: {biometric_verified, gps_lat, gps_lng, source, client_uuid}.
+    attendance.service.check_in() QAYTA ISHLATILADI — biometric tekshiruvi,
+    idempotentlik (client_uuid), server vaqti, audit+outbox shu yerda.
+
+    server_id = attendance.id (UUID).
+    """
+    from app.modules.attendance import service as attendance_service
+    from app.modules.attendance.schemas import CheckInRequest
+
+    try:
+        data = CheckInRequest.model_validate(op.payload)
+        # client_uuid op.client_uuid dan ham olinishi mumkin (payload'da bo'lmasa)
+        if data.client_uuid is None and op.client_uuid is not None:
+            try:
+                data = CheckInRequest.model_validate(
+                    {**op.payload, "client_uuid": op.client_uuid}
+                )
+            except Exception:
+                pass
+    except Exception as exc:
+        logger.debug("attendance.check_in payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        attendance = await attendance_service.check_in(
+            user=user,
+            data=data,
+            db=db,
+            redis=redis,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(attendance.id),
+        )
+    except AppError as exc:
+        if exc.message_key in ("attendance.already_checked_in",):
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
+async def _handle_attendance_check_out(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"attendance.check_out" — mobil ilova outbox orqali yuborgan chiqish operatsiyasi.
+
+    Mobil payload: {gps_lat, gps_lng, client_uuid}.
+    attendance.service.check_out() QAYTA ISHLATILADI — ochiq davomat topish,
+    server vaqti, idempotentlik, audit+outbox shu yerda.
+
+    server_id = attendance.id (UUID).
+    """
+    from app.modules.attendance import service as attendance_service
+    from app.modules.attendance.schemas import CheckOutRequest
+
+    try:
+        data = CheckOutRequest.model_validate(op.payload)
+        if data.client_uuid is None and op.client_uuid is not None:
+            try:
+                data = CheckOutRequest.model_validate(
+                    {**op.payload, "client_uuid": op.client_uuid}
+                )
+            except Exception:
+                pass
+    except Exception as exc:
+        logger.debug("attendance.check_out payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        attendance = await attendance_service.check_out(
+            user=user,
+            data=data,
+            db=db,
+            redis=redis,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(attendance.id),
+        )
+    except AppError as exc:
+        if exc.message_key in ("attendance.not_checked_in",):
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
+async def _handle_delivery_status_update(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"delivery.status_update" — mobil ilova outbox orqali yuborgan yetkazish holat yangilanishi.
+
+    Mobil payload (delivery_repository.dart ~152-158):
+      {delivery_id, status, version, gps_lat?, gps_lng?, failure_reason?}.
+    delivery.service.update_status() QAYTA ISHLATILADI — holat mashinasi,
+    IDOR (kuryer faqat o'zining yetkazishi), optimistik lock, audit+outbox shu yerda.
+
+    server_id = delivery.id (UUID).
+    """
+    from app.modules.delivery import service as delivery_service
+    from app.modules.delivery.schemas import DeliveryStatusUpdate
+
+    payload = op.payload
+    try:
+        delivery_id = uuid.UUID(payload["delivery_id"])
+        data = DeliveryStatusUpdate.model_validate({
+            "status": payload["status"],
+            "version": payload["version"],
+            "gps_lat": payload.get("gps_lat"),
+            "gps_lng": payload.get("gps_lng"),
+            "failure_reason": payload.get("failure_reason"),
+        })
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.debug("delivery.status_update payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        delivery = await delivery_service.update_status(
+            db=db,
+            delivery_id=delivery_id,
+            data=data,
+            user=user,
+            enterprise_id=enterprise_id,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(delivery.id),
+        )
+    except AppError as exc:
+        if exc.message_key in ("orders.version_conflict", "delivery.invalid_transition"):
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
+async def _handle_gps_ingest(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"gps.ingest" — mobil ilova outbox orqali yuborgan GPS nuqtalari.
+
+    Mobil ilova check-in'dan keyin davriy joylashuvni outbox 'gps.ingest' op sifatida
+    yuboradi (payload: {points: [{lat, lng, recorded_at, speed?, delivery_id?}]}).
+    Bu handler gps modulining ingest() servisini QAYTA ISHLATADI — ish-soati filtri
+    (aktiv attendance) + idempotentlik (user_id, recorded_at UNIQUE) shu yerda.
+
+    db — asosiy OLTP session: gps_point 0011/0029 da asosiy bazada (timescale_url
+    DATABASE_URL'ga fallback), attendance ham shu yerda → oltp_db=db.
+    """
+    from app.modules.gps import service as gps_service
+    from app.modules.gps.schemas import GpsBatchIngest
+
+    try:
+        batch = GpsBatchIngest.model_validate(op.payload)
+    except Exception as exc:  # noqa: BLE001 — payload validatsiyasi
+        logger.debug("gps.ingest payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        await gps_service.ingest(user=user, batch=batch, db=db, oltp_db=db)
+        return OpResult(client_uuid=op.client_uuid, status="applied")
+    except AppError as exc:
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
 # ─── Op registry ─────────────────────────────────────────────────────────────
 
 # Kengaytiriladigan registry: yangi op turi uchun handler qo'shing
@@ -171,6 +403,10 @@ _OP_REGISTRY: dict[
     Any  # (op, actor_id, user, db, redis) -> OpResult
 ] = {
     "order.create": _handle_order_create,
+    "attendance.check_in": _handle_attendance_check_in,
+    "attendance.check_out": _handle_attendance_check_out,
+    "delivery.status_update": _handle_delivery_status_update,
+    "gps.ingest": _handle_gps_ingest,
 }
 
 
