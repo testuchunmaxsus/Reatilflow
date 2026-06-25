@@ -67,10 +67,10 @@ L.Icon.Default.mergeOptions({
   ).href,
 });
 
-// ─── Toshkent/O'zbekiston markazi (nuqta yo'q bo'lganda standart ko'rinish) ────
+// ─── Farg'ona markazi (nuqta yo'q bo'lganda standart ko'rinish) ───────────────
 
-const TASHKENT_CENTER: [number, number] = [41.3111, 69.2797];
-const TASHKENT_ZOOM = 11;
+const FERGANA_CENTER: [number, number] = [40.3842, 71.7843];
+const FERGANA_ZOOM = 12;
 
 // ─── Rang konstantalari (agent = ko'k, courier = yashil, boshqa = to'q sariq) ─
 
@@ -294,7 +294,7 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
   const isEmpty = lastPoints.length === 0;
 
   const center: [number, number] = isEmpty
-    ? TASHKENT_CENTER
+    ? FERGANA_CENTER
     : [
         lastPoints.reduce((s, { point: p }) => s + toFloat(p.lat), 0) /
           lastPoints.length,
@@ -303,7 +303,7 @@ function FleetLeafletMap({ grouped, userMap }: FleetMapProps) {
       ];
 
   const zoom = isEmpty
-    ? TASHKENT_ZOOM
+    ? FERGANA_ZOOM
     : lastPoints.length === 1
       ? 14
       : 12;
@@ -433,10 +433,10 @@ function SingleUserLeafletMap({ points, userMap }: SingleUserMapProps) {
   const isEmpty = validPoints.length === 0;
 
   const center: [number, number] = isEmpty
-    ? TASHKENT_CENTER
+    ? FERGANA_CENTER
     : [toFloat(validPoints[0].lat), toFloat(validPoints[0].lng)];
 
-  const zoom = isEmpty ? TASHKENT_ZOOM : 13;
+  const zoom = isEmpty ? FERGANA_ZOOM : 13;
 
   const polylinePositions: [number, number][] = validPoints.map((p) => [
     toFloat(p.lat),
