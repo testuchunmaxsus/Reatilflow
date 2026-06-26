@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "549744649086",
+    "project_id": "retailflowai-451f1",
+    "storage_bucket": "retailflowai-451f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:549744649086:android:76b953f5766ef8919ac92f",
+        "android_client_info": {
+          "package_name": "uz.retailflow.retail_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFmWPYwAyAlYRiAHXTpXCZxrf2AaWGpok"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -6,6 +6,7 @@ import '../../data/local/database_provider.dart';
 import '../../data/remote/api_client.dart';
 import '../../data/remote/auth_interceptor.dart';
 import '../../data/remote/models/auth_models.dart';
+import '../../data/remote/push_service.dart';
 import '../../data/remote/token_storage.dart';
 import '../enterprise/enterprise_providers.dart';
 import 'auth_repository.dart';
@@ -65,6 +66,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       unawaited(
         _ref.read(enterpriseNotifierProvider.notifier).refresh(),
       );
+      // FCM token ro'yxatdan o'tkazish (background, ixtiyoriy)
+      unawaited(
+        _ref.read(pushServiceProvider).registerDeviceToken(),
+      );
     } else {
       state = const AuthStateUnauthenticated();
     }
@@ -81,6 +86,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Login muvaffaqiyatli — enterprise modullarni yuklash
       unawaited(
         _ref.read(enterpriseNotifierProvider.notifier).refresh(),
+      );
+      // FCM token ro'yxatdan o'tkazish (background, ixtiyoriy)
+      unawaited(
+        _ref.read(pushServiceProvider).registerDeviceToken(),
       );
     } on DioException catch (e) {
       // Suspended korxona → 403 + message_key: enterprise.suspended
@@ -100,6 +109,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // FCM tokenni backend'dan o'chirish (ixtiyoriy, xatosiz)
+    unawaited(
+      _ref.read(pushServiceProvider).unregister(),
+    );
     await _repository.logout();
     // Enterprise keshni tozalash
     await _ref.read(enterpriseNotifierProvider.notifier).clear();
