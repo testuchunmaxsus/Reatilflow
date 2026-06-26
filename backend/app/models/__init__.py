@@ -10,6 +10,7 @@ MT1: Enterprise modeli qo'shildi — boshqa barcha modellardan oldin import.
 from app.models.base import Base, TimestampMixin  # noqa: F401
 # MT1: Enterprise avval import qilinadi (boshqa modellarda FK reference bor)
 from app.models.enterprise import Enterprise  # noqa: F401
+from app.models.branch import Branch  # noqa: F401
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.catalog import (  # noqa: F401
     Category,
@@ -41,6 +42,7 @@ __all__ = [
     "Base",
     "TimestampMixin",
     "Enterprise",
+    "Branch",
     "AppUser",
     "Store",
     "AgentStore",

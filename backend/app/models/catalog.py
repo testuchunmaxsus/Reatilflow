@@ -124,8 +124,9 @@ class Product(TimestampMixin, Base):
     sku: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
-        unique=True,
-        comment="Ichki artikel (SKU)",
+        # MT izolyatsiya: SKU TENANT bo'yicha unique (uix_product_ent_sku, migr 0032).
+        # Global unique=True OLIB TASHLANDI — boshqa korxona bilan to'qnashmasin.
+        comment="Ichki artikel (SKU) — korxona ichida unique",
     )
 
     barcode: Mapped[str | None] = mapped_column(

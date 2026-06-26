@@ -53,6 +53,7 @@ from app.modules.stock.router import router as stock_router
 from app.modules.sync.router import router as sync_router
 from app.modules.superadmin.router import router as superadmin_router
 from app.modules.users.router import router as users_router
+from app.modules.branches.router import router as branches_router
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +364,9 @@ app.include_router(superadmin_router, prefix="/superadmin", tags=["superadmin"])
 
 # T6: Users — CORE (gate yo'q)
 app.include_router(users_router, prefix="/users", tags=["users"])
+
+# Branches — CORE (gate yo'q; users moduli naqshi, faqat administrator)
+app.include_router(branches_router, prefix="/branches", tags=["branches"])
 
 # T13: Sync — CORE (gate yo'q)
 app.include_router(sync_router, prefix="/sync", tags=["sync"])

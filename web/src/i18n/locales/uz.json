@@ -33,7 +33,8 @@
     "catalog.duplicate_barcode": "Bu barcode bilan mahsulot allaqachon mavjud",
     "catalog.version_conflict": "Ma'lumot o'zgartirilgan. Sahifani yangilang",
     "catalog.category_not_found": "Kategoriya topilmadi",
-    "catalog.segment_not_found": "Narx segmenti topilmadi"
+    "catalog.segment_not_found": "Narx segmenti topilmadi",
+    "catalog.duplicate_segment": "Bu nomli narx segmenti allaqachon mavjud"
   },
   "nav": {
     "dashboard": "Bosh sahifa",

@@ -33,7 +33,8 @@
     "catalog.duplicate_barcode": "Товар с таким штрихкодом уже существует",
     "catalog.version_conflict": "Данные изменены. Обновите страницу",
     "catalog.category_not_found": "Категория не найдена",
-    "catalog.segment_not_found": "Ценовой сегмент не найден"
+    "catalog.segment_not_found": "Ценовой сегмент не найден",
+    "catalog.duplicate_segment": "Ценовой сегмент с таким названием уже существует"
   },
   "nav": {
     "dashboard": "Главная",

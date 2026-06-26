@@ -225,6 +225,15 @@ async def create_segment(
     enterprise_id: uuid.UUID | None = None,
 ) -> PriceSegment:
     """Yangi narx segmenti yaratadi. enterprise_id server tomonidan o'rnatiladi."""
+    # MT izolyatsiya: nom KORXONA ICHIDA unique (uix_segment_ent_name, migr 0032).
+    # Boshqa korxonadagi (yoki o'chirilgan) bir xil nom bloklamaydi → toza 409.
+    dup_stmt = select(PriceSegment.id).where(
+        PriceSegment.name == data.name, PriceSegment.deleted_at.is_(None)
+    )
+    dup_stmt = apply_enterprise_filter(dup_stmt, enterprise_id, PriceSegment.enterprise_id)
+    if (await db.execute(dup_stmt)).scalar_one_or_none() is not None:
+        raise AppError("catalog.duplicate_segment", status_code=409)
+
     seg = PriceSegment(name=data.name, enterprise_id=enterprise_id)
     db.add(seg)
     await db.flush()

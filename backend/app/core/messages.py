@@ -114,6 +114,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Narx segmenti topilmadi",
         "ru": "Ценовой сегмент не найден",
     },
+    "catalog.duplicate_segment": {
+        "uz": "Bu nomli narx segmenti allaqachon mavjud",
+        "ru": "Ценовой сегмент с таким названием уже существует",
+    },
     "catalog.version_conflict": {
         "uz": "Versiya konflikti: boshqa foydalanuvchi mahsulotni o'zgartirgan",
         "ru": "Конфликт версий: другой пользователь изменил товар",
@@ -575,6 +579,20 @@ MESSAGES: dict[str, dict[str, str]] = {
     "marketplace.promo_not_found": {
         "uz": "Aksiya topilmadi yoki sizga tegishli emas",
         "ru": "Акция не найдена или не принадлежит вам",
+    },
+
+    # ── Filiallar (branches) ─────────────────────────────────────────────────
+    "branches.not_found": {
+        "uz": "Filial topilmadi",
+        "ru": "Филиал не найден",
+    },
+    "branches.version_conflict": {
+        "uz": "Versiya konflikti: boshqa foydalanuvchi filialni o'zgartirgan",
+        "ru": "Конфликт версий: другой пользователь изменил филиал",
+    },
+    "branches.enterprise_required": {
+        "uz": "Filial yaratish uchun korxona kerak (superadmin filial yarata olmaydi)",
+        "ru": "Для создания филиала необходимо предприятие (суперадмин не может создавать филиалы)",
     },
 
     # ── Umumiy ──────────────────────────────────────────────────────────────
