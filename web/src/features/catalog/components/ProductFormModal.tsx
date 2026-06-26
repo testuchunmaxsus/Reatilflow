@@ -44,6 +44,7 @@ interface ProductFormValues {
   unit: string;
   category_id: string;
   is_active: boolean;
+  branch_scope: string;
 }
 
 // ─── Komponent ────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ export function ProductFormModal({
       unit: product?.unit ?? "",
       category_id: product?.category_id ?? "",
       is_active: product?.is_active ?? true,
+      branch_scope: product?.branch_scope ?? "",
     },
     validate: {
       name_uz: (v) =>
@@ -104,6 +106,7 @@ export function ProductFormModal({
             unit: values.unit,
             category_id: values.category_id || null,
             is_active: values.is_active,
+            branch_scope: values.branch_scope || null,
             version: product.version,
           },
         });
@@ -118,6 +121,7 @@ export function ProductFormModal({
           unit: values.unit,
           category_id: values.category_id || null,
           is_active: values.is_active,
+          branch_scope: values.branch_scope || null,
         });
         showSuccess("catalog.messages.product_created");
       }
@@ -203,6 +207,12 @@ export function ProductFormModal({
             data={[{ value: "", label: t("catalog.form.no_category") }, ...categoryData]}
             clearable
             {...form.getInputProps("category_id")}
+          />
+          <TextInput
+            label={t("catalog.form.branch_scope", { defaultValue: "Filial doirasi (ixtiyoriy)" })}
+            placeholder={t("catalog.form.branch_scope_placeholder", { defaultValue: "Masalan: branch-uuid yoki bo'sh" })}
+            description={t("catalog.form.branch_scope_hint", { defaultValue: "Faqat muayyan filialga tegishli bo'lsa to'ldiring" })}
+            {...form.getInputProps("branch_scope")}
           />
           <Checkbox
             label={t("catalog.form.is_active")}

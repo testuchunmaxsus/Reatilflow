@@ -37,13 +37,14 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
 import { Can } from "@/rbac/Can";
 import { ApiError } from "@/api/client";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePosInventory, useCreatePosSale } from "./api/posApi";
+import { useProductOptions } from "@/features/promo/api/promoApi";
 import type { CartItem, PosInventoryItem } from "./types";
 
 // ─── To'lov usullari ──────────────────────────────────────────────────────────
@@ -65,9 +66,11 @@ interface PosSalePageProps {
 function InventoryResultRow({
   item,
   onAdd,
+  productNameMap,
 }: {
   item: PosInventoryItem;
   onAdd: (item: PosInventoryItem) => void;
+  productNameMap: Record<string, string>;
 }) {
   const { t } = useTranslation();
 
@@ -76,12 +79,18 @@ function InventoryResultRow({
   // near_expiry endi alohida sariq holat yo'q — to'g'ridan qizil-blok
   const blocked = item.is_expired || item.is_near_expiry || item.status === "expired";
 
+  // Mahsulot nomini inventory dan yoki katalog map dan olish
+  const displayName =
+    item.product_name ||
+    productNameMap[item.product_id] ||
+    item.product_id;
+
   return (
     <Table.Tr style={{ opacity: blocked ? 0.6 : 1 }}>
       <Table.Td>
         <Stack gap={2}>
           <Text size="sm" fw={500}>
-            {item.product_id}
+            {displayName}
           </Text>
           {/* FIX #6: is_expired yoki is_near_expiry — ikkalasi ham QIZIL blok */}
           {blocked && (
@@ -213,13 +222,28 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
     limit: 50,
   });
 
+  // Katalogdan mahsulot nomlari (fallback — inventory'da product_name bo'lmasa)
+  const { data: productsData } = useProductOptions();
+  const productNameMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const p of productsData?.items ?? []) {
+      map[p.id] = p.name_uz;
+    }
+    return map;
+  }, [productsData]);
+
   const createSale = useCreatePosSale();
 
   // ─── Inventarni qidiruv ────────────────────────────────────────────────────
 
   const filteredInventory = inventoryData?.items.filter((item) => {
     if (!search) return true;
-    return item.product_id.toLowerCase().includes(search.toLowerCase());
+    const name = item.product_name || productNameMap[item.product_id] || "";
+    const q = search.toLowerCase();
+    return (
+      item.product_id.toLowerCase().includes(q) ||
+      name.toLowerCase().includes(q)
+    );
   }) ?? [];
 
   // ─── Savatga qo'shish ─────────────────────────────────────────────────────
@@ -242,7 +266,11 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
           ...prev,
           {
             product_id: item.product_id,
-            product_name: item.product_id, // product nomi inventory'da yo'q, ID ishlatamiz
+            // product nomi: inventory'dan, yo'qsa katalog map'dan, yo'qsa ID
+            product_name:
+              item.product_name ||
+              productNameMap[item.product_id] ||
+              item.product_id,
             qty: 1,
             is_expired: item.is_expired,
             is_near_expiry: item.is_near_expiry,
@@ -394,6 +422,7 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
                     key={item.id}
                     item={item}
                     onAdd={handleAddToCart}
+                    productNameMap={productNameMap}
                   />
                 ))}
               </Table.Tbody>

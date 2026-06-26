@@ -265,7 +265,7 @@ describe("IncomingOrdersPage — yangi kontrakt (delivering, accepted, null fall
     });
   });
 
-  it("rad etish tugmasi bosilganda reject mutatsiya chaqiriladi", async () => {
+  it("rad etish tugmasi bosilganda reject modal ochiladi va tasdiqlangach mutatsiya chaqiriladi", async () => {
     renderPage();
 
     await waitFor(() => {
@@ -274,6 +274,16 @@ describe("IncomingOrdersPage — yangi kontrakt (delivering, accepted, null fall
 
     const rejectBtns = screen.getAllByLabelText(/rad etish/i);
     fireEvent.click(rejectBtns[0]);
+
+    // Modal ochiladi — modalda "Rad etish" tugmasi paydo bo'ladi
+    await waitFor(() => {
+      expect(screen.getByText(/buyurtmani rad etish/i)).toBeInTheDocument();
+    });
+
+    // Modal ichidagi "Rad etish" confirm tugmasi
+    const confirmBtns = screen.getAllByRole("button", { name: /rad etish/i });
+    const confirmBtn = confirmBtns[confirmBtns.length - 1];
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(mockReject).toHaveBeenCalledTimes(1);

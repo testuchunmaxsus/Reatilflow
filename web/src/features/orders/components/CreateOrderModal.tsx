@@ -47,6 +47,7 @@ interface OrderLineFormItem {
 interface CreateOrderFormValues {
   store_id: string;
   mode: OrderMode;
+  warehouse_id: string;
   lines: OrderLineFormItem[];
 }
 
@@ -59,6 +60,7 @@ export function CreateOrderModal({ opened, onClose }: CreateOrderModalProps) {
     initialValues: {
       store_id: "",
       mode: "oddiy",
+      warehouse_id: "",
       lines: [{ product_id: "", qty: 1 }],
     },
     validate: {
@@ -89,6 +91,10 @@ export function CreateOrderModal({ opened, onClose }: CreateOrderModalProps) {
       await createOrder.mutateAsync({
         store_id: values.store_id.trim(),
         mode: values.mode,
+        // warehouse_id ixtiyoriy — bo'sh bo'lsa yuborilmaydi (server default ishlatadi)
+        ...(values.warehouse_id.trim()
+          ? { warehouse_id: values.warehouse_id.trim() }
+          : {}),
         lines,
       });
       notifications.show({
@@ -147,6 +153,18 @@ export function CreateOrderModal({ opened, onClose }: CreateOrderModalProps) {
               { value: "bozor", label: t("orders.mode.bozor") },
             ]}
             {...form.getInputProps("mode")}
+          />
+
+          {/* Ombor ID — ixtiyoriy, bo'sh bo'lsa server default ishlatadi */}
+          <TextInput
+            label={t("orders.create.warehouse_id", {
+              defaultValue: "Ombor ID (ixtiyoriy)",
+            })}
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            description={t("orders.create.warehouse_id_hint", {
+              defaultValue: "Bo'sh qoldirilsa server default omborni ishlatadi",
+            })}
+            {...form.getInputProps("warehouse_id")}
           />
 
           {/* Qatorlar — faqat product_id + qty (T11) */}

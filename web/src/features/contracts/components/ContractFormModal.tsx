@@ -43,6 +43,8 @@ interface ContractFormValues {
   valid_from: string;
   /** YYYY-MM-DD string */
   valid_to: string;
+  /** YYYY-MM-DD string — imzolangan sana (ixtiyoriy) */
+  signed_at: string;
   contract_type: string;
   branch_id: string;
 }
@@ -89,6 +91,7 @@ export function ContractFormModal({
       number: contract?.number ?? "",
       valid_from: contract?.valid_from ?? "",
       valid_to: contract?.valid_to ?? "",
+      signed_at: contract?.signed_at ?? "",
       contract_type: contract?.contract_type ?? "",
       branch_id: contract?.branch_id ?? "",
     },
@@ -124,6 +127,7 @@ export function ContractFormModal({
             number: values.number,
             valid_from: values.valid_from,
             valid_to: values.valid_to,
+            signed_at: values.signed_at || null,
             contract_type: values.contract_type || null,
             branch_id: values.branch_id || null,
             version: contract.version,
@@ -136,6 +140,7 @@ export function ContractFormModal({
           number: values.number,
           valid_from: values.valid_from,
           valid_to: values.valid_to,
+          signed_at: values.signed_at || null,
           contract_type: values.contract_type || null,
           branch_id: values.branch_id || null,
         });
@@ -217,6 +222,22 @@ export function ContractFormModal({
               error={form.errors.valid_to}
             />
           </Group>
+
+          <DateInput
+            label={t("contracts.form.signed_at", {
+              defaultValue: "Imzolangan sana",
+            })}
+            placeholder={t("contracts.form.signed_at_placeholder", {
+              defaultValue: "YYYY-MM-DD (ixtiyoriy)",
+            })}
+            valueFormat="YYYY-MM-DD"
+            clearable
+            value={parseYMD(form.values.signed_at)}
+            onChange={(date) =>
+              form.setFieldValue("signed_at", date ? toLocalYMD(date) : "")
+            }
+            error={form.errors.signed_at}
+          />
 
           <Select
             label={t("contracts.form.contract_type")}

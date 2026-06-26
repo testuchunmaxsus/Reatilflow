@@ -76,11 +76,15 @@ export function StatsDashboardPage() {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
+  const [branchId, setBranchId] = useState<string>("");
+  const [courierId, setCourierId] = useState<string>("");
 
   const filters = {
     from: fromDate || undefined,
     to: toDate || undefined,
     group_by: groupBy,
+    branch_id: branchId.trim() || undefined,
+    courier_id: courierId.trim() || undefined,
   };
 
   const {
@@ -145,6 +149,24 @@ export function StatsDashboardPage() {
           value={groupBy}
           onChange={(v) => setGroupBy((v as GroupBy) ?? "day")}
           w={160}
+        />
+        <TextInput
+          label={t("stats.filter.branch_id", { defaultValue: "Filial ID" })}
+          placeholder={t("stats.filter.branch_id_placeholder", {
+            defaultValue: "UUID...",
+          })}
+          value={branchId}
+          onChange={(e) => setBranchId(e.currentTarget.value)}
+          w={180}
+        />
+        <TextInput
+          label={t("stats.filter.courier_id", { defaultValue: "Kuryer ID" })}
+          placeholder={t("stats.filter.courier_id_placeholder", {
+            defaultValue: "UUID...",
+          })}
+          value={courierId}
+          onChange={(e) => setCourierId(e.currentTarget.value)}
+          w={180}
         />
       </Group>
 

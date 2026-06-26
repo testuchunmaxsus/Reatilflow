@@ -25,6 +25,7 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -86,6 +87,7 @@ export function UsersListPage() {
   // Filtrlar
   const [roleFilter, setRoleFilter] = useState<UserRole | "">("");
   const [statusFilter, setStatusFilter] = useState<"" | "true" | "false">("");
+  const [branchFilter, setBranchFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -109,6 +111,7 @@ export function UsersListPage() {
   const filters: UserFilters = {
     ...(roleFilter ? { role: roleFilter } : {}),
     ...(statusFilter !== "" ? { is_active: statusFilter === "true" } : {}),
+    ...(branchFilter.trim() ? { branch_id: branchFilter.trim() } : {}),
     limit: PAGE_SIZE,
     offset,
   };
@@ -224,6 +227,20 @@ export function UsersListPage() {
             w={160}
             aria-label={t("users.filter.status")}
             allowDeselect={false}
+          />
+          <TextInput
+            placeholder={t("users.filter.branch_id_placeholder", {
+              defaultValue: "Filial ID...",
+            })}
+            value={branchFilter}
+            onChange={(e) => {
+              setBranchFilter(e.currentTarget.value);
+              setPage(1);
+            }}
+            w={180}
+            aria-label={t("users.filter.branch_id", {
+              defaultValue: "Filial ID",
+            })}
           />
         </Group>
 

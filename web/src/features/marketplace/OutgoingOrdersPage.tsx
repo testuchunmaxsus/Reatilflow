@@ -4,10 +4,12 @@
  * Xaridor sifatida: o'z do'konlaridan berilgan buyurtmalar holati kuzatish.
  * - Supplier nomi, mahsulotlar, summa, holat
  * - Holat bo'yicha filter
+ * - "delivered" holat uchun "Qabul qilish" tugmasi + AcceptOrderModal
  * - i18n uz/ru
  */
 
 import {
+  ActionIcon,
   Badge,
   Box,
   Group,
@@ -18,10 +20,16 @@ import {
   Table,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { IconCheckbox } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Can } from "@/rbac/Can";
 import { useOutgoingOrders } from "./api/marketplaceApi";
+import { AcceptOrderModal } from "./components/AcceptOrderModal";
+import type { OutgoingOrder } from "./types";
 
 const PAGE_SIZE = 20;
 
@@ -52,6 +60,15 @@ export function OutgoingOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const offset = (page - 1) * PAGE_SIZE;
+
+  const [acceptModalOpened, { open: openAcceptModal, close: closeAcceptModal }] =
+    useDisclosure(false);
+  const [selectedOrder, setSelectedOrder] = useState<OutgoingOrder | null>(null);
+
+  const handleAcceptClick = (order: OutgoingOrder) => {
+    setSelectedOrder(order);
+    openAcceptModal();
+  };
 
   const { data, isLoading, isError, error } = useOutgoingOrders({
     status: statusFilter || undefined,
@@ -109,7 +126,7 @@ export function OutgoingOrdersPage() {
           <Text c="dimmed">{t("marketplace.outgoing.empty")}</Text>
         </Box>
       ) : (
-        <Table.ScrollContainer minWidth={800}>
+        <Table.ScrollContainer minWidth={860}>
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -118,6 +135,7 @@ export function OutgoingOrdersPage() {
                 <Table.Th>{t("marketplace.table.total_amount")}</Table.Th>
                 <Table.Th>{t("marketplace.table.status")}</Table.Th>
                 <Table.Th>{t("marketplace.table.created_at")}</Table.Th>
+                <Table.Th>{t("catalog.table.actions")}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -146,6 +164,28 @@ export function OutgoingOrdersPage() {
                       {new Date(order.created_at).toLocaleDateString()}
                     </Text>
                   </Table.Td>
+                  <Table.Td>
+                    <Can permission="catalog:edit">
+                      {order.status === "delivered" && (
+                        <Tooltip
+                          label={t("marketplace.actions.accept", {
+                            defaultValue: "Qabul qilish",
+                          })}
+                        >
+                          <ActionIcon
+                            variant="subtle"
+                            color="green"
+                            onClick={() => handleAcceptClick(order)}
+                            aria-label={t("marketplace.actions.accept", {
+                              defaultValue: "Qabul qilish",
+                            })}
+                          >
+                            <IconCheckbox size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                    </Can>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -158,6 +198,12 @@ export function OutgoingOrdersPage() {
           <Pagination value={page} onChange={setPage} total={totalPages} size="sm" />
         </Group>
       )}
+
+      <AcceptOrderModal
+        opened={acceptModalOpened}
+        onClose={closeAcceptModal}
+        order={selectedOrder}
+      />
     </Stack>
   );
 }

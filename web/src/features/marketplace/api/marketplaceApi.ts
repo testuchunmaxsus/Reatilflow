@@ -23,12 +23,15 @@ import type {
   PaginatedIncomingOrders,
   PaginatedOutgoingOrders,
   IncomingOrder,
+  OutgoingOrder,
   PaginatedBanners,
   BannerOut,
   BannerCreate,
   BannerUpdate,
   MarketplacePublishPayload,
   MarketplaceFeaturedPayload,
+  AcceptOrderPayload,
+  RejectOrderPayload,
   OrderFilters,
 } from "../types";
 import type { AppUserOut } from "@/api/types";
@@ -83,8 +86,27 @@ export function useConfirmOrder() {
 export function useRejectOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiClient.patch<IncomingOrder>(`/marketplace/orders/${id}/reject`),
+    mutationFn: ({ id, payload }: { id: string; payload?: RejectOrderPayload }) =>
+      apiClient.patch<IncomingOrder>(
+        `/marketplace/orders/${id}/reject`,
+        payload ?? {},
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
+    },
+  });
+}
+
+// ─── Buyurtmani qabul qilish (xaridor tomonidan) ──────────────────────────────
+
+export function useAcceptOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AcceptOrderPayload }) =>
+      apiClient.patch<OutgoingOrder>(
+        `/marketplace/orders/${id}/accept`,
+        payload,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
     },

@@ -3,12 +3,15 @@
  *
  * Endpointlar (CATALOG.md §1.3):
  *   GET  /catalog/categories
+ *   POST /catalog/categories
  *   GET  /catalog/price-segments
+ *   POST /catalog/price-segments
  *   GET  /catalog/products         paginated, qidiruv, filter
  *   POST /catalog/products
  *   PATCH /catalog/products/{id}
  *   DELETE /catalog/products/{id}
  *   GET  /catalog/products/{id}/price-history
+ *   POST /catalog/products/{id}/prices
  *   POST /catalog/products/{id}/photo
  */
 
@@ -24,6 +27,9 @@ import type {
   PaginatedProducts,
   ProductCreate,
   ProductUpdate,
+  CategoryCreate,
+  PriceSegmentCreate,
+  SetPricePayload,
 } from "../types";
 
 // ─── Query keys ──────────────────────────────────────────────────────────────
@@ -58,6 +64,17 @@ export function useCategories() {
   });
 }
 
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CategoryCreate) =>
+      apiClient.post<CategoryOut>("/catalog/categories", data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: catalogKeys.categories() });
+    },
+  });
+}
+
 // ─── Narx segmentlari ─────────────────────────────────────────────────────────
 
 export function usePriceSegments() {
@@ -65,6 +82,33 @@ export function usePriceSegments() {
     queryKey: catalogKeys.segments(),
     queryFn: () => apiClient.get<PriceSegmentOut[]>("/catalog/price-segments"),
     staleTime: 1000 * 60 * 10,
+  });
+}
+
+export function useCreateSegment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: PriceSegmentCreate) =>
+      apiClient.post<PriceSegmentOut>("/catalog/price-segments", data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: catalogKeys.segments() });
+    },
+  });
+}
+
+// ─── Narx o'rnatish ───────────────────────────────────────────────────────────
+
+export function useSetPrice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: SetPricePayload }) =>
+      apiClient.post<void>(`/catalog/products/${id}/prices`, data),
+    onSuccess: (_result, { id }) => {
+      void queryClient.invalidateQueries({
+        queryKey: catalogKeys.priceHistory(id),
+      });
+      void queryClient.invalidateQueries({ queryKey: catalogKeys.all });
+    },
   });
 }
 

@@ -29,7 +29,7 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconPhoto, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDisclosure } from "@mantine/hooks";
@@ -39,6 +39,7 @@ import { useEnterprise } from "@/enterprise/EnterpriseContext";
 import { usePromos, useDeletePromo } from "./api/promoApi";
 import { useToggleMarketplaceFeatured } from "@/features/marketplace/api/marketplaceApi";
 import { PromoFormModal } from "./components/PromoFormModal";
+import { PromoBannerUploadModal } from "./components/PromoBannerUploadModal";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { useApiError } from "@/hooks/useApiError";
 import type { PromoOut, PromoFilters, RuleJson } from "./types";
@@ -95,11 +96,14 @@ export function PromoListPage() {
     useDisclosure(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] =
     useDisclosure(false);
+  const [bannerOpened, { open: openBanner, close: closeBanner }] =
+    useDisclosure(false);
 
   const [editingPromo, setEditingPromo] = useState<PromoOut | undefined>(
     undefined,
   );
   const [deletingPromo, setDeletingPromo] = useState<PromoOut | null>(null);
+  const [bannerPromo, setBannerPromo] = useState<PromoOut | null>(null);
 
   // Filtr params
   const filters: PromoFilters = {
@@ -126,6 +130,11 @@ export function PromoListPage() {
   const handleDeleteClick = (promo: PromoOut) => {
     setDeletingPromo(promo);
     openDelete();
+  };
+
+  const handleBannerClick = (promo: PromoOut) => {
+    setBannerPromo(promo);
+    openBanner();
   };
 
   const handleConfirmDelete = async () => {
@@ -311,6 +320,22 @@ export function PromoListPage() {
                               <IconEdit size={16} />
                             </ActionIcon>
                           </Tooltip>
+                          <Tooltip
+                            label={t("promo.banner.upload", {
+                              defaultValue: "Banner yuklash",
+                            })}
+                          >
+                            <ActionIcon
+                              variant="subtle"
+                              color="grape"
+                              onClick={() => handleBannerClick(promo)}
+                              aria-label={t("promo.banner.upload", {
+                                defaultValue: "Banner yuklash",
+                              })}
+                            >
+                              <IconPhoto size={16} />
+                            </ActionIcon>
+                          </Tooltip>
                         </Can>
                         <Can permission="promo:delete">
                           <Tooltip label={t("common.delete")}>
@@ -350,6 +375,11 @@ export function PromoListPage() {
           opened={formOpened}
           onClose={closeForm}
           promo={editingPromo}
+        />
+        <PromoBannerUploadModal
+          opened={bannerOpened}
+          onClose={closeBanner}
+          promo={bannerPromo}
         />
         <ConfirmDeleteModal
           opened={deleteOpened}

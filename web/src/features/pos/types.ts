@@ -91,6 +91,8 @@ export interface PosInventoryItem {
   enterprise_id: string;
   store_id: string;
   product_id: string;
+  /** Mahsulot nomi (inventory javobida mavjud bo'lsa) */
+  product_name?: string | null;
   qty: string;
   cost_price: string;
   markup_percent: string;

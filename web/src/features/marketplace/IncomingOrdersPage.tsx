@@ -39,10 +39,10 @@ import { useApiError } from "@/hooks/useApiError";
 import {
   useIncomingOrders,
   useConfirmOrder,
-  useRejectOrder,
   useShipOrder,
   useCouriers,
 } from "./api/marketplaceApi";
+import { RejectOrderModal } from "./components/RejectOrderModal";
 import type { IncomingOrder } from "./types";
 
 const PAGE_SIZE = 20;
@@ -157,7 +157,10 @@ export function IncomingOrdersPage() {
 
   const [shipModalOpened, { open: openShipModal, close: closeShipModal }] =
     useDisclosure(false);
+  const [rejectModalOpened, { open: openRejectModal, close: closeRejectModal }] =
+    useDisclosure(false);
   const [selectedOrder, setSelectedOrder] = useState<IncomingOrder | null>(null);
+  const [rejectingOrder, setRejectingOrder] = useState<IncomingOrder | null>(null);
 
   const { data, isLoading, isError, error } = useIncomingOrders({
     status: statusFilter || undefined,
@@ -166,7 +169,6 @@ export function IncomingOrdersPage() {
   });
 
   const confirmOrder = useConfirmOrder();
-  const rejectOrder = useRejectOrder();
 
   const handleConfirm = async (order: IncomingOrder) => {
     try {
@@ -180,16 +182,9 @@ export function IncomingOrdersPage() {
     }
   };
 
-  const handleReject = async (order: IncomingOrder) => {
-    try {
-      await rejectOrder.mutateAsync(order.id);
-      notifications.show({
-        color: "red",
-        message: t("marketplace.messages.order_rejected"),
-      });
-    } catch (err) {
-      showError(err);
-    }
+  const handleRejectClick = (order: IncomingOrder) => {
+    setRejectingOrder(order);
+    openRejectModal();
   };
 
   const handleShipClick = (order: IncomingOrder) => {
@@ -312,8 +307,7 @@ export function IncomingOrdersPage() {
                               <ActionIcon
                                 variant="subtle"
                                 color="red"
-                                onClick={() => { void handleReject(order); }}
-                                loading={rejectOrder.isPending}
+                                onClick={() => handleRejectClick(order)}
                                 aria-label={t("marketplace.actions.reject")}
                               >
                                 <IconX size={16} />
@@ -353,6 +347,12 @@ export function IncomingOrdersPage() {
         opened={shipModalOpened}
         onClose={closeShipModal}
         order={selectedOrder}
+      />
+
+      <RejectOrderModal
+        opened={rejectModalOpened}
+        onClose={closeRejectModal}
+        order={rejectingOrder}
       />
     </Stack>
   );

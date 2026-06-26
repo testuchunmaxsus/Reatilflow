@@ -27,7 +27,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconEye, IconPlus, IconTruck } from "@tabler/icons-react";
+import { IconEye, IconPlus, IconTemplate, IconTruck } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Can } from "@/rbac/Can";
@@ -35,6 +35,7 @@ import { useOrders } from "./api/ordersApi";
 import { OrderStatusBadge } from "./components/OrderStatusBadge";
 import { OrderDetailModal } from "./components/OrderDetailModal";
 import { CreateOrderModal } from "./components/CreateOrderModal";
+import { OrderTemplatesModal } from "./components/OrderTemplatesModal";
 import { AssignCourierModal } from "@/features/delivery/components/AssignCourierModal";
 import type { OrderOut, OrderStatus } from "./types";
 
@@ -65,6 +66,7 @@ export function OrderListPage() {
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [assignOpened, { open: openAssign, close: closeAssign }] = useDisclosure(false);
+  const [templatesOpened, { open: openTemplates, close: closeTemplates }] = useDisclosure(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [selectedAssignOrder, setSelectedAssignOrder] = useState<OrderOut | null>(null);
 
@@ -94,14 +96,27 @@ export function OrderListPage() {
       {/* Sarlavha va yaratish tugmasi */}
       <Group justify="space-between">
         <Title order={3}>{t("pages.orders.title")}</Title>
-        <Can permission="orders:create">
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreate}
-          >
-            {t("orders.actions.create")}
-          </Button>
-        </Can>
+        <Group gap="sm">
+          <Can permission="orders:create">
+            <Button
+              variant="subtle"
+              leftSection={<IconTemplate size={16} />}
+              onClick={openTemplates}
+            >
+              {t("orders.templates.menu_btn", {
+                defaultValue: "Shablonlar",
+              })}
+            </Button>
+          </Can>
+          <Can permission="orders:create">
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreate}
+            >
+              {t("orders.actions.create")}
+            </Button>
+          </Can>
+        </Group>
       </Group>
 
       {/* Filtrlar */}
@@ -265,6 +280,7 @@ export function OrderListPage() {
         orderId={selectedOrderId}
       />
       <CreateOrderModal opened={createOpened} onClose={closeCreate} />
+      <OrderTemplatesModal opened={templatesOpened} onClose={closeTemplates} />
       <AssignCourierModal
         opened={assignOpened}
         onClose={closeAssign}

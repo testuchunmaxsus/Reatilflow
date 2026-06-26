@@ -11,6 +11,7 @@ import {
   Button,
   Group,
   Modal,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -18,6 +19,7 @@ import {
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { useCreateStore, useUpdateStore } from "../api/customersApi";
+import { useSegmentOptions } from "@/features/promo/api/promoApi";
 import { useApiError } from "@/hooks/useApiError";
 import type { StoreOut } from "@/api/types";
 
@@ -41,6 +43,7 @@ interface StoreFormValues {
   gps_lat: string;
   gps_lng: string;
   credit_limit: string;
+  segment_id: string;
 }
 
 // ─── Komponent ────────────────────────────────────────────────────────────────
@@ -56,6 +59,18 @@ export function StoreFormModal({
 
   const createStore = useCreateStore();
   const updateStore = useUpdateStore();
+  const { data: segmentsData } = useSegmentOptions();
+
+  const segmentOptions = [
+    {
+      value: "",
+      label: t("customers.form.no_segment", { defaultValue: "Segment yo'q" }),
+    },
+    ...(Array.isArray(segmentsData) ? segmentsData : []).map((s) => ({
+      value: s.id,
+      label: s.name,
+    })),
+  ];
 
   const form = useForm<StoreFormValues>({
     initialValues: {
@@ -68,6 +83,7 @@ export function StoreFormModal({
       gps_lat: store?.gps_lat != null ? String(store.gps_lat) : "",
       gps_lng: store?.gps_lng != null ? String(store.gps_lng) : "",
       credit_limit: store?.credit_limit != null ? String(store.credit_limit) : "",
+      segment_id: store?.segment_id ?? "",
     },
     validate: {
       name: (v) =>
@@ -119,6 +135,7 @@ export function StoreFormModal({
             gps_lat: values.gps_lat || null,
             gps_lng: values.gps_lng || null,
             credit_limit: values.credit_limit || null,
+            segment_id: values.segment_id || null,
             version: store.version,
           },
         });
@@ -134,6 +151,7 @@ export function StoreFormModal({
           gps_lat: values.gps_lat || null,
           gps_lng: values.gps_lng || null,
           credit_limit: values.credit_limit || null,
+          segment_id: values.segment_id || null,
         });
         showSuccess("customers.messages.store_created");
       }
@@ -218,6 +236,17 @@ export function StoreFormModal({
             placeholder="5000000"
             description={t("customers.form.credit_limit_hint")}
             {...form.getInputProps("credit_limit")}
+          />
+
+          {/* Narx segmenti — mavjud ro'yxatdan Select */}
+          <Select
+            label={t("customers.form.segment_id", {
+              defaultValue: "Narx segmenti",
+            })}
+            data={segmentOptions}
+            {...form.getInputProps("segment_id")}
+            searchable
+            allowDeselect={false}
           />
 
           <Group justify="flex-end" mt="md">

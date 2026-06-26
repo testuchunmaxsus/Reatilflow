@@ -45,5 +45,30 @@ export interface ProductUpdate {
   unit?: string;
   category_id?: string | null;
   is_active?: boolean;
+  branch_scope?: string | null;
   version: number; // optimistik lock — majburiy
+}
+
+// ─── Kategoriya yaratish ──────────────────────────────────────────────────────
+
+export interface CategoryCreate {
+  name_uz: string;
+  name_ru?: string;
+  parent_id?: string | null;
+  is_active?: boolean;
+}
+
+// ─── Narx segmenti yaratish ───────────────────────────────────────────────────
+
+export interface PriceSegmentCreate {
+  name: string;
+}
+
+// ─── Narx o'rnatish ───────────────────────────────────────────────────────────
+
+export interface SetPricePayload {
+  segment_id: string;
+  price: number;
+  currency: "UZS";
+  valid_from: string; // ISO date string
 }

@@ -78,6 +78,8 @@ export interface OrderCreate {
   mode: OrderMode;
   currency?: string;
   client_uuid?: string;
+  /** Ixtiyoriy — bo'sh bo'lsa server default omborni ishlatadi */
+  warehouse_id?: string;
   lines: OrderLineIn[];
 }
 
@@ -107,3 +109,30 @@ export interface OrderFilters {
   limit?: number;
   offset?: number;
 }
+
+// ─── Buyurtma shablonlari ─────────────────────────────────────────────────────
+
+/** Shablon qatori — faqat product_id + qty (T11 bilan bir xil) */
+export interface TemplateLineIn {
+  product_id: string;
+  qty: string;
+}
+
+/** POST /orders/templates uchun so'rov */
+export interface OrderTemplateCreate {
+  name: string;
+  store_id: string;
+  lines: TemplateLineIn[];
+}
+
+/** GET /orders/templates javobidagi bitta shablon */
+export interface OrderTemplateOut {
+  id: string;
+  name: string;
+  store_id: string;
+  lines: TemplateLineIn[];
+  created_at: string;
+}
+
+/** POST /orders/templates/{id}/apply javobi — yaratilgan buyurtma */
+export type OrderTemplateApplyOut = OrderOut;

@@ -148,6 +148,27 @@ export interface MarketplaceFeaturedPayload {
   featured: boolean;
 }
 
+// ─── Buyurtmani qabul qilish ──────────────────────────────────────────────────
+
+export interface AcceptOrderLinePayload {
+  line_id: string;
+  /** ISO sana: YYYY-MM-DD */
+  expiry_date: string;
+  /** 0+ foiz (masalan 15.5) */
+  markup_percent: number;
+}
+
+export interface AcceptOrderPayload {
+  lines: AcceptOrderLinePayload[];
+}
+
+// ─── Buyurtmani rad etish ─────────────────────────────────────────────────────
+
+export interface RejectOrderPayload {
+  /** Ixtiyoriy, max 500 belgi */
+  reason?: string;
+}
+
 // ─── Filtrlar ─────────────────────────────────────────────────────────────────
 
 export interface OrderFilters {

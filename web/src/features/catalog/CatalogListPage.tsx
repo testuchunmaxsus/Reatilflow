@@ -32,11 +32,14 @@ import {
   Tooltip,
 } from "@mantine/core";
 import {
+  IconCategory,
+  IconCurrencyDollar,
   IconEdit,
   IconHistory,
   IconPhoto,
   IconPlus,
   IconSearch,
+  IconTag,
   IconTrash,
 } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
@@ -49,7 +52,10 @@ import { useCategories, useDeleteProduct, useProducts } from "./api/catalogApi";
 import { useToggleMarketplacePublish } from "@/features/marketplace/api/marketplaceApi";
 import { ProductFormModal } from "./components/ProductFormModal";
 import { PriceHistoryModal } from "./components/PriceHistoryModal";
+import { SetPriceModal } from "./components/SetPriceModal";
 import { PhotoUploadModal } from "./components/PhotoUploadModal";
+import { CreateCategoryModal } from "./components/CreateCategoryModal";
+import { CreateSegmentModal } from "./components/CreateSegmentModal";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { MarketplacePriceModal } from "@/features/marketplace/components/MarketplacePriceModal";
 import { useApiError } from "@/hooks/useApiError";
@@ -81,11 +87,15 @@ export function CatalogListPage() {
   // Modal holatlari
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [historyOpened, { open: openHistory, close: closeHistory }] = useDisclosure(false);
+  const [setPriceOpened, { open: openSetPrice, close: closeSetPrice }] = useDisclosure(false);
   const [photoOpened, { open: openPhoto, close: closePhoto }] = useDisclosure(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
   const [marketplacePriceOpened, { open: openMarketplacePrice, close: closeMarketplacePrice }] = useDisclosure(false);
+  const [createCategoryOpened, { open: openCreateCategory, close: closeCreateCategory }] = useDisclosure(false);
+  const [createSegmentOpened, { open: openCreateSegment, close: closeCreateSegment }] = useDisclosure(false);
   const [editingProduct, setEditingProduct] = useState<ProductOut | undefined>(undefined);
   const [selectedProduct, setSelectedProduct] = useState<ProductOut | null>(null);
+  const [setPriceProduct, setSetPriceProduct] = useState<ProductOut | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<ProductOut | null>(null);
   const [marketplacePriceProduct, setMarketplacePriceProduct] = useState<ProductOut | null>(null);
 
@@ -150,6 +160,11 @@ export function CatalogListPage() {
     openPhoto();
   };
 
+  const handleSetPriceClick = (product: ProductOut) => {
+    setSetPriceProduct(product);
+    openSetPrice();
+  };
+
   const handleDeleteClick = (product: ProductOut) => {
     setDeletingProduct(product);
     openDelete();
@@ -184,14 +199,30 @@ export function CatalogListPage() {
 
   return (
     <Stack gap="md">
-      {/* Sarlavha va yaratish tugmasi */}
-      <Group justify="space-between">
+      {/* Sarlavha va yaratish tugmalari */}
+      <Group justify="space-between" wrap="wrap">
         <Title order={3}>{t("pages.catalog.title")}</Title>
-        <Can permission="catalog:create">
-          <Button leftSection={<IconPlus size={16} />} onClick={handleCreateClick}>
-            {t("catalog.actions.create")}
-          </Button>
-        </Can>
+        <Group gap="xs">
+          <Can permission="catalog:create">
+            <Button
+              leftSection={<IconCategory size={16} />}
+              variant="light"
+              onClick={openCreateCategory}
+            >
+              {t("catalog.actions.add_category", { defaultValue: "Kategoriya qo'shish" })}
+            </Button>
+            <Button
+              leftSection={<IconTag size={16} />}
+              variant="light"
+              onClick={openCreateSegment}
+            >
+              {t("catalog.actions.add_segment", { defaultValue: "Segment qo'shish" })}
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={handleCreateClick}>
+              {t("catalog.actions.create")}
+            </Button>
+          </Can>
+        </Group>
       </Group>
 
       {/* Filtr va qidiruv */}
@@ -335,6 +366,18 @@ export function CatalogListPage() {
                         </ActionIcon>
                       </Tooltip>
                       <Can permission="catalog:edit">
+                        <Tooltip label={t("catalog.actions.set_price", { defaultValue: "Narx o'rnatish" })}>
+                          <ActionIcon
+                            variant="subtle"
+                            color="violet"
+                            onClick={() => handleSetPriceClick(product)}
+                            aria-label={t("catalog.actions.set_price", { defaultValue: "Narx o'rnatish" })}
+                          >
+                            <IconCurrencyDollar size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Can>
+                      <Can permission="catalog:edit">
                         <Tooltip label={t("catalog.actions.photo")}>
                           <ActionIcon
                             variant="subtle"
@@ -399,10 +442,23 @@ export function CatalogListPage() {
         onClose={closeHistory}
         product={selectedProduct}
       />
+      <SetPriceModal
+        opened={setPriceOpened}
+        onClose={closeSetPrice}
+        product={setPriceProduct}
+      />
       <PhotoUploadModal
         opened={photoOpened}
         onClose={closePhoto}
         product={selectedProduct}
+      />
+      <CreateCategoryModal
+        opened={createCategoryOpened}
+        onClose={closeCreateCategory}
+      />
+      <CreateSegmentModal
+        opened={createSegmentOpened}
+        onClose={closeCreateSegment}
       />
       <ConfirmDeleteModal
         opened={deleteOpened}
