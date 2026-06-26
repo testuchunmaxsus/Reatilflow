@@ -43,8 +43,11 @@ def upgrade() -> None:
         # ── 2. Indeks qo'shish (idempotent) ─────────────────────────────────────
         existing_indexes = {idx["name"] for idx in insp.get_indexes("contract")}
         if "ix_contract_supplier_enterprise_id" not in existing_indexes:
+            # DIQQAT: CONCURRENTLY ISHLATMA — alembic tranzaksiyasi ichida ishlamaydi
+            # (PG xato: "CREATE INDEX CONCURRENTLY cannot run inside a transaction block").
+            # Contract jadvali kichik → oddiy CREATE INDEX yetarli (tranzaksiya-xavfsiz).
             op.execute(
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
+                "CREATE INDEX IF NOT EXISTS "
                 "ix_contract_supplier_enterprise_id "
                 "ON contract(supplier_enterprise_id)"
             )
