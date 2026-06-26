@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_spacing.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
 import '../../data/remote/models/auth_models.dart';
@@ -11,6 +10,25 @@ import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
 import '../enterprise/enterprise_providers.dart';
 import '../stores/stores_providers.dart';
+
+/// Profil tahrirlash — bottom sheet ochuvchi yordamchi funksiya.
+Future<void> _showEditProfileSheet(
+  BuildContext context,
+  WidgetRef ref,
+  MeResponse user,
+) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(AppSpacing.radiusXxl),
+      ),
+    ),
+    builder: (_) => _EditProfileSheet(user: user, ref: ref),
+  );
+}
 
 /// Agent kabineti ekrani — profil + biriktirilgan do'konlar.
 ///
@@ -76,84 +94,113 @@ class AgentCabinetScreen extends ConsumerWidget {
 
 // ---------------------------------------------------------------------------
 
-class _ProfileCard extends StatelessWidget {
+class _ProfileCard extends ConsumerWidget {
   const _ProfileCard({required this.user});
   final MeResponse user;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final appColors = AppTheme.colorsOf(context);
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [cs.primary, cs.primary.withValues(alpha: 0.8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          // Sarlavha + tahrirlash tugmasi
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Profil',
+                style: tt.labelMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                _initials(user.fullName),
-                style: tt.titleMedium?.copyWith(
-                  color: cs.onPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                iconSize: AppSpacing.iconSm,
+                tooltip: 'Profilni tahrirlash',
+                color: cs.primary,
+                visualDensity: VisualDensity.compact,
+                onPressed: () =>
+                    _showEditProfileSheet(context, ref, user),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.lg),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.fullName,
-                  style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                _InfoLine(icon: Icons.phone_outlined, value: user.phone),
-                _InfoLine(
-                    icon: Icons.badge_outlined,
-                    value: _roleLabel(user.role)),
-                if (user.branchId != null)
-                  _InfoLine(
-                    icon: Icons.business_outlined,
-                    value: 'Filial: ${user.branchId!.substring(0, 8)}...',
+          const SizedBox(height: AppSpacing.sm),
+          // Profil tarkibi: avatar + ma'lumotlar
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Avatar
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [cs.primary, cs.primary.withValues(alpha: 0.8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    StatusBadge(
-                      status: user.isActive ? 'Faol' : 'Nofaol',
-                      variant: user.isActive
-                          ? StatusVariant.success
-                          : StatusVariant.danger,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    _initials(user.fullName),
+                    style: tt.titleMedium?.copyWith(
+                      color: cs.onPrimary,
+                      fontWeight: FontWeight.w700,
                     ),
-                    if (user.biometricEnrolled)
-                      StatusBadge(
-                        status: 'Biometrik',
-                        variant: StatusVariant.info,
-                        icon: Icons.fingerprint,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.fullName,
+                      style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    _InfoLine(icon: Icons.phone_outlined, value: user.phone),
+                    _InfoLine(
+                        icon: Icons.badge_outlined,
+                        value: _roleLabel(user.role)),
+                    _InfoLine(
+                      icon: Icons.language_outlined,
+                      value: user.locale == 'uz' ? "O'zbek" : 'Русский',
+                    ),
+                    if (user.branchId != null)
+                      _InfoLine(
+                        icon: Icons.business_outlined,
+                        value: 'Filial: ${user.branchId!.substring(0, 8)}...',
                       ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        StatusBadge(
+                          status: user.isActive ? 'Faol' : 'Nofaol',
+                          variant: user.isActive
+                              ? StatusVariant.success
+                              : StatusVariant.danger,
+                        ),
+                        if (user.biometricEnrolled)
+                          const StatusBadge(
+                            status: 'Biometrik',
+                            variant: StatusVariant.info,
+                            icon: Icons.fingerprint,
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -252,7 +299,6 @@ class _ModuleChip extends StatelessWidget {
       status: _moduleLabel(module),
       variant: variant,
       icon: icon,
-      size: StatusBadgeSize.medium,
     );
   }
 
@@ -376,6 +422,157 @@ class _StoreCard extends StatelessWidget {
           ),
           Icon(Icons.chevron_right,
               size: AppSpacing.iconSm, color: cs.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Profil tahrirlash — bottom sheet
+
+/// Profilni tahrirlash bottom sheet (full_name + locale).
+///
+/// PATCH /auth/me orqali faqat full_name va locale o'zgartiriladi.
+/// [ref] tashqaridan beriladi — bo'lmasa `ConsumerStatefulWidget` kerak bo'lardi.
+class _EditProfileSheet extends StatefulWidget {
+  const _EditProfileSheet({required this.user, required this.ref});
+  final MeResponse user;
+  final WidgetRef ref;
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final TextEditingController _nameCtrl;
+  late String _locale;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.user.fullName);
+    _locale = widget.user.locale;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.length < 2) {
+      setState(() => _error = 'Ism kamida 2 belgi bo\'lishi kerak');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await widget.ref.read(authNotifierProvider.notifier).updateProfile(
+            fullName: name,
+            locale: _locale,
+          );
+      if (mounted) Navigator.of(context).pop();
+    } on Exception catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final bottomPadding = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg + bottomPadding,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Sarlavha + yopish tugmasi
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Profilni tahrirlash',
+                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Ism maydoni
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: InputDecoration(
+              labelText: 'To\'liq ism',
+              prefixIcon: const Icon(Icons.person_outline),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+            ),
+            textCapitalization: TextCapitalization.words,
+            maxLength: 255,
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Til tanlash
+          Text('Til', style: tt.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+          const SizedBox(height: AppSpacing.xs),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'uz', label: Text("O'zbek")),
+              ButtonSegment(value: 'ru', label: Text('Русский')),
+            ],
+            selected: {_locale},
+            onSelectionChanged: (v) => setState(() => _locale = v.first),
+            showSelectedIcon: false,
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Xato xabari
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: tt.bodySmall?.copyWith(color: cs.error),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+
+          // Saqlash tugmasi
+          FilledButton(
+            onPressed: _loading ? null : _submit,
+            child: _loading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Saqlash'),
+          ),
         ],
       ),
     );

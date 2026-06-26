@@ -220,19 +220,15 @@ final deliveryDetailNotifierProvider = StateNotifierProvider.family<
 // ---------------------------------------------------------------------------
 // Xarita uchun GPS nuqtalari (delivery_map_screen)
 
-/// Yetkazishning lokal GPS trek nuqtalarini qaytaradi.
+/// Yetkazishning server GPS trek nuqtalarini qaytaradi.
 ///
-/// GPS nuqtalari outbox'dan (gps.ingest) server tomonga yuboriladi;
-/// faqat server tomonidagi endpointdan kelgan nuqtalar haqiqiy trek bo'ladi.
-/// Hozirgi implementatsiyada: lokal DB da trek yo'q, demo nuqtalar qaytariladi.
-/// Kengaytirish: server GET /delivery/{id}/gps-track → LatLng list.
+/// Endpoint: GET /gps/track/{delivery_id}
+/// Javob: PaginatedTrack { items: [{lat, lng, recorded_at, ...}] }
 ///
+/// Offline yoki ApiClient yo'q bo'lsa — bo'sh ro'yxat.
 final deliveryGpsPointsProvider =
     FutureProvider.autoDispose.family<List<LatLng>, String>(
   (ref, deliveryId) async {
-    // Hozirgi versiyada: server endpointdan GPS trek yuklanadi.
-    // Agar ApiClient mavjud bo'lsa — GET /delivery/{id}/gps-track.
-    // Offline rejimda — bo'sh ro'yxat qaytariladi.
     ApiClient? client;
     try {
       client = ref.read(apiClientProvider);
@@ -244,8 +240,8 @@ final deliveryGpsPointsProvider =
 
     try {
       final response = await client.dio
-          .get<Map<String, dynamic>>('/delivery/$deliveryId/gps-track');
-      final raw = response.data?['points'] as List<dynamic>? ?? [];
+          .get<Map<String, dynamic>>('/gps/track/$deliveryId');
+      final raw = response.data?['items'] as List<dynamic>? ?? [];
       return raw.map((p) {
         final point = p as Map<String, dynamic>;
         final lat = double.tryParse(point['lat']?.toString() ?? '') ?? 0.0;

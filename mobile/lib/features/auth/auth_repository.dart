@@ -89,6 +89,23 @@ class AuthRepository {
     _currentUser = null;
   }
 
+  /// PATCH /auth/me — O'z profilini yangilash (full_name, locale).
+  ///
+  /// Faqat o'zining profilini yangilaydi — alohida RBAC ruxsati kerak emas.
+  /// [fullName] va [locale] null bo'lsa o'zgartirilmaydi.
+  Future<MeResponse> patchMe({
+    String? fullName,
+    String? locale,
+  }) async {
+    final body = <String, dynamic>{
+      if (fullName != null) 'full_name': fullName,
+      if (locale != null) 'locale': locale,
+    };
+    final user = await _apiClient.patchMe(body);
+    _currentUser = user;
+    return user;
+  }
+
   /// Foydalanuvchi roli
   String? get userRole => _currentUser?.role;
 

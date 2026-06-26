@@ -109,6 +109,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthStateUnauthenticated();
   }
 
+  /// PATCH /auth/me — profilni yangilash.
+  ///
+  /// Muvaffaqiyatli bo'lsa [AuthStateAuthenticated] holat yangilanadi.
+  /// Qaytadi: yangilangan [MeResponse] yoki null (xato bo'lsa).
+  Future<MeResponse?> updateProfile({
+    String? fullName,
+    String? locale,
+  }) async {
+    try {
+      final user = await _repository.patchMe(
+        fullName: fullName,
+        locale: locale,
+      );
+      state = AuthStateAuthenticated(user: user);
+      return user;
+    } on Exception {
+      rethrow;
+    }
+  }
+
   void handleForcedLogout() {
     // Token interceptor tomonidan chaqiriladi (token eskirgan)
     unawaited(_repository.logout());

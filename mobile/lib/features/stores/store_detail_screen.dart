@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/local/database.dart';
+import '../auth/auth_providers.dart';
+import '../auth/auth_repository.dart';
 import 'stores_providers.dart';
 
 /// Do'kon detail ekrani — lokal Drift'dan (offline).
@@ -17,10 +20,34 @@ class StoreDetailScreen extends ConsumerWidget {
     final storeAsync = ref.watch(storeByIdProvider(storeId));
     final cs = Theme.of(context).colorScheme;
 
+    // Joriy foydalanuvchi ID — do'kon egasi ekanligini tekshirish uchun
+    final authState = ref.watch(authNotifierProvider);
+    final currentUserId = switch (authState) {
+      AuthStateAuthenticated(:final user) => user.id,
+      _ => null,
+    };
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Do'kon"),
         actions: [
+          // Tahrirlash — faqat agent o'zi yaratgan do'konni tuzata oladi
+          storeAsync.whenOrNull(
+                data: (store) {
+                  if (store != null &&
+                      currentUserId != null &&
+                      store.agentId == currentUserId) {
+                    return IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Tahrirlash',
+                      onPressed: () => context
+                          .push('$routeStores/$storeId/edit'),
+                    );
+                  }
+                  return null;
+                },
+              ) ??
+              const SizedBox.shrink(),
           IconButton(
             icon: const Icon(Icons.shopping_cart_outlined),
             tooltip: 'Buyurtma',

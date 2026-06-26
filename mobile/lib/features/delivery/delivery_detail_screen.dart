@@ -640,16 +640,31 @@ class _ProofPhotoSectionState extends ConsumerState<_ProofPhotoSection> {
       _isUploading = true;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-
-    if (mounted) {
-      setState(() => _isUploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Rasm muvaffaqiyatli tanlandi'),
-          backgroundColor: AppTheme.colorsOf(context).success,
-        ),
+    try {
+      final repository = ref.read(deliveryRepositoryProvider);
+      await repository.uploadProofPhoto(
+        id: widget.deliveryId,
+        imagePath: file.path,
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Rasm serverga yuklandi'),
+            backgroundColor: AppTheme.colorsOf(context).success,
+          ),
+        );
+      }
+    } on Exception catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Yuklash xatosi: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -705,14 +720,19 @@ class _ProofPhotoSectionState extends ConsumerState<_ProofPhotoSection> {
             ),
             const SizedBox(height: AppSpacing.sm),
             if (_isUploading)
-              LinearProgressIndicator(
-                color: cs.primary,
-                backgroundColor: cs.surfaceContainerHighest,
-              )
-            else
-              Text(
-                'Rasm tanlandi. Server bilan sync da yuklanadi.',
-                style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    color: cs.primary,
+                    backgroundColor: cs.surfaceContainerHighest,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Serverga yuklanmoqda...',
+                    style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ),
           ] else ...[
             // Kamera yoki galereya tugmalari

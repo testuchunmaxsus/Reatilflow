@@ -70,7 +70,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           ] else
             AppCard(
               color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-              outlined: true,
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Center(
                 child: Text(
@@ -147,11 +146,10 @@ class _BalanceCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(financeBalanceProvider(storeId));
     final appColors = AppTheme.colorsOf(context);
-    final cs = Theme.of(context).colorScheme;
 
     return switch (state) {
-      FinanceBalanceLoading() => AppCard(
-          child: const Padding(
+      FinanceBalanceLoading() => const AppCard(
+          child: Padding(
             padding: EdgeInsets.all(AppSpacing.xl),
             child: Center(child: CircularProgressIndicator()),
           ),

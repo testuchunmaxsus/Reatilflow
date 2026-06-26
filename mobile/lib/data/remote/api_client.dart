@@ -65,6 +65,15 @@ class ApiClient {
     return MeResponse.fromJson(response.data!);
   }
 
+  /// PATCH /auth/me — O'z profilini yangilash (full_name, locale).
+  Future<MeResponse> patchMe(Map<String, dynamic> body) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/auth/me',
+      data: body,
+    );
+    return MeResponse.fromJson(response.data!);
+  }
+
   // ---- Enterprise ----
 
   /// GET /enterprise/me — korxona ma'lumotlari (enabled_modules).

@@ -30,6 +30,7 @@ import '../../features/pos/pos_sale_screen.dart';
 import '../../features/pos/pos_summary_screen.dart';
 import '../../features/pos/store_dashboard.dart';
 import '../../features/stores/create_store_screen.dart';
+import '../../features/stores/edit_store_screen.dart';
 import '../../features/stores/store_detail_screen.dart';
 import '../../features/stores/store_list_screen.dart';
 
@@ -48,6 +49,7 @@ const String routeAccountantFinance = '/home/accountant/finance';
 const String routeStores = '/home/stores';
 const String routeStoreCreate = '/home/stores/create';
 const String routeStoreDetail = '/home/stores/:storeId';
+const String routeStoreEdit = '/home/stores/:storeId/edit';
 const String routeCatalog = '/home/catalog';
 const String routeOrders = '/home/orders';
 const String routeOrderCreate = '/home/orders/create';
@@ -174,6 +176,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => StoreDetailScreen(
                   storeId: state.pathParameters['storeId']!,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (context, state) => EditStoreScreen(
+                      storeId: state.pathParameters['storeId']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

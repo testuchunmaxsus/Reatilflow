@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/local/database_provider.dart';
+import '../auth/auth_providers.dart';
 import 'attendance_repository.dart';
 import 'biometric_service.dart';
 import 'gps_service.dart';
@@ -20,8 +21,22 @@ final gpsServiceProvider = Provider<GpsService>((ref) {
 /// AttendanceRepository provider
 final attendanceRepositoryProvider = Provider<AttendanceRepository>((ref) {
   final db = ref.watch(databaseProvider);
-  return AttendanceRepository(db: db);
+  final apiClient = ref.watch(apiClientProvider);
+  return AttendanceRepository(db: db, dio: apiClient.dio);
 });
+
+// ---------------------------------------------------------------------------
+// Davomat tarixi
+
+/// Davomat tarixi sahifa — [offset] bilan paginate.
+///
+/// GET /attendance?limit=20&offset=N
+final attendanceHistoryProvider = FutureProvider.family<AttendanceHistoryPage, int>(
+  (ref, offset) async {
+    final repo = ref.watch(attendanceRepositoryProvider);
+    return repo.fetchHistory(offset: offset);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Davomat holati

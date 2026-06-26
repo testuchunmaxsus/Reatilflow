@@ -3,42 +3,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/widgets.dart';
+import '../../data/local/database.dart';
 import '../attendance/attendance_providers.dart';
 import '../attendance/gps_service.dart';
 import '../home/sync_providers.dart';
 import 'stores_providers.dart';
 
-/// Yangi do'kon yaratish ekrani (agent uchun).
+/// Do'kon tahrirlash ekrani (agent uchun).
 ///
-/// Oqim: forma to'ldirish → GPS olish → POST /customers/stores →
+/// Oqim: mavjud ma'lumotlar formaga yuklanadi → agent o'zgartiradi →
+///        PATCH /customers/stores/{id} (outbox orqali offline-first) →
 ///        sync trigger → ekranni yopish.
-/// Backend agent_id ni JWT tokenidan avtomatik o'rnatadi.
-class CreateStoreScreen extends ConsumerStatefulWidget {
-  const CreateStoreScreen({super.key});
+class EditStoreScreen extends ConsumerStatefulWidget {
+  const EditStoreScreen({super.key, required this.storeId});
+  final String storeId;
 
   @override
-  ConsumerState<CreateStoreScreen> createState() => _CreateStoreScreenState();
+  ConsumerState<EditStoreScreen> createState() => _EditStoreScreenState();
 }
 
-class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
+class _EditStoreScreenState extends ConsumerState<EditStoreScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _ownerNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _innController = TextEditingController();
-  final _inpsController = TextEditingController();
-  final _creditLimitController = TextEditingController();
 
-  GpsPosition? _gpsPosition;
+  // GPS — ixtiyoriy: agent o'zgartirmoqchi bo'lsa yangilaydi
+  GpsPosition? _newGpsPosition;
   bool _gpsLoading = false;
   bool _submitting = false;
+
+  Store? _originalStore;
+  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    // Ekran ochilganda GPS ni avtomatik olishga urinish
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchGps());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStore());
   }
 
   @override
@@ -47,10 +49,27 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
     _ownerNameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _innController.dispose();
-    _inpsController.dispose();
-    _creditLimitController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStore() async {
+    final repo = ref.read(storeRepositoryProvider);
+    final store = await repo.getById(widget.storeId);
+    if (!mounted) return;
+    if (store == null) {
+      _showSnackBar("Do'kon topilmadi");
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _originalStore = store;
+      _nameController.text = store.name;
+      // owner_name lokal DB da saqlanmaydi — bo'sh qoladi
+      _ownerNameController.text = '';
+      _phoneController.text = store.phone ?? '';
+      _addressController.text = store.address ?? '';
+      _loaded = true;
+    });
   }
 
   Future<void> _fetchGps() async {
@@ -58,13 +77,12 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
     setState(() => _gpsLoading = true);
 
     final gpsService = ref.read(gpsServiceProvider);
-    // Ruxsat so'rash, keyin joylashuvni olish
     await gpsService.requestPermission();
     final position = await gpsService.getCurrentPosition();
 
     if (!mounted) return;
     setState(() {
-      _gpsPosition = position;
+      _newGpsPosition = position;
       _gpsLoading = false;
     });
 
@@ -75,51 +93,34 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_gpsPosition == null) {
-      _showSnackBar('Avval joylashuvni oling');
-      return;
-    }
+    final store = _originalStore;
+    if (store == null) return;
 
     setState(() => _submitting = true);
 
     try {
       final repo = ref.read(storeRepositoryProvider);
 
-      // credit_limit soniga aylantirish
-      double? creditLimit;
-      final clText = _creditLimitController.text.trim();
-      if (clText.isNotEmpty) {
-        creditLimit = double.tryParse(clText.replaceAll(' ', ''));
-        if (creditLimit == null) {
-          _showSnackBar("Kredit limiti noto'g'ri son formatida");
-          setState(() => _submitting = false);
-          return;
-        }
-      }
-
-      await repo.createStore(
+      await repo.updateStore(
+        storeId: store.id,
+        version: store.version,
         name: _nameController.text.trim(),
         ownerName: _ownerNameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        gpsLat: _gpsPosition!.lat.toStringAsFixed(7),
-        gpsLng: _gpsPosition!.lng.toStringAsFixed(7),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
         address: _addressController.text.trim().isEmpty
             ? null
             : _addressController.text.trim(),
-        inn: _innController.text.trim().isEmpty
-            ? null
-            : _innController.text.trim(),
-        inps: _inpsController.text.trim().isEmpty
-            ? null
-            : _inpsController.text.trim(),
-        creditLimit: creditLimit,
+        gpsLat: _newGpsPosition?.lat,
+        gpsLng: _newGpsPosition?.lng,
       );
 
-      // Sync trigger — yangi do'kon ro'yxat va xaritada ko'rinishi uchun
+      // Sync trigger — server bilan moslashish uchun
       await ref.read(syncNotifierProvider.notifier).triggerSync();
 
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true); // true = o'zgarish bo'ldi
     } on Exception catch (e) {
       if (!mounted) return;
       _showSnackBar('Xatolik: $e');
@@ -143,9 +144,23 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
+    if (!_loaded) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Do'konni tahrirlash")),
+        body: Center(child: CircularProgressIndicator(color: cs.primary)),
+      );
+    }
+
+    final originalGps = _originalStore != null &&
+            _originalStore!.gpsLat != null &&
+            _originalStore!.gpsLng != null
+        ? '${_originalStore!.gpsLat!.toStringAsFixed(5)}, '
+            '${_originalStore!.gpsLng!.toStringAsFixed(5)}'
+        : null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Yangi do'kon"),
+        title: const Text("Do'konni tahrirlash"),
         actions: [
           if (_submitting)
             Padding(
@@ -174,17 +189,18 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // GPS holati kartasi
-              _GpsStatusCard(
-                position: _gpsPosition,
+              _GpsEditCard(
+                originalGps: originalGps,
+                newPosition: _newGpsPosition,
                 loading: _gpsLoading,
-                onRefresh: _fetchGps,
+                onUpdate: _fetchGps,
                 cs: cs,
                 tt: tt,
               ),
 
               const SizedBox(height: AppSpacing.xl),
 
-              // Asosiy ma'lumotlar
+              // Forma maydonlari
               AppCard(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
@@ -199,7 +215,6 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         labelText: "Do'kon nomi *",
-                        hintText: "Masalan: Baxt do'koni",
                         prefixIcon: Icon(Icons.store_outlined),
                       ),
                       validator: (v) {
@@ -221,7 +236,6 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         labelText: 'Egasining ismi',
-                        hintText: 'Masalan: Alisher Karimov',
                         prefixIcon: Icon(Icons.person_outlined),
                       ),
                     ),
@@ -236,7 +250,6 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
                         labelText: 'Telefon raqam',
                         hintText: '+998901234567',
                         prefixIcon: Icon(Icons.phone_outlined),
-                        helperText: '+998 bilan boshlanadi',
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return null;
@@ -257,94 +270,8 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         labelText: 'Manzil',
-                        hintText: 'Masalan: Toshkent, Chilonzor-5',
                         prefixIcon: Icon(Icons.location_on_outlined),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              // Soliq va moliyaviy ma'lumotlar
-              AppCard(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionHeader(title: 'Soliq va moliya'),
-                    const SizedBox(height: AppSpacing.md),
-
-                    // INN
-                    TextFormField(
-                      controller: _innController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'INN',
-                        hintText: '9 yoki 12 raqam',
-                        prefixIcon: Icon(Icons.badge_outlined),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return null;
-                        final digits =
-                            v.trim().replaceAll(RegExp(r'\D'), '');
-                        if (digits.length != 9 && digits.length != 12) {
-                          return "INN 9 yoki 12 raqamdan iborat bo'lishi kerak";
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: AppSpacing.md),
-
-                    // INPS
-                    TextFormField(
-                      controller: _inpsController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'INPS',
-                        hintText: '14 raqam',
-                        prefixIcon: Icon(Icons.credit_card_outlined),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return null;
-                        final digits =
-                            v.trim().replaceAll(RegExp(r'\D'), '');
-                        if (digits.length != 14) {
-                          return "INPS 14 raqamdan iborat bo'lishi kerak";
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: AppSpacing.md),
-
-                    // Kredit limiti
-                    TextFormField(
-                      controller: _creditLimitController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Kredit limiti (UZS)',
-                        hintText: 'Masalan: 5000000',
-                        prefixIcon: Icon(
-                          Icons.account_balance_wallet_outlined,
-                        ),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return null;
-                        final parsed =
-                            double.tryParse(v.trim().replaceAll(' ', ''));
-                        if (parsed == null) {
-                          return "Noto'g'ri son formati";
-                        }
-                        if (parsed < 0) {
-                          return "Kredit limiti manfiy bo'lmasligi kerak";
-                        }
-                        return null;
-                      },
                     ),
                   ],
                 ),
@@ -382,26 +309,34 @@ class _CreateStoreScreenState extends ConsumerState<CreateStoreScreen> {
 
 // ---------------------------------------------------------------------------
 
-class _GpsStatusCard extends StatelessWidget {
-  const _GpsStatusCard({
-    required this.position,
+class _GpsEditCard extends StatelessWidget {
+  const _GpsEditCard({
+    required this.originalGps,
+    required this.newPosition,
     required this.loading,
-    required this.onRefresh,
+    required this.onUpdate,
     required this.cs,
     required this.tt,
   });
 
-  final GpsPosition? position;
+  final String? originalGps;
+  final GpsPosition? newPosition;
   final bool loading;
-  final VoidCallback onRefresh;
+  final VoidCallback onUpdate;
   final ColorScheme cs;
   final TextTheme tt;
 
   @override
   Widget build(BuildContext context) {
+    final hasNew = newPosition != null;
+    final newGpsText = hasNew
+        ? '${newPosition!.lat.toStringAsFixed(5)}, '
+            '${newPosition!.lng.toStringAsFixed(5)}'
+        : null;
+
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      borderColor: position != null
+      borderColor: hasNew
           ? cs.primary.withValues(alpha: 0.4)
           : cs.outlineVariant,
       child: Row(
@@ -410,9 +345,7 @@ class _GpsStatusCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: position != null
-                  ? cs.primaryContainer
-                  : cs.surfaceContainerHighest,
+              color: hasNew ? cs.primaryContainer : cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
             ),
             child: loading
@@ -424,10 +357,8 @@ class _GpsStatusCard extends StatelessWidget {
                     ),
                   )
                 : Icon(
-                    position != null
-                        ? Icons.my_location
-                        : Icons.location_off_outlined,
-                    color: position != null ? cs.primary : cs.onSurfaceVariant,
+                    hasNew ? Icons.my_location : Icons.location_on_outlined,
+                    color: hasNew ? cs.primary : cs.onSurfaceVariant,
                     size: AppSpacing.iconMd,
                   ),
           ),
@@ -439,38 +370,37 @@ class _GpsStatusCard extends StatelessWidget {
                 Text(
                   loading
                       ? 'Joylashuv olinmoqda...'
-                      : position != null
-                          ? 'Joylashuv olindi'
-                          : 'Joylashuv olinmadi',
+                      : hasNew
+                          ? 'Yangi joylashuv'
+                          : 'GPS (ixtiyoriy yangilash)',
                   style: tt.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: position != null ? cs.primary : cs.onSurface,
+                    color: hasNew ? cs.primary : cs.onSurface,
                   ),
                 ),
-                if (position != null)
+                if (newGpsText != null)
                   Text(
-                    '${position!.lat.toStringAsFixed(5)}, '
-                    '${position!.lng.toStringAsFixed(5)}',
-                    style: tt.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
+                    newGpsText,
+                    style: tt.bodySmall?.copyWith(color: cs.primary),
                   )
-                else if (!loading)
+                else if (originalGps != null)
                   Text(
-                    'GPS ruxsatini tekshiring',
-                    style: tt.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
+                    'Joriy: $originalGps',
+                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  )
+                else
+                  Text(
+                    'GPS maʼlumot yoʼq',
+                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                   ),
               ],
             ),
           ),
           if (!loading)
-            IconButton(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Joylashuvni yangilash',
-              color: cs.onSurfaceVariant,
+            TextButton.icon(
+              onPressed: onUpdate,
+              icon: const Icon(Icons.my_location, size: AppSpacing.iconSm),
+              label: const Text('Yangilash'),
             ),
         ],
       ),

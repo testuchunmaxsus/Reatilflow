@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -36,6 +37,78 @@ class AttendanceRecord {
   bool get isCheckedOut => checkOutAt != null;
 }
 
+/// Davomat tarixi yozuvi (server javobidan)
+class AttendanceHistoryRecord {
+  AttendanceHistoryRecord({
+    required this.id,
+    required this.workDate,
+    required this.checkInAt,
+    required this.checkInGpsLat,
+    required this.checkInGpsLng,
+    required this.biometricVerified,
+    this.checkOutAt,
+    this.checkOutGpsLat,
+    this.checkOutGpsLng,
+  });
+
+  factory AttendanceHistoryRecord.fromJson(Map<String, dynamic> json) {
+    return AttendanceHistoryRecord(
+      id: json['id'] as String,
+      workDate: DateTime.parse(json['work_date'] as String),
+      checkInAt: DateTime.parse(json['check_in_at'] as String),
+      checkInGpsLat: _parseDouble(json['check_in_gps_lat']),
+      checkInGpsLng: _parseDouble(json['check_in_gps_lng']),
+      biometricVerified: json['biometric_verified'] as bool? ?? false,
+      checkOutAt: json['check_out_at'] != null
+          ? DateTime.parse(json['check_out_at'] as String)
+          : null,
+      checkOutGpsLat: json['check_out_gps_lat'] != null
+          ? _parseDouble(json['check_out_gps_lat'])
+          : null,
+      checkOutGpsLng: json['check_out_gps_lng'] != null
+          ? _parseDouble(json['check_out_gps_lng'])
+          : null,
+    );
+  }
+
+  static double _parseDouble(dynamic v) {
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
+  }
+
+  final String id;
+  final DateTime workDate;
+  final DateTime checkInAt;
+  final double checkInGpsLat;
+  final double checkInGpsLng;
+  final bool biometricVerified;
+  final DateTime? checkOutAt;
+  final double? checkOutGpsLat;
+  final double? checkOutGpsLng;
+
+  /// Ish vaqti (daqiqada) — checkOut bo'lsa hisoblaydi
+  int? get workMinutes {
+    if (checkOutAt == null) return null;
+    return checkOutAt!.difference(checkInAt).inMinutes;
+  }
+}
+
+/// Paginated davomat tarixi
+class AttendanceHistoryPage {
+  const AttendanceHistoryPage({
+    required this.items,
+    required this.total,
+    required this.limit,
+    required this.offset,
+  });
+
+  final List<AttendanceHistoryRecord> items;
+  final int total;
+  final int limit;
+  final int offset;
+}
+
 /// Davomat repository — outbox orqali offline saqlanadi.
 ///
 /// Qoidalar:
@@ -45,10 +118,12 @@ class AttendanceRecord {
 /// - GPS ish vaqtida olinadi (ADR §3.7)
 /// - Vaqt server-avtoritar (ATTENDANCE.md §Server-avtoritar vaqt)
 class AttendanceRepository {
-  AttendanceRepository({required AppDatabase db})
-      : _outboxDao = OutboxDao(db);
+  AttendanceRepository({required AppDatabase db, required Dio dio})
+      : _outboxDao = OutboxDao(db),
+        _dio = dio;
 
   final OutboxDao _outboxDao;
+  final Dio _dio;
 
   static const _uuid = Uuid();
 
@@ -177,6 +252,32 @@ class AttendanceRepository {
         payload: jsonEncode(payload),
         createdAt: Value(now),
       ),
+    );
+  }
+
+  /// GET /attendance — davomat tarixini serverdan yuklash.
+  ///
+  /// [limit] va [offset] — sahifa parametrlari.
+  /// RBAC: attendance:view (agent, courier, administrator, accountant).
+  Future<AttendanceHistoryPage> fetchHistory({
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/attendance',
+      queryParameters: {'limit': limit, 'offset': offset},
+    );
+    final data = response.data!;
+    final rawItems = (data['items'] as List<dynamic>?) ?? [];
+    final items = rawItems
+        .map((e) =>
+            AttendanceHistoryRecord.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return AttendanceHistoryPage(
+      items: items,
+      total: data['total'] as int? ?? 0,
+      limit: data['limit'] as int? ?? limit,
+      offset: data['offset'] as int? ?? offset,
     );
   }
 }

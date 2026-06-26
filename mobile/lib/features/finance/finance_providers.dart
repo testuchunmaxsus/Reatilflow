@@ -4,6 +4,8 @@ import '../auth/auth_providers.dart';
 import 'finance_models.dart';
 import 'finance_repository.dart';
 
+// ignore_for_file: use_setters_to_change_properties
+
 // ---------------------------------------------------------------------------
 // Repository
 
@@ -139,5 +141,110 @@ final ledgerNotifierProvider =
   (ref) {
     final repo = ref.watch(financeRepositoryProvider);
     return LedgerNotifier(repo);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Ledger yaratish holati
+
+sealed class CreateLedgerState {
+  const CreateLedgerState();
+}
+
+class CreateLedgerIdle extends CreateLedgerState {
+  const CreateLedgerIdle();
+}
+
+class CreateLedgerLoading extends CreateLedgerState {
+  const CreateLedgerLoading();
+}
+
+class CreateLedgerSuccess extends CreateLedgerState {
+  const CreateLedgerSuccess({required this.entry});
+  final LedgerEntry entry;
+}
+
+class CreateLedgerFailure extends CreateLedgerState {
+  const CreateLedgerFailure({required this.message});
+  final String message;
+}
+
+/// POST /finance/ledger — yangi yozuv yaratish notifier.
+class CreateLedgerNotifier extends StateNotifier<CreateLedgerState> {
+  CreateLedgerNotifier(this._repository) : super(const CreateLedgerIdle());
+
+  final FinanceRepository _repository;
+
+  Future<void> create(CreateLedgerRequest request) async {
+    state = const CreateLedgerLoading();
+    try {
+      final entry = await _repository.createLedger(request);
+      state = CreateLedgerSuccess(entry: entry);
+    } on Exception catch (e) {
+      state = CreateLedgerFailure(message: e.toString());
+    }
+  }
+
+  void reset() => state = const CreateLedgerIdle();
+}
+
+final createLedgerProvider = StateNotifierProvider.autoDispose<
+    CreateLedgerNotifier, CreateLedgerState>(
+  (ref) {
+    final repo = ref.watch(financeRepositoryProvider);
+    return CreateLedgerNotifier(repo);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Ledger tasdiqlash holati
+
+sealed class ApproveLedgerState {
+  const ApproveLedgerState();
+}
+
+class ApproveLedgerIdle extends ApproveLedgerState {
+  const ApproveLedgerIdle();
+}
+
+class ApproveLedgerLoading extends ApproveLedgerState {
+  const ApproveLedgerLoading();
+}
+
+class ApproveLedgerSuccess extends ApproveLedgerState {
+  const ApproveLedgerSuccess({required this.entry});
+  final LedgerEntry entry;
+}
+
+class ApproveLedgerFailure extends ApproveLedgerState {
+  const ApproveLedgerFailure({required this.message});
+  final String message;
+}
+
+/// POST /finance/ledger/{id}/approve — yozuvni tasdiqlash notifier.
+class ApproveLedgerNotifier extends StateNotifier<ApproveLedgerState> {
+  ApproveLedgerNotifier(this._repository) : super(const ApproveLedgerIdle());
+
+  final FinanceRepository _repository;
+
+  Future<void> approve(String entryId) async {
+    state = const ApproveLedgerLoading();
+    try {
+      final entry = await _repository.approveLedger(entryId);
+      state = ApproveLedgerSuccess(entry: entry);
+    } on Exception catch (e) {
+      state = ApproveLedgerFailure(message: e.toString());
+    }
+  }
+
+  void reset() => state = const ApproveLedgerIdle();
+}
+
+/// family key — ledger entry UUID.
+final approveLedgerProvider = StateNotifierProvider.autoDispose.family<
+    ApproveLedgerNotifier, ApproveLedgerState, String>(
+  (ref, entryId) {
+    final repo = ref.watch(financeRepositoryProvider);
+    return ApproveLedgerNotifier(repo);
   },
 );

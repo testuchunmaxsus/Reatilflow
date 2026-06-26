@@ -95,8 +95,8 @@ class _BalanceCard extends ConsumerWidget {
     final appColors = AppTheme.colorsOf(context);
 
     return switch (state) {
-      FinanceBalanceLoading() => AppCard(
-          child: const Padding(
+      FinanceBalanceLoading() => const AppCard(
+          child: Padding(
             padding: EdgeInsets.all(AppSpacing.xxxl),
             child: Center(child: CircularProgressIndicator()),
           ),

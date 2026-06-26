@@ -3,6 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/local/dao/stores_dao.dart';
 import '../../data/local/database.dart';
 import '../../data/local/database_provider.dart';
+import '../auth/auth_providers.dart';
+import 'store_repository.dart';
+
+/// StoreRepository provider
+final storeRepositoryProvider = Provider<StoreRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  final apiClient = ref.watch(apiClientProvider);
+  return StoreRepository(db: db, apiClient: apiClient);
+});
 
 /// StoresDao provider
 final storesDaoProvider = Provider<StoresDao>((ref) {

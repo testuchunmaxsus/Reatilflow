@@ -481,12 +481,6 @@ class _CheckoutPanel extends ConsumerWidget {
                       label: Text('Karta'),
                       icon: Icon(Icons.credit_card, size: 14),
                     ),
-                    ButtonSegment(
-                      value: 'transfer',
-                      label: Text("O'tkazma"),
-                      icon:
-                          Icon(Icons.account_balance, size: 14),
-                    ),
                   ],
                   selected: {cart.paymentMethod},
                   onSelectionChanged: (s) => ref
@@ -1022,7 +1016,6 @@ class _ReceiptDialog extends StatelessWidget {
   String _paymentMethodLabel(String method) => switch (method) {
         'cash' => 'Naqd pul',
         'card' => 'Karta',
-        'transfer' => "O'tkazma",
         _ => method,
       };
 
