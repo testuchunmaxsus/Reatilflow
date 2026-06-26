@@ -28,6 +28,8 @@ export interface ContractOut {
   contract_type: string | null;
   branch_id: string | null;
   client_uuid: string | null;
+  /** Supplier korxona ID — server agent/admin korxonasidan avtomatik o'rnatadi */
+  supplier_enterprise_id?: string | null;
   /** DERIVED from valid_to: "active" | "expiring" | "expired" */
   status: "active" | "expiring" | "expired";
   version: number;
@@ -56,6 +58,8 @@ export interface ContractCreate {
   contract_type?: string | null;
   branch_id?: string | null;
   client_uuid?: string | null;
+  /** Server agent/admin korxonasidan avtomatik o'rnatadi — klient yuborishi shart emas */
+  supplier_enterprise_id?: string | null;
 }
 
 // ─── Yangilash (PATCH) ────────────────────────────────────────────────────────
@@ -67,6 +71,8 @@ export interface ContractUpdate {
   signed_at?: string | null;
   contract_type?: string | null;
   branch_id?: string | null;
+  /** Server agent/admin korxonasidan avtomatik o'rnatadi — klient yuborishi shart emas */
+  supplier_enterprise_id?: string | null;
   version: number;
 }
 

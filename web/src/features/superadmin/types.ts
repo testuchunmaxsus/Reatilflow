@@ -196,3 +196,41 @@ export interface SuperadminBannerFilters {
   limit?: number;
   offset?: number;
 }
+
+// ─── Platforma do'konlar ──────────────────────────────────────────────────────
+
+/** GET /superadmin/stores javob elementi */
+export interface SuperadminStoreOut {
+  id: string;
+  name: string;
+  owner_name: string | null;
+  phone: string | null;
+  address: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  inn: string | null;
+  inps: string | null;
+  enterprise_id: string | null;
+  is_platform_managed: boolean;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /superadmin/stores paginated javob */
+export interface PaginatedSuperadminStores {
+  items: SuperadminStoreOut[];
+  total: number;
+}
+
+/** POST /superadmin/stores so'rov tanasi */
+export interface SuperadminStoreCreate {
+  name: string;
+  owner_name?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  gps_lat?: number | null;
+  gps_lng?: number | null;
+  inn?: string | null;
+  inps?: string | null;
+}

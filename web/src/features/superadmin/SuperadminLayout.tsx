@@ -34,6 +34,7 @@ import {
   IconFileText,
   IconPhoto,
   IconShieldLock,
+  IconBuildingStore,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -160,6 +161,13 @@ export function SuperadminLayout() {
             to="/superadmin/enterprises"
             label={t("nav.enterprises")}
             leftSection={<IconBuildingSkyscraper size={18} />}
+            mb={2}
+          />
+          <MantineNavLink
+            component={NavLink}
+            to="/superadmin/stores"
+            label={t("superadmin.nav.stores", { defaultValue: "Do'konlar" })}
+            leftSection={<IconBuildingStore size={18} />}
             mb={2}
           />
           <MantineNavLink

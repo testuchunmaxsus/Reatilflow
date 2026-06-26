@@ -2,6 +2,9 @@
  * Marketplace API — TanStack Query hook'lari va API chaqiruvlar.
  *
  * Endpointlar:
+ *   GET    /marketplace/products               — cross-tenant katalog browse
+ *   GET    /marketplace/suppliers              — supplierlar ro'yxati
+ *   POST   /marketplace/orders                 — buyurtma yaratish
  *   GET    /marketplace/orders/incoming        — kiruvchi buyurtmalar
  *   PATCH  /marketplace/orders/{id}/confirm    — tasdiqlash
  *   PATCH  /marketplace/orders/{id}/reject     — rad etish
@@ -33,6 +36,10 @@ import type {
   AcceptOrderPayload,
   RejectOrderPayload,
   OrderFilters,
+  PaginatedMarketplaceProducts,
+  MarketplaceSupplierOut,
+  MarketplaceOrderCreate,
+  MarketplaceBrowseFilters,
 } from "../types";
 import type { AppUserOut } from "@/api/types";
 
@@ -47,6 +54,9 @@ export const marketplaceKeys = {
   banners: (filters?: { limit?: number; offset?: number }) =>
     [...marketplaceKeys.all, "banners", filters ?? {}] as const,
   couriers: () => [...marketplaceKeys.all, "couriers"] as const,
+  browse: (filters?: MarketplaceBrowseFilters) =>
+    [...marketplaceKeys.all, "browse", filters ?? {}] as const,
+  suppliers: () => [...marketplaceKeys.all, "suppliers"] as const,
 };
 
 // ─── Kiruvchi buyurtmalar ─────────────────────────────────────────────────────
@@ -283,5 +293,67 @@ export function useCouriers() {
         "/users?role=courier&limit=100&offset=0",
       ),
     staleTime: 1000 * 60 * 5,
+  });
+}
+
+// ─── Marketplace katalog browse ───────────────────────────────────────────────
+
+/**
+ * GET /marketplace/products — cross-tenant published mahsulotlar.
+ * Backend page-based pagination: page=1-bazali.
+ */
+export function useMarketplaceProducts(filters: MarketplaceBrowseFilters = {}) {
+  const page = filters.page ?? 1;
+  const limit = filters.limit ?? 20;
+
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.supplier_enterprise) params.set("supplier_enterprise", filters.supplier_enterprise);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  const qs = params.toString();
+
+  return useQuery({
+    queryKey: marketplaceKeys.browse(filters),
+    queryFn: () =>
+      apiClient.get<PaginatedMarketplaceProducts>(`/marketplace/products?${qs}`),
+    placeholderData: (prev) => prev,
+  });
+}
+
+// ─── Supplierlar ro'yxati ─────────────────────────────────────────────────────
+
+/**
+ * GET /marketplace/suppliers — marketplace'da mahsuloti bor korxonalar.
+ * Filter dropdown uchun ishlatiladi.
+ */
+export function useMarketplaceSuppliers() {
+  return useQuery({
+    queryKey: marketplaceKeys.suppliers(),
+    queryFn: () =>
+      apiClient.get<MarketplaceSupplierOut[]>("/marketplace/suppliers"),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+// ─── Marketplace buyurtma yaratish ────────────────────────────────────────────
+
+/**
+ * POST /marketplace/orders — yangi marketplace buyurtma.
+ * 409 marketplace.contract_required → shartnoma-gate xabari ko'rsatiladi.
+ */
+export function useCreateMarketplaceOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: MarketplaceOrderCreate) =>
+      apiClient.post<OutgoingOrder>("/marketplace/orders", {
+        lines: payload.lines,
+        store_id: payload.buyer_store_id ?? undefined,
+        client_uuid: payload.client_uuid ?? undefined,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
+    },
   });
 }

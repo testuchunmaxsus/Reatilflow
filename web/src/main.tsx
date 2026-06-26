@@ -82,6 +82,11 @@ const SuperadminBannersPage = lazy(() =>
     default: m.SuperadminBannersPage,
   })),
 );
+const SuperadminStoresPage = lazy(() =>
+  import("@/features/superadmin/SuperadminStoresPage").then((m) => ({
+    default: m.SuperadminStoresPage,
+  })),
+);
 // Enterprise settings
 import { EnterpriseSettingsPage } from "@/features/enterprise-settings/EnterpriseSettingsPage";
 // Marketplace
@@ -89,6 +94,7 @@ import { MarketplaceLayout } from "@/features/marketplace/MarketplaceLayout";
 import { IncomingOrdersPage } from "@/features/marketplace/IncomingOrdersPage";
 import { OutgoingOrdersPage } from "@/features/marketplace/OutgoingOrdersPage";
 import { BannersPage } from "@/features/marketplace/BannersPage";
+import { MarketplaceBrowsePage } from "@/features/marketplace/MarketplaceBrowsePage";
 // Finance — code-split
 const FinanceLedgerPage = lazy(() =>
   import("@/features/finance/FinanceLedgerPage").then((m) => ({
@@ -311,6 +317,15 @@ function App() {
                         </Suspense>
                       }
                     />
+                    {/* Platforma do'konlar */}
+                    <Route
+                      path="stores"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <SuperadminStoresPage />
+                        </Suspense>
+                      }
+                    />
                     <Route path="*" element={<Navigate to="/superadmin" replace />} />
                   </Route>
                 </Route>
@@ -348,6 +363,7 @@ function App() {
                     {/* /marketplace — marketplace boshqaruvi */}
                     <Route path="marketplace" element={<MarketplaceLayout />}>
                       <Route index element={<IncomingOrdersPage />} />
+                      <Route path="browse" element={<MarketplaceBrowsePage />} />
                       <Route path="outgoing" element={<OutgoingOrdersPage />} />
                       <Route path="banners" element={<BannersPage />} />
                     </Route>

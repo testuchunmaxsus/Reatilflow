@@ -9,6 +9,7 @@
  */
 
 import {
+  Alert,
   Button,
   Group,
   Modal,
@@ -17,6 +18,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { UuidHelp } from "@/components/UuidHelp";
 import { DateInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
@@ -257,6 +259,35 @@ export function ContractFormModal({
             description={t("contracts.form.branch_id_hint")}
             {...form.getInputProps("branch_id")}
           />
+
+          {/* supplier_enterprise_id — server o'rnatadi, faqat ma'lumot uchun */}
+          {contract?.supplier_enterprise_id ? (
+            <TextInput
+              label={t("contracts.form.supplier_enterprise_id", {
+                defaultValue: "Supplier korxona ID",
+              })}
+              value={contract.supplier_enterprise_id}
+              readOnly
+              description={t("contracts.form.supplier_enterprise_id_hint", {
+                defaultValue:
+                  "Server tomonidan avtomatik o'rnatiladi (sizning korxonangiz).",
+              })}
+            />
+          ) : (
+            <Alert
+              icon={<IconInfoCircle size={16} />}
+              color="blue"
+              variant="light"
+              p="xs"
+            >
+              <Text size="xs">
+                {t("contracts.form.supplier_enterprise_auto", {
+                  defaultValue:
+                    "Supplier korxona avtomatik (sizning korxonangiz) — server o'rnatadi.",
+                })}
+              </Text>
+            </Alert>
+          )}
 
           <Group justify="flex-end" mt="md">
             <Button variant="subtle" onClick={handleClose} disabled={isPending}>

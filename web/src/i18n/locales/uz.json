@@ -435,7 +435,10 @@
       "contract_type": "Shartnoma turi",
       "type_any": "Tur tanlanmagan",
       "branch_id": "Filial ID",
-      "branch_id_hint": "Bo'sh qoldirsa — barcha filiallar"
+      "branch_id_hint": "Bo'sh qoldirsa — barcha filiallar",
+      "supplier_enterprise_id": "Supplier korxona ID",
+      "supplier_enterprise_id_hint": "Server tomonidan avtomatik o'rnatiladi (sizning korxonangiz).",
+      "supplier_enterprise_auto": "Supplier korxona avtomatik (sizning korxonangiz) — server o'rnatadi."
     },
     "file": {
       "title": "Shartnoma faylini yuklash",
@@ -612,6 +615,7 @@
       "dashboard": "Bosh sahifa",
       "audit_logs": "Audit log",
       "banners": "Bannerlar",
+      "stores": "Do'konlar",
       "group_management": "Boshqaruv",
       "group_content": "Kontent",
       "group_system": "Tizim"
@@ -781,6 +785,35 @@
       "modules": "Yoqilgan modullar",
       "first_admin_section": "Birinchi administrator",
       "generate_password": "Parol generatsiya qilish"
+    },
+    "stores": {
+      "title": "Platforma do'konlar",
+      "actions": {
+        "create": "Platforma do'kon qo'shish"
+      },
+      "table": {
+        "name": "Nomi",
+        "owner_name": "Egasi",
+        "phone": "Telefon",
+        "address": "Manzil",
+        "type": "Tur",
+        "created_at": "Yaratilgan",
+        "empty": "Platforma do'konlar topilmadi"
+      },
+      "badge": {
+        "platform": "Platforma",
+        "tenant": "Tenant"
+      },
+      "form": {
+        "create_title": "Platforma do'kon qo'shish",
+        "name": "Do'kon nomi",
+        "name_placeholder": "Do'kon nomini kiriting",
+        "name_required": "Do'kon nomi majburiy",
+        "enterprise_note": "enterprise_id server tomonidan avtomatik o'rnatiladi."
+      },
+      "messages": {
+        "created": "\"{{name}}\" platforma do'kon muvaffaqiyatli yaratildi"
+      }
     }
   },
   "marketplace": {

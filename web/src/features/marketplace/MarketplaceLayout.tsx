@@ -2,6 +2,7 @@
  * MarketplaceLayout — marketplace bo'limi uchun ichki tab navigatsiyasi.
  *
  * Tabs:
+ * - Katalog (/marketplace/browse)
  * - Kiruvchi buyurtmalar (/marketplace)
  * - Chiquvchi buyurtmalar (/marketplace/outgoing)
  * - Bannerlar (/marketplace/banners)
@@ -18,6 +19,7 @@ export function MarketplaceLayout() {
 
   // Joriy tab — yo'ldan aniqlanadi
   const getActiveTab = () => {
+    if (location.pathname.startsWith("/marketplace/browse")) return "browse";
     if (location.pathname.startsWith("/marketplace/outgoing")) return "outgoing";
     if (location.pathname.startsWith("/marketplace/banners")) return "banners";
     return "incoming";
@@ -32,6 +34,9 @@ export function MarketplaceLayout() {
   return (
     <Tabs value={getActiveTab()} onChange={handleTabChange}>
       <Tabs.List mb="md">
+        <Tabs.Tab value="browse">
+          {t("marketplace.tabs.browse", { defaultValue: "Katalog" })}
+        </Tabs.Tab>
         <Tabs.Tab value="incoming">
           {t("marketplace.tabs.incoming")}
         </Tabs.Tab>

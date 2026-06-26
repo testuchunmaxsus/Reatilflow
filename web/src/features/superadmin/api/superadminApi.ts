@@ -32,6 +32,9 @@ import type {
   AuditLogFilters,
   SuperadminBannerPaginated,
   SuperadminBannerFilters,
+  PaginatedSuperadminStores,
+  SuperadminStoreCreate,
+  SuperadminStoreOut,
 } from "../types";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
@@ -277,5 +280,45 @@ export function useSuperadminUsers(filters: SuperadminUsersFilters = {}) {
         `/superadmin/users?${params.toString()}`,
       ),
     placeholderData: (prev) => prev,
+  });
+}
+
+// ─── Platforma do'konlar ──────────────────────────────────────────────────────
+
+export interface SuperadminStoresFilters {
+  limit?: number;
+  offset?: number;
+}
+
+export const superadminStoreKeys = {
+  all: ["superadmin-stores"] as const,
+  list: (filters: SuperadminStoresFilters) =>
+    [...superadminStoreKeys.all, "list", filters] as const,
+};
+
+export function useSuperadminStores(filters: SuperadminStoresFilters = {}) {
+  const { limit = 20, offset = 0 } = filters;
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+
+  return useQuery({
+    queryKey: superadminStoreKeys.list(filters),
+    queryFn: () =>
+      apiClient.get<PaginatedSuperadminStores>(
+        `/superadmin/stores?${params.toString()}`,
+      ),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useCreateSuperadminStore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SuperadminStoreCreate) =>
+      apiClient.post<SuperadminStoreOut>("/superadmin/stores", data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: superadminStoreKeys.all });
+    },
   });
 }

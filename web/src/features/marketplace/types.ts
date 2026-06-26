@@ -176,3 +176,69 @@ export interface OrderFilters {
   limit?: number;
   offset?: number;
 }
+
+// ─── Marketplace browse (cross-tenant katalog) ────────────────────────────────
+
+/** GET /marketplace/products — bitta mahsulot javobi */
+export interface MarketplaceProductOut {
+  id: string;
+  name_uz: string;
+  name_ru: string;
+  /** Lokalizatsiyalangan nom (backend joriy Accept-Language bo'yicha) */
+  name: string;
+  sku: string | null;
+  barcode: string | null;
+  unit: string;
+  category_id: string | null;
+  photo_url: string | null;
+  is_active: boolean;
+  marketplace_published: boolean;
+  marketplace_price: number | null;
+  /** Ko'rsatiladigan narx: marketplace_price yoki segment narxi */
+  price: number | null;
+  supplier_enterprise_id: string;
+  supplier_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /marketplace/products — paginated javob */
+export interface PaginatedMarketplaceProducts {
+  items: MarketplaceProductOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** GET /marketplace/suppliers — bitta supplier */
+export interface MarketplaceSupplierOut {
+  enterprise_id: string;
+  name: string;
+  product_count: number;
+}
+
+/** POST /marketplace/orders — bitta qator */
+export interface MarketplaceOrderLineCreate {
+  product_id: string;
+  qty: number;
+}
+
+/**
+ * POST /marketplace/orders tanasi.
+ * lines: barcha mahsulotlar bir supplierdan bo'lishi shart.
+ * buyer_store_id: ixtiyoriy (store roli uchun avtomatik).
+ * client_uuid: idempotentlik (ixtiyoriy).
+ */
+export interface MarketplaceOrderCreate {
+  lines: MarketplaceOrderLineCreate[];
+  buyer_store_id?: string | null;
+  client_uuid?: string | null;
+}
+
+/** Marketplace mahsulot browse filtrlari */
+export interface MarketplaceBrowseFilters {
+  search?: string;
+  supplier_enterprise?: string;
+  page?: number;
+  limit?: number;
+}
