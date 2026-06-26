@@ -43,8 +43,11 @@ from app.modules.superadmin.schemas import (
     EnterprisePaginated,
     EnterpriseUpdate,
     PaginatedAuditLogs,
+    PaginatedPlatformStores,
     PaginatedSuperadminBanners,
     PaginatedSuperadminUsers,
+    PlatformStoreCreate,
+    PlatformStoreOut,
     ResetPasswordIn,
     ResetPasswordOut,
     StatsOut,
@@ -54,12 +57,14 @@ from app.modules.superadmin.schemas import (
 from app.modules.superadmin.service import (
     activate_enterprise,
     create_enterprise_with_admin,
+    create_platform_store,
     delete_enterprise,
     get_enterprise_detail,
     get_platform_stats,
     list_all_banners,
     list_audit_logs,
     list_enterprises,
+    list_platform_stores,
     list_superadmin_users,
     reset_admin_password,
     suspend_enterprise,
@@ -517,6 +522,74 @@ async def get_all_banners(
     ]
     return PaginatedSuperadminBanners(
         items=banner_items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# ─── POST /superadmin/stores ──────────────────────────────────────────────────
+
+
+@router.post(
+    "/stores",
+    response_model=PlatformStoreOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Platforma do'koni yaratish",
+    description=(
+        "Superadmin platforma darajasida do'kon yaratadi. "
+        "enterprise_id=NULL, is_platform_managed=True. "
+        "PII (owner_name, phone, inn, inps) AES-GCM shifrlanadi. "
+        "Faqat superadmin."
+    ),
+    responses={
+        201: {"description": "Platforma do'koni yaratildi"},
+        403: {"description": "Faqat superadmin"},
+        409: {"description": "INN allaqachon mavjud"},
+    },
+)
+async def create_platform_store_endpoint(
+    body: PlatformStoreCreate,
+    current_user: AppUser = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+) -> PlatformStoreOut:
+    """Platforma do'konini yaratadi (enterprise_id=NULL, is_platform_managed=True)."""
+    store = await create_platform_store(
+        db=db,
+        data=body,
+        actor_id=current_user.id,
+    )
+    return PlatformStoreOut.model_validate(store)
+
+
+# ─── GET /superadmin/stores ───────────────────────────────────────────────────
+
+
+@router.get(
+    "/stores",
+    response_model=PaginatedPlatformStores,
+    status_code=status.HTTP_200_OK,
+    summary="Platforma do'konlari ro'yxati",
+    description=(
+        "Barcha platforma do'konlari (is_platform_managed=True, enterprise_id=NULL). "
+        "Cross-tenant, paginated. "
+        "Faqat superadmin."
+    ),
+    responses={
+        200: {"description": "Platforma do'konlari ro'yxati"},
+        403: {"description": "Faqat superadmin"},
+    },
+)
+async def list_platform_stores_endpoint(
+    limit: int = Query(20, ge=1, le=100, description="Sahifadagi yozuvlar soni"),
+    offset: int = Query(0, ge=0, description="Boshlash joyi"),
+    current_user: AppUser = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedPlatformStores:
+    """Barcha platforma do'konlari ro'yxatini qaytaradi."""
+    items, total = await list_platform_stores(db, limit=limit, offset=offset)
+    return PaginatedPlatformStores(
+        items=[PlatformStoreOut.model_validate(s) for s in items],
         total=total,
         limit=limit,
         offset=offset,

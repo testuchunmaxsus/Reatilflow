@@ -297,6 +297,9 @@ def _build_order_out(order, *, enrich: bool = False) -> MarketplaceOrderOut:
         total_amount=order.total_amount,
         reject_reason=order.reject_reason,
         client_uuid=order.client_uuid,
+        # Shartnoma-Gate maydonlari (Bo'lak C, 0035)
+        is_onetime=getattr(order, "is_onetime", False),
+        agent_id=getattr(order, "agent_id", None),
         # MP3 maydonlari
         courier_id=getattr(order, "courier_id", None),
         delivered_at=getattr(order, "delivered_at", None),
@@ -355,6 +358,7 @@ async def create_order(
         buyer_user=current_user,
         lines=lines,
         client_uuid=body.client_uuid,
+        buyer_store_id=body.store_id,
     )
     # selectin lines ni eager yuklash uchun refresh
     await db.refresh(order, ["lines"])

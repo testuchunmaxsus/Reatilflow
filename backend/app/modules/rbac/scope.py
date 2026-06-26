@@ -1,19 +1,25 @@
 """
 Qator-darajali himoya (Row-Level Security) — SQLAlchemy filtr yordamchilari.
 
-`scope_filter(user, query)` yoki `apply_store_scope(query, user)`:
-  Rolga qarab SQLAlchemy WHERE sharti qo'shiladi:
+`apply_store_scope(query, user)`:
+  Rolga qarab SQLAlchemy WHERE sharti qo'shiladi (eski enterprise-bitta-tenant mantiq).
 
-  | Rol           | Do'kon filtrasi                                    |
-  |---------------|----------------------------------------------------|
-  | administrator | branch_id bo'yicha (yoki barchasi, agar None)      |
-  | accountant    | branch_id bo'yicha (yoki barchasi, agar None)      |
-  | agent         | Store.agent_id == user.id YOKI AgentStore orqali   |
-  | store         | Store.id == user's store (user.id bilan bog'liq)   |
-  | courier       | manzil ko'rish uchun barcha do'konlar (faqat view) |
+`get_store_visibility_filter(user) -> ColumnElement | None`:
+  ADR-003 bo'yicha platforma do'konlarini (enterprise_id=NULL) ham qamrab oluvchi
+  ko'rinish filtri. Kimga nima ko'rinadi:
+
+  | Rol              | Ko'rinish                                                       |
+  |------------------|-----------------------------------------------------------------|
+  | superadmin       | Barchasi (filtr yo'q → None qaytaradi)                         |
+  | administrator    | O'z korxona do'konlari + shartnoma qilgan platforma do'konlari  |
+  | accountant       | O'z korxona do'konlari + shartnoma qilgan platforma do'konlari  |
+  | agent            | Store.agent_id == user.id YOKI AgentStore orqali               |
+  | store            | Store.user_id == user.id                                        |
+  | courier          | Barcha do'konlar (manzil ko'rish — faqat view, filtr yo'q)     |
 
 Eslatma:
-  - Bu helper faqat `Store` modeliga bog'liq filtr qaytaradi.
+  - `apply_store_scope` — eski branch-darajali helper (hali ishlatiladi).
+  - `get_store_visibility_filter` — ADR-003 visibility helper (customers moduli).
   - Yetkazish scope'i (courier → o'z deliveries) T4/T5 modullarida
     mos delivery modeliga alohida qo'llaniladi.
   - T4/T5 modullari shu helperdan import qiladi (cross-modul SQL yo'q).
@@ -24,7 +30,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import ColumnElement, Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.store import AgentStore, Store
@@ -150,3 +156,105 @@ async def get_user_store_ids(user: AppUser, db: AsyncSession) -> list[Any]:
         return list(result.scalars().all())
 
     return []
+
+
+# ─── ADR-003: Platforma do'koni ko'rinish filtri ─────────────────────────────
+
+
+def get_store_visibility_filter(user: AppUser) -> ColumnElement | None:
+    """
+    ADR-003 §B bo'yicha do'kon ko'rinish filtri.
+
+    Platforma do'konlari (enterprise_id=NULL, is_platform_managed=True) muayyan
+    foydalanuvchilarga ko'rinadigan yagona mantiq — SQL WHERE sharti sifatida
+    qaytaradi. Qaytarilgan shartni `query.where(...)` ga berib ishlatiladi.
+
+    Kimga nima ko'rinadi:
+      - superadmin (enterprise_id IS NULL):
+          None qaytaradi — filtr yo'q, barcha do'konlar ko'rinadi.
+      - administrator | accountant:
+          O'z korxona do'konlari (Store.enterprise_id == user.enterprise_id)
+          YOKI shartnoma qilgan platforma do'konlari:
+            Store.is_platform_managed=True AND
+            Store.id IN (SELECT store_id FROM contract
+                         WHERE enterprise_id == user.enterprise_id
+                           AND deleted_at IS NULL)
+          DIQQAT: contract.enterprise_id hozir buyer/holder korxona.
+          BO'LAK C da supplier_enterprise_id qo'shilgach, shart yangilanadi.
+      - agent:
+          Store.agent_id == user.id
+          YOKI Store.id IN (SELECT store_id FROM agent_store WHERE agent_id == user.id)
+      - store:
+          Store.user_id == user.id
+      - courier:
+          None qaytaradi — filtr yo'q (view-only, barcha manzillar).
+      - Noma'lum rol:
+          Deny-all: Store.id.is_(None).
+
+    Args:
+        user: Autentifikatsiyalangan AppUser.
+
+    Returns:
+        SQLAlchemy ColumnElement (WHERE sharti) yoki None (filtr yo'q).
+
+    Qo'llanish:
+        visibility = get_store_visibility_filter(user)
+        if visibility is not None:
+            stmt = stmt.where(visibility)
+    """
+    role = user.role
+
+    # superadmin: enterprise_id=None → barcha do'konlar ko'rinadi
+    if user.enterprise_id is None:
+        return None
+
+    if role in ("administrator", "accountant"):
+        from app.models.contract import Contract
+
+        # Shartnoma qilingan platforma do'konlari subquery.
+        # ADR-003 Bo'lak C: supplier_enterprise_id ishlatiladi (TODO edi — hozir tuzatildi).
+        # Shartnoma: do'kon (store_id) ↔ bu foydalanuvchi korxonasi (supplier_enterprise_id).
+        contracted_platform_subq = (
+            select(Contract.store_id)
+            .where(
+                Contract.supplier_enterprise_id == user.enterprise_id,
+                Contract.deleted_at.is_(None),
+            )
+            .scalar_subquery()
+        )
+
+        return or_(
+            # O'z korxona do'konlari (eski + yangi)
+            Store.enterprise_id == user.enterprise_id,
+            # Shartnoma qilingan platforma do'konlari
+            and_(
+                Store.is_platform_managed.is_(True),
+                Store.id.in_(contracted_platform_subq),
+            ),
+        )
+
+    elif role == "agent":
+        agent_store_subq = (
+            select(AgentStore.store_id)
+            .where(AgentStore.agent_id == user.id)
+            .scalar_subquery()
+        )
+        return or_(
+            Store.agent_id == user.id,
+            Store.id.in_(agent_store_subq),
+        )
+
+    elif role == "store":
+        return Store.user_id == user.id
+
+    elif role == "courier":
+        # Kuryer barcha do'kon manzillarini ko'ra oladi (delivery scope uchun)
+        return None
+
+    else:
+        # Noma'lum rol → deny-all (hech narsa ko'rinmaydi)
+        logger.warning(
+            "get_store_visibility_filter: noma'lum rol uchun deny-all qo'llanildi",
+            extra={"role": role, "user_id": str(user.id)},
+        )
+        return Store.id.is_(None)

@@ -117,7 +117,18 @@ class Contract(TimestampMixin, Base):
         ForeignKey("enterprise.id", ondelete="RESTRICT"),
         nullable=True,
         index=True,
-        comment="Korxona FK → enterprise (MT1)",
+        comment="Korxona FK → enterprise (MT1 — legacy/buyer holder)",
+    )
+
+    # ─── Shartnoma-Gate: supplier_enterprise_id (0034) ────────────────────────
+    # Do'kon (store_id) ↔ Supplier korxona (supplier_enterprise_id) shartnomasi.
+    # Marketplace buyurtma gate: aktiv Contract(store_id, supplier_enterprise_id) kerak.
+    supplier_enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("enterprise.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Supplier korxona FK → enterprise (0034: do'kon ↔ supplier shartnoma)",
     )
 
     # ─── Status hisoblash ────────────────────────────────────────────────────

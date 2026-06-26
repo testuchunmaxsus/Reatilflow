@@ -234,18 +234,31 @@ async def assign_agent(
     current_user: AppUser = require_permission(Module.CUSTOMERS, Action.EDIT),
     db: AsyncSession = Depends(get_db),
 ):
-    # AUTHZ: faqat administrator agent biriktira oladi (agent/store/courier TAQIQLANGAN).
+    # AUTHZ: administrator istalgan agentni biriktira oladi.
+    # Agent faqat o'zini biriktira oladi (ADR-003: platforma do'koni onboarding).
+    # Boshqa rollar — 403.
     from app.core.errors import AppError as _AppError
-    if current_user.role != "administrator":
+    if current_user.role == "agent":
+        # Agent faqat o'zini biriktira oladi — IDOR himoya
+        if body.agent_id != current_user.id:
+            raise _AppError("customers.forbidden", status_code=403)
+    elif current_user.role != "administrator":
         raise _AppError("customers.forbidden", status_code=403)
 
     enterprise_id = get_current_enterprise_id(current_user)
+
+    # Agent o'zini biriktirmoqda: visibility filtri chetlab o'tiladi, chunki
+    # platforma do'koni hali agent bilan bog'lanmagan (chicken-and-egg).
+    # Xavfsizlik: faqat o'z ID si uchun ruxsat (yuqorida tekshirildi).
+    # Administrator uchun odatdiy visibility filtri qo'llaniladi.
+    store_visibility_user = None if current_user.role == "agent" else current_user
+
     link = await service.assign_agent(
         db,
         store_id=store_id,
         agent_id=body.agent_id,
         actor_id=current_user.id,
-        user=current_user,
+        user=store_visibility_user,
         enterprise_id=enterprise_id,
     )
     await db.commit()

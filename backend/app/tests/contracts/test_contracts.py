@@ -669,12 +669,12 @@ async def test_admin_sees_all_contracts(
 
 
 @pytest.mark.asyncio
-async def test_agent_create_contract_not_allowed(
+async def test_agent_create_contract_for_own_store(
     contracts_client: AsyncClient,
     agent_user,
     make_store,
 ) -> None:
-    """Agent shartnoma yarata olmaydi (RBAC: contracts:create yo'q) → 403."""
+    """Agent o'z do'koni uchun shartnoma yaratadi (ADR-003: contracts:create ruxsati bor) → 201."""
     store = await make_store(agent_id=agent_user.id)
     token = await get_token(contracts_client, agent_user)
     today = _today()
@@ -688,7 +688,10 @@ async def test_agent_create_contract_not_allowed(
         },
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 403, resp.text
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["store_id"] == str(store.id)
+    assert data["number"] == "AGENT-CREATE-001"
 
 
 @pytest.mark.asyncio
@@ -1115,3 +1118,82 @@ async def test_storage_exe_magic_bytes_rejected(fake_storage) -> None:
         await fake_storage.upload_contract_file(file)
     assert exc_info.value.message_key == "contracts.invalid_file"
     assert exc_info.value.status_code == 422
+
+
+# ─── 12. ADR-003: Agent shartnoma tuzish testlari ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_agent_create_contract_supplier_is_agent_enterprise(
+    contracts_client: AsyncClient,
+    agent_user,
+    make_store,
+    db_session,
+) -> None:
+    """
+    ADR-003 (a): Agent shartnoma tuzadi — supplier_enterprise_id = agent.enterprise_id.
+
+    Server-avtoritar: klient supplier_enterprise_id bera olmaydi.
+    Shartnoma agent biriktirilgan do'kon uchun tuziladi.
+    """
+    from sqlalchemy import select as sa_select
+    from app.models.contract import Contract as _Contract
+
+    store = await make_store(agent_id=agent_user.id)
+    token = await get_token(contracts_client, agent_user)
+    today = _today()
+
+    resp = await contracts_client.post(
+        "/contracts",
+        json={
+            "store_id": str(store.id),
+            "number": "AGENT-SUPPLIER-001",
+            "valid_from": today.isoformat(),
+            "valid_to": (today + timedelta(days=60)).isoformat(),
+            "contract_type": "trade",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["store_id"] == str(store.id)
+    assert data["number"] == "AGENT-SUPPLIER-001"
+
+    # supplier_enterprise_id = agent.enterprise_id (server-avtoritar)
+    stmt = sa_select(_Contract).where(_Contract.id == uuid.UUID(data["id"]))
+    result = await db_session.execute(stmt)
+    contract = result.scalar_one_or_none()
+    assert contract is not None
+    assert contract.supplier_enterprise_id == agent_user.enterprise_id, (
+        f"supplier_enterprise_id={contract.supplier_enterprise_id} != "
+        f"agent.enterprise_id={agent_user.enterprise_id}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_agent_cannot_create_contract_for_other_store(
+    contracts_client: AsyncClient,
+    agent_user,
+    make_user,
+    make_store,
+) -> None:
+    """
+    Agent boshqa agentning do'koni uchun shartnoma tuzib bo'lmaydi (scope) → 404.
+    """
+    other_agent = await make_user("agent")
+    other_store = await make_store(agent_id=other_agent.id)
+    token = await get_token(contracts_client, agent_user)
+    today = _today()
+
+    resp = await contracts_client.post(
+        "/contracts",
+        json={
+            "store_id": str(other_store.id),
+            "number": "AGENT-OTHER-001",
+            "valid_from": today.isoformat(),
+            "valid_to": (today + timedelta(days=30)).isoformat(),
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    # Scope tekshiruvi: boshqa do'kon → 404 (mavjudlikni oshkor qilmaslik)
+    assert resp.status_code == 404, resp.text

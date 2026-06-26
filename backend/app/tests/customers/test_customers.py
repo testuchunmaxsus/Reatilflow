@@ -797,6 +797,90 @@ async def test_store_role_no_stores_if_no_user_id(
         assert item["name"] != "No Owner Store"
 
 
+# ─── ADR-003: Agent platforma do'koni biriktirish testlari ───────────────────
+
+
+@pytest.mark.asyncio
+async def test_agent_self_assign_to_platform_store(
+    customers_client: AsyncClient,
+    agent_user,
+    db_session: AsyncSession,
+) -> None:
+    """
+    ADR-003 (b): Agent platforma do'konini biriktiradi.
+
+    Platforma do'koni: enterprise_id=NULL, is_platform_managed=True.
+    AgentStore.enterprise_id = agent.enterprise_id (NULL emas).
+    """
+    from app.models.store import AgentStore, Store as _Store
+    from sqlalchemy import select as sa_select
+
+    # Platforma do'konini bevosita yaratamiz (enterprise_id=NULL)
+    platform_store = _Store(
+        name="Platforma Do'koni",
+        enterprise_id=None,
+        is_platform_managed=True,
+        version=1,
+    )
+    db_session.add(platform_store)
+    await db_session.flush()
+
+    token = await get_token(customers_client, agent_user)
+    resp = await customers_client.post(
+        f"/customers/stores/{platform_store.id}/assign-agent",
+        json={"agent_id": str(agent_user.id)},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["store_id"] == str(platform_store.id)
+    assert data["agent_id"] == str(agent_user.id)
+
+    # AgentStore.enterprise_id = agent.enterprise_id (NULL emas)
+    stmt = sa_select(AgentStore).where(
+        AgentStore.agent_id == agent_user.id,
+        AgentStore.store_id == platform_store.id,
+    )
+    result = await db_session.execute(stmt)
+    link = result.scalar_one_or_none()
+    assert link is not None, "AgentStore yozuvi yaratilmadi"
+    assert link.enterprise_id == agent_user.enterprise_id, (
+        f"AgentStore.enterprise_id={link.enterprise_id} != "
+        f"agent.enterprise_id={agent_user.enterprise_id}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_agent_cannot_assign_other_agent_to_platform_store(
+    customers_client: AsyncClient,
+    agent_user,
+    make_user,
+    db_session: AsyncSession,
+) -> None:
+    """
+    Agent boshqa agentni do'konga biriktirib bo'lmaydi — IDOR himoya → 403.
+    """
+    from app.models.store import Store as _Store
+
+    other_agent = await make_user("agent")
+    platform_store = _Store(
+        name="Platforma Do'koni 2",
+        enterprise_id=None,
+        is_platform_managed=True,
+        version=1,
+    )
+    db_session.add(platform_store)
+    await db_session.flush()
+
+    token = await get_token(customers_client, agent_user)
+    resp = await customers_client.post(
+        f"/customers/stores/{platform_store.id}/assign-agent",
+        json={"agent_id": str(other_agent.id)},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403, resp.text
+
+
 # ─── T5 Yangi testlar: xavfsizlik topilmalari ────────────────────────────────
 
 

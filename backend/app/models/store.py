@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -148,12 +148,22 @@ class Store(TimestampMixin, Base):
     )
 
     # ─── MT1: enterprise_id ──────────────────────────────────────────────────
+    # ADR-003 Variant B: enterprise_id nullable — platforma do'konlari enterprise_id=NULL
     enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("enterprise.id", ondelete="RESTRICT"),
-        nullable=True,  # Migratsiyadan oldin NULL; 0020 NOT NULL qiladi
+        nullable=True,  # 0033: NOT NULL → nullable (platforma do'koni uchun)
         index=True,
-        comment="Korxona FK → enterprise (MT1: backfill dan keyin NOT NULL)",
+        comment="Korxona FK → enterprise (0033: nullable, platforma do'koni NULL bo'ladi)",
+    )
+
+    # ─── ADR-003: Platforma boshqaruvli do'kon bayrog'i ──────────────────────
+    is_platform_managed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Superadmin tomonidan yaratilgan platforma do'koni = True (0033)",
     )
 
     # ─── Relationships ───────────────────────────────────────────────────────

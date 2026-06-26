@@ -82,7 +82,7 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import String, func, or_, select
+from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -90,6 +90,7 @@ from app.core.errors import AppError
 from app.core.uuid7 import uuid7
 from app.models.ad_banner import AdBanner
 from app.models.catalog import Product, ProductPrice
+from app.models.contract import Contract
 from app.models.enterprise import Enterprise
 from app.models.marketplace import MarketplaceOrder, MarketplaceOrderLine, MP_VALID_TRANSITIONS
 from app.models.outbox import OutboxEvent
@@ -358,6 +359,94 @@ async def _resolve_price(
     return price
 
 
+# ─── MP_C: Shartnoma-Gate yordamchisi ────────────────────────────────────────
+
+
+async def _check_contract_gate(
+    db: AsyncSession,
+    buyer_store_id: uuid.UUID,
+    supplier_enterprise_id: uuid.UUID,
+    actor: AppUser,
+) -> bool:
+    """
+    Shartnoma-Gate tekshiruvi.
+
+    Do'kon (buyer_store_id) supplier korxona (supplier_enterprise_id) mahsulotini
+    buyurtma qilishdan avval ushbu yordamchi chaqiriladi.
+
+    Qaytarish qiymatlari:
+      True  — aktiv shartnoma mavjud (is_onetime=False buyurtma).
+      False — aktiv shartnoma yo'q, lekin agent bypass ruxsati bor (is_onetime=True).
+
+    Xatolar:
+      AppError("marketplace.contract_required", 409) —
+        shartnoma ham yo'q, agent bypass ham mumkin emas.
+
+    Agent bypass shartlari (HAMMASI bajarilishi kerak):
+      a. actor.role == "agent"
+      b. actor.enterprise_id == supplier_enterprise_id (agent shu supplier korxonasiga tegishli)
+      c. Agent buyer_store ga biriktirilgan:
+           Store.agent_id == actor.id  YO KI  AgentStore(agent_id=actor.id, store_id=buyer_store_id)
+
+    Aktiv shartnoma sharti:
+      Contract.store_id == buyer_store_id
+      AND Contract.supplier_enterprise_id == supplier_enterprise_id
+      AND Contract.deleted_at IS NULL
+      AND Contract.status IN ('active', 'expiring')
+          ya'ni: valid_to >= today yoki valid_to IS NULL
+    """
+    from datetime import datetime, timezone
+    from app.models.store import AgentStore, Store
+
+    today = datetime.now(timezone.utc).date()
+
+    # ── a. Aktiv shartnoma bor? ───────────────────────────────────────────────
+    contract_stmt = select(Contract.id).where(
+        Contract.store_id == buyer_store_id,
+        Contract.supplier_enterprise_id == supplier_enterprise_id,
+        Contract.deleted_at.is_(None),
+        Contract.valid_to >= today,  # active yoki expiring (expired emas)
+    ).limit(1)
+    contract_result = await db.execute(contract_stmt)
+    has_contract = contract_result.scalar_one_or_none() is not None
+
+    if has_contract:
+        return True  # is_onetime=False
+
+    # ── b. Agent bypass ───────────────────────────────────────────────────────
+    if (
+        actor.role == "agent"
+        and actor.enterprise_id is not None
+        and actor.enterprise_id == supplier_enterprise_id
+    ):
+        # Agent buyer_store ga biriktirilganmi?
+        agent_linked_stmt = select(Store.id).where(
+            Store.id == buyer_store_id,
+            Store.agent_id == actor.id,
+            Store.deleted_at.is_(None),
+        ).limit(1)
+        agent_linked_result = await db.execute(agent_linked_stmt)
+        agent_linked = agent_linked_result.scalar_one_or_none() is not None
+
+        if not agent_linked:
+            # AgentStore ko'p-ko'p orqali tekshirish
+            agent_store_stmt = select(AgentStore.store_id).where(
+                AgentStore.agent_id == actor.id,
+                AgentStore.store_id == buyer_store_id,
+            ).limit(1)
+            agent_store_result = await db.execute(agent_store_stmt)
+            agent_linked = agent_store_result.scalar_one_or_none() is not None
+
+        if agent_linked:
+            return False  # is_onetime=True
+
+    # ── c. Ruxsat yo'q ────────────────────────────────────────────────────────
+    raise AppError(
+        message_key="marketplace.contract_required",
+        status_code=409,
+    )
+
+
 # ─── MP2: Buyurtma yaratish ───────────────────────────────────────────────────
 
 
@@ -376,9 +465,10 @@ async def create_order(
     buyer_user: AppUser,
     lines: list[OrderLineInput],
     client_uuid: uuid.UUID | None = None,
+    buyer_store_id: uuid.UUID | None = None,
 ) -> MarketplaceOrder:
     """
-    Marketplace buyurtma yaratadi.
+    Marketplace buyurtma yaratadi — Shartnoma-Gate bilan.
 
     QOIDALAR:
       - Har mahsulot marketplace_published=True bo'lishi SHART (aks holda 404).
@@ -386,23 +476,30 @@ async def create_order(
         (aralash supplier → AppError 422).
       - unit_price SERVER TOMONIDA: marketplace_price yoki segment narx.
         Narx topilmasa → AppError 422.
-      - buyer_enterprise = buyer_user.enterprise_id.
-      - buyer_store = user tomonida boshqariladigan do'kon (agar store roli bo'lsa).
+      - buyer_enterprise = buyer_user.enterprise_id (NULL = mustaqil do'kon).
+      - buyer_store_id: agent buyurtma berganda explicit uzatilishi SHART.
+        store roli uchun avtomatik topiladi.
+      - Shartnoma-Gate: buyer_store + supplier_enterprise bo'yicha aktiv Contract tekshiriladi.
+        Aktiv shartnoma → is_onetime=False.
+        Yo'q + agent bypass → is_onetime=True, agent_id=actor.id.
+        Yo'q va bypass yo'q → 409 contract_required.
       - Idempotentlik: client_uuid + buyer_enterprise_id UNIQUE.
       - Outbox: marketplace.order_created (supplier_enterprise_id bilan).
 
     Args:
-        db:          AsyncSession
-        buyer_user:  Buyurtma bergan foydalanuvchi (buyer korxona foydalanuvchisi)
-        lines:       [OrderLineInput(product_id, qty), ...]
-        client_uuid: Idempotentlik UUID (ixtiyoriy)
+        db:             AsyncSession
+        buyer_user:     Buyurtma bergan foydalanuvchi
+        lines:          [OrderLineInput(product_id, qty), ...]
+        client_uuid:    Idempotentlik UUID (ixtiyoriy)
+        buyer_store_id: Agent tomonidan explicit uzatiladigan do'kon UUID (ixtiyoriy)
 
     Returns:
         Yaratilgan MarketplaceOrder (lines bilan yuklangan).
 
     Raises:
         AppError(404) — mahsulot published emas yoki topilmadi.
-        AppError(422) — aralash supplier, narx topilmadi, bo'sh lines, dublikat.
+        AppError(409) — shartnoma yo'q va agent bypass ham mumkin emas.
+        AppError(422) — aralash supplier, narx topilmadi, bo'sh lines.
     """
     if not lines:
         raise AppError(
@@ -411,18 +508,37 @@ async def create_order(
         )
 
     buyer_enterprise_id = buyer_user.enterprise_id
-    if buyer_enterprise_id is None:
-        raise AppError(
-            message_key="marketplace.order_buyer_no_enterprise",
-            status_code=422,
-        )
+    # ESLATMA: buyer_enterprise_id NULL bo'lishi mumkin (mustaqil platforma do'koni).
+    # Bunday holda buyurtma egasi buyer_store_id asosida tekshiriladi.
+
+    # ── buyer_store_id aniqlash ───────────────────────────────────────────────
+    from app.models.store import Store
+
+    effective_buyer_store_id: uuid.UUID | None = buyer_store_id
+
+    if effective_buyer_store_id is None:
+        if buyer_user.role == "store":
+            # Store roli: o'z do'konini avtomatik topamiz
+            _store_filters = [
+                Store.user_id == buyer_user.id,
+                Store.deleted_at.is_(None),
+            ]
+            store_stmt = select(Store.id).where(*_store_filters).limit(1)
+            store_result = await db.execute(store_stmt)
+            effective_buyer_store_id = store_result.scalar_one_or_none()
 
     # ── Idempotentlik tekshiruvi ──────────────────────────────────────────────
     if client_uuid is not None:
-        existing_stmt = select(MarketplaceOrder).where(
-            MarketplaceOrder.buyer_enterprise_id == buyer_enterprise_id,
-            MarketplaceOrder.client_uuid == client_uuid,
-        )
+        idem_filters = [MarketplaceOrder.client_uuid == client_uuid]
+        if buyer_enterprise_id is not None:
+            idem_filters.append(
+                MarketplaceOrder.buyer_enterprise_id == buyer_enterprise_id
+            )
+        elif effective_buyer_store_id is not None:
+            idem_filters.append(
+                MarketplaceOrder.buyer_store_id == effective_buyer_store_id
+            )
+        existing_stmt = select(MarketplaceOrder).where(*idem_filters)
         existing_result = await db.execute(existing_stmt)
         existing_order = existing_result.scalar_one_or_none()
         if existing_order is not None:
@@ -461,8 +577,43 @@ async def create_order(
 
     supplier_enterprise_id: uuid.UUID = supplier_enterprises.pop()  # type: ignore[assignment]
 
-    # Supplier == buyer bo'lishi mumkin emas (o'zidan buyurtma)
-    if supplier_enterprise_id == buyer_enterprise_id:
+    # ESLATMA: self-purchase tekshiruvi gate va buyer_enterprise_id tuzatishidan KEYIN bajariladi
+    # (agent bypass da buyer_enterprise_id do'kon enterprisega o'rnatiladi).
+
+    # ── Shartnoma-Gate (KRITIK — moliyaviy xavfsizlik) ───────────────────────
+    # Gate faqat buyer_store_id ma'lum bo'lganda ishlaydi.
+    # Agar buyer_store_id yo'q (admin buyurtmasi yoki noma'lum) — gate o'tkazib yuboriladi.
+    is_onetime = False
+    order_agent_id: uuid.UUID | None = None
+
+    if effective_buyer_store_id is not None:
+        has_contract = await _check_contract_gate(
+            db,
+            buyer_store_id=effective_buyer_store_id,
+            supplier_enterprise_id=supplier_enterprise_id,
+            actor=buyer_user,
+        )
+        # _check_contract_gate: True=aktiv shartnoma, False=agent bypass, yoki raise 409
+        if not has_contract:
+            is_onetime = True
+            order_agent_id = buyer_user.id
+
+    # ── Agent bypass holat: buyer_enterprise_id ni do'kon enterprise'idan olish ──
+    # Agent (supplier tomon) buyurtma berganda, buyer_enterprise_id do'kon
+    # korxonasiga tegishli bo'lishi kerak — agent o'z korxonasidan emas.
+    # Self-purchase tekshiruvi ham shunga ko'ra qayta baholanadi.
+    if is_onetime and order_agent_id is not None and effective_buyer_store_id is not None:
+        store_enterprise_stmt = select(Store.enterprise_id).where(
+            Store.id == effective_buyer_store_id,
+            Store.deleted_at.is_(None),
+        ).limit(1)
+        store_enterprise_result = await db.execute(store_enterprise_stmt)
+        store_enterprise_id: uuid.UUID | None = store_enterprise_result.scalar_one_or_none()
+        # Do'kon enterprise'iga buyer_enterprise_id ni o'rnatamiz (NULL bo'lishi mumkin)
+        buyer_enterprise_id = store_enterprise_id
+
+    # Self-purchase tekshiruvi (agent bypass bilan yangilangan buyer_enterprise_id bo'yicha)
+    if buyer_enterprise_id is not None and supplier_enterprise_id == buyer_enterprise_id:
         raise AppError(
             message_key="marketplace.order_self_purchase",
             status_code=422,
@@ -496,29 +647,17 @@ async def create_order(
         order_lines.append(order_line)
 
     # ── Buyurtma yaratish ─────────────────────────────────────────────────────
-
-    # buyer_store_id: store roli foydalanuvchisi uchun topiladi
-    from app.models.store import Store
-
-    buyer_store_id: uuid.UUID | None = None
-    if buyer_user.role == "store":
-        store_stmt = select(Store.id).where(
-            Store.user_id == buyer_user.id,
-            Store.enterprise_id == buyer_enterprise_id,
-            Store.deleted_at.is_(None),
-        ).limit(1)
-        store_result = await db.execute(store_stmt)
-        buyer_store_id = store_result.scalar_one_or_none()
-
     order = MarketplaceOrder(
         id=uuid7(),
         buyer_enterprise_id=buyer_enterprise_id,
-        buyer_store_id=buyer_store_id,
+        buyer_store_id=effective_buyer_store_id,
         buyer_user_id=buyer_user.id,
         supplier_enterprise_id=supplier_enterprise_id,
         status="pending",
         total_amount=total_amount,
         client_uuid=client_uuid,
+        is_onetime=is_onetime,
+        agent_id=order_agent_id,
     )
     db.add(order)
     await db.flush()  # id olish uchun
@@ -536,10 +675,12 @@ async def create_order(
         event_type="marketplace.order_created",
         payload=json.dumps({
             "order_id": str(order.id),
-            "buyer_enterprise_id": str(buyer_enterprise_id),
+            "buyer_enterprise_id": str(buyer_enterprise_id) if buyer_enterprise_id else None,
+            "buyer_store_id": str(effective_buyer_store_id) if effective_buyer_store_id else None,
             "supplier_enterprise_id": str(supplier_enterprise_id),
             "status": "pending",
             "total_amount": str(total_amount),
+            "is_onetime": is_onetime,
         }),
         enterprise_id=supplier_enterprise_id,
     )
@@ -700,11 +841,17 @@ async def get_order(
         # Superadmin — hamma narsani ko'radi
         stmt = select(MarketplaceOrder).where(MarketplaceOrder.id == order_id)
     else:
+        # buyer_enterprise_id NULL bo'lsa — buyer_user_id orqali egalik tekshiriladi
         stmt = select(MarketplaceOrder).where(
             MarketplaceOrder.id == order_id,
             or_(
                 MarketplaceOrder.buyer_enterprise_id == user_enterprise,
                 MarketplaceOrder.supplier_enterprise_id == user_enterprise,
+                # Mustaqil do'kon buyurtmasi — buyer_enterprise_id NULL, foydalanuvchi o'zi
+                and_(
+                    MarketplaceOrder.buyer_enterprise_id.is_(None),
+                    MarketplaceOrder.buyer_user_id == current_user.id,
+                ),
             ),
         )
 
@@ -1220,17 +1367,19 @@ async def _get_buyer_order(
     """
     Buyer foydalanuvchi uchun buyurtmani yuklaydi va tekshiradi.
 
-    XAVFSIZLIK:
+    XAVFSIZLIK (IDOR — buyer_enterprise_id NULL holat qo'llab-quvvatlanadi):
       - Buyurtma mavjudligini tekshiradi (404 agar yo'q).
-      - buyer_enterprise_id == buyer_user.enterprise_id tekshiradi.
-        Agar supplier korxona foydalanuvchisi accept qilmoqchi bo'lsa → 403.
-      - Uchinchi korxona → 404.
+      - buyer_enterprise_id mavjud bo'lsa: buyer_enterprise_id == user.enterprise_id.
+      - buyer_enterprise_id NULL bo'lsa (mustaqil do'kon):
+          buyer_store_id yoki buyer_user_id orqali egalik tekshiriladi.
+      - Agar supplier korxona foydalanuvchisi accept qilmoqchi bo'lsa → 403.
+      - Uchinchi korxona → 404 (mavjudlikni oshkor qilmaslik).
 
     Returns:
         MarketplaceOrder
 
     Raises:
-        AppError(404) — buyurtma topilmadi.
+        AppError(404) — buyurtma topilmadi yoki IDOR.
         AppError(403) — foydalanuvchi buyer emas (supplier yoki uchinchi korxona).
     """
     user_enterprise = buyer_user.enterprise_id
@@ -1245,19 +1394,38 @@ async def _get_buyer_order(
             status_code=404,
         )
 
-    # Superadmin bypass
+    # Superadmin bypass (enterprise_id=None = superadmin)
     if user_enterprise is None:
         return order
 
+    # ── buyer_enterprise_id mavjud bo'lsa: klassik tenant tekshiruv ──────────
+    if order.buyer_enterprise_id is not None:
+        # Supplier korxona foydalanuvchisi accept qila olmaydi → 403
+        if (
+            order.supplier_enterprise_id == user_enterprise
+            and order.buyer_enterprise_id != user_enterprise
+        ):
+            raise AppError(
+                message_key="marketplace.order_buyer_only",
+                status_code=403,
+            )
+        # Uchinchi korxona → 404
+        if order.buyer_enterprise_id != user_enterprise:
+            raise AppError(
+                message_key="marketplace.order_not_found",
+                status_code=404,
+            )
+        return order
+
+    # ── buyer_enterprise_id NULL: mustaqil do'kon — buyer_user_id bo'yicha tekshir ─
     # Supplier korxona foydalanuvchisi accept qila olmaydi → 403
-    if order.supplier_enterprise_id == user_enterprise and order.buyer_enterprise_id != user_enterprise:
+    if order.supplier_enterprise_id == user_enterprise:
         raise AppError(
             message_key="marketplace.order_buyer_only",
             status_code=403,
         )
-
-    # Uchinchi korxona → 404
-    if order.buyer_enterprise_id != user_enterprise:
+    # Egalik: buyurtmani bergan foydalanuvchi o'zi bo'lishi kerak
+    if order.buyer_user_id != buyer_user.id:
         raise AppError(
             message_key="marketplace.order_not_found",
             status_code=404,

@@ -19,6 +19,9 @@ Sxemalar:
   PaginatedAuditLogs        — GET /superadmin/audit-logs paginated javob
   SuperadminBannerOut       — GET /superadmin/banners elementi (enterprise_name bilan)
   PaginatedSuperadminBanners — GET /superadmin/banners paginated javob
+  PlatformStoreCreate       — POST /superadmin/stores so'rovi (ADR-003)
+  PlatformStoreOut          — POST/GET /superadmin/stores javob
+  PaginatedPlatformStores   — GET /superadmin/stores paginated javob
 """
 
 from __future__ import annotations
@@ -265,6 +268,57 @@ class PaginatedSuperadminBanners(BaseModel):
     """GET /superadmin/banners paginated javob."""
 
     items: list[SuperadminBannerOut]
+    total: int
+    limit: int
+    offset: int
+
+
+# ─── Platforma Do'konlari (ADR-003 Store Decoupling) ─────────────────────────
+
+
+class PlatformStoreCreate(BaseModel):
+    """
+    POST /superadmin/stores so'rovi.
+
+    Platforma darajasida do'kon yaratish — enterprise_id=NULL, is_platform_managed=True.
+    PII maydonlar (owner_name, phone) AES-GCM shifrlangan saqlanadi.
+    """
+
+    name: str = Field(..., min_length=1, max_length=255, description="Do'kon nomi")
+    owner_name: str | None = Field(None, max_length=255, description="Egasi ismi (PII, shifrlanadi)")
+    phone: str | None = Field(None, max_length=20, description="Telefon (PII, shifrlanadi)")
+    address: str | None = Field(None, description="Manzil (matnli)")
+    gps_lat: float | None = Field(None, description="Kenglik koordinatasi (-90..90)")
+    gps_lng: float | None = Field(None, description="Uzunlik koordinatasi (-180..180)")
+    inn: str | None = Field(None, max_length=20, description="INN (PII, shifrlanadi)")
+    inps: str | None = Field(None, max_length=20, description="INPS (PII, shifrlanadi)")
+
+
+class PlatformStoreOut(BaseModel):
+    """POST/GET /superadmin/stores javob sxemasi."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    owner_name: str | None
+    phone: str | None
+    address: str | None
+    gps_lat: float | None
+    gps_lng: float | None
+    inn: str | None
+    inps: str | None
+    enterprise_id: uuid.UUID | None
+    is_platform_managed: bool
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class PaginatedPlatformStores(BaseModel):
+    """GET /superadmin/stores paginated javob."""
+
+    items: list[PlatformStoreOut]
     total: int
     limit: int
     offset: int

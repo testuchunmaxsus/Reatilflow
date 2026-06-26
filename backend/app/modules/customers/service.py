@@ -42,7 +42,7 @@ from app.models.store import AgentStore, Store
 from app.models.user import AppUser
 from app.modules.customers.schemas import StoreCreate, StoreUpdate
 from app.modules.rbac.enterprise_scope import apply_enterprise_filter
-from app.modules.rbac.scope import apply_store_scope
+from app.modules.rbac.scope import apply_store_scope, get_store_visibility_filter
 
 logger = logging.getLogger(__name__)
 
@@ -141,20 +141,31 @@ async def get_store(
     """
     ID bo'yicha do'kon oladi.
 
-    MT2: enterprise_id filtr — boshqa korxona do'koni 404 qaytaradi.
-    Branch/scope filtri qo'llaniladi (user berilsa).
+    ADR-003: get_store_visibility_filter(user) orqali ko'rinish cheklanadi.
+      - superadmin: barcha do'konlar.
+      - admin/accountant: o'z korxona do'konlari + shartnoma qilgan platforma do'konlari.
+      - agent: biriktirilgan do'konlari (agent_id yoki AgentStore).
+      - store: faqat o'z do'koni (user_id).
+      - courier: barcha (manzil ko'rish).
     Mavjudlikni oshkor qilmaslik: doiradan tashqari do'kon → 404.
 
+    Args:
+        db:            AsyncSession
+        store_id:      Do'kon UUID
+        user:          Joriy foydalanuvchi (filtr uchun; None bo'lsa — filtr yo'q)
+        enterprise_id: Eski moslik uchun saqlanadi (ADR-003 da foydalanilmaydi)
+
     Raises:
-        AppError("customers.store_not_found"): topilmasa yoki doiradan tashqari.
+        AppError("customers.store_not_found"): topilmasa yoki ko'rinish doirasidan tashqari.
     """
     stmt = select(Store).where(
         Store.id == store_id,
         Store.deleted_at.is_(None),
     )
-    stmt = apply_enterprise_filter(stmt, enterprise_id, Store.enterprise_id)
     if user is not None:
-        stmt = _apply_branch_filter(stmt, user)
+        visibility = get_store_visibility_filter(user)
+        if visibility is not None:
+            stmt = stmt.where(visibility)
 
     result = await db.execute(stmt)
     store = result.scalar_one_or_none()
@@ -206,15 +217,19 @@ async def list_stores(
         pattern = f"%{search_name}%"
         base_where.append(Store.name.ilike(pattern))
 
-    # MT2: enterprise filtr
-    count_stmt = select(func.count()).select_from(Store).where(*base_where)
-    count_stmt = apply_enterprise_filter(count_stmt, enterprise_id, Store.enterprise_id)
+    # ADR-003: ko'rinish filtri (platforma do'konlarini ham qamrab oladi)
+    from sqlalchemy import ColumnElement
+    visibility: ColumnElement | None = None
     if user is not None:
-        count_stmt = _apply_branch_filter(count_stmt, user)
+        visibility = get_store_visibility_filter(user)
+
+    count_stmt = select(func.count()).select_from(Store).where(*base_where)
+    if visibility is not None:
+        count_stmt = count_stmt.where(visibility)
     count_result = await db.execute(count_stmt)
     total = count_result.scalar_one()
 
-    # List (enterprise + branch/scope filtri bilan)
+    # List (visibility filtri bilan)
     stmt = (
         select(Store)
         .where(*base_where)
@@ -222,9 +237,8 @@ async def list_stores(
         .limit(limit)
         .offset(offset)
     )
-    stmt = apply_enterprise_filter(stmt, enterprise_id, Store.enterprise_id)
-    if user is not None:
-        stmt = _apply_branch_filter(stmt, user)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
 
     result = await db.execute(stmt)
     items = list(result.scalars().all())
@@ -545,12 +559,18 @@ async def assign_agent(
     if existing is not None:
         return existing
 
-    # MT2: agent_store.enterprise_id NOT NULL (0020) — store'ning korxonasidan olamiz
-    # (agent ham shu korxonada, apply_enterprise_filter buni kafolatlaydi).
+    # ADR-003: platforma do'koni (store.enterprise_id IS NULL) uchun
+    # AgentStore.enterprise_id ni agent korxonasidan olamiz.
+    # Odatdagi korxona do'koni uchun store.enterprise_id ishlatiladi.
+    link_enterprise_id = (
+        agent.enterprise_id
+        if store.enterprise_id is None
+        else store.enterprise_id
+    )
     link = AgentStore(
         agent_id=agent_id,
         store_id=store_id,
-        enterprise_id=store.enterprise_id,
+        enterprise_id=link_enterprise_id,
     )
     db.add(link)
     await db.flush()

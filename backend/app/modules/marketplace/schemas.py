@@ -162,6 +162,8 @@ class MarketplaceOrderCreateIn(BaseModel):
 
     lines: bitta yoki ko'p qator (BARCHA bir supplierdan bo'lishi shart).
     client_uuid: idempotentlik UUID (ixtiyoriy — qayta yuborishda dublikat oldini oladi).
+    store_id: Shartnoma-Gate uchun buyer do'kon UUID (agent buyurtmasida MAJBURIY;
+              store roli uchun ixtiyoriy — user.store avtomatik topiladi).
     """
 
     lines: list[MarketplaceOrderLineIn] = Field(
@@ -172,6 +174,14 @@ class MarketplaceOrderCreateIn(BaseModel):
     client_uuid: uuid.UUID | None = Field(
         None,
         description="Idempotentlik UUID — qayta yuborishda dublikat yaratilmaydi",
+    )
+    store_id: uuid.UUID | None = Field(
+        None,
+        description=(
+            "Buyer do'kon UUID (Shartnoma-Gate uchun). "
+            "Agent buyurtmasida MAJBURIY. "
+            "Store roli uchun ixtiyoriy — avtomatik topiladi."
+        ),
     )
 
 
@@ -228,7 +238,7 @@ class MarketplaceOrderOut(BaseModel):
     """
 
     id: uuid.UUID
-    buyer_enterprise_id: uuid.UUID
+    buyer_enterprise_id: uuid.UUID | None  # 0035: nullable — mustaqil do'kon
     buyer_store_id: uuid.UUID | None
     buyer_user_id: uuid.UUID
     supplier_enterprise_id: uuid.UUID
@@ -236,6 +246,9 @@ class MarketplaceOrderOut(BaseModel):
     total_amount: Decimal
     reject_reason: str | None
     client_uuid: uuid.UUID | None
+    # Shartnoma-Gate (0035)
+    is_onetime: bool = Field(False, description="Bir martalik buyurtma (agent bypass)")
+    agent_id: uuid.UUID | None = Field(None, description="Bir martalik buyurtmani bergan agent")
     # MP3 maydonlari
     courier_id: uuid.UUID | None = None
     delivered_at: datetime | None = None

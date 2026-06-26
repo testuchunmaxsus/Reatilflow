@@ -15,12 +15,15 @@ Funksiyalar:
   list_superadmin_users         — cross-tenant foydalanuvchilar ro'yxati
   list_audit_logs               — audit log ko'ruvchi (cross-tenant, filtrlangan)
   list_all_banners              — barcha korxonalar bannerlari (moderatsiya uchun)
+  create_platform_store         — platforma do'koni yaratish (ADR-003)
+  list_platform_stores          — barcha platforma do'konlari ro'yxati (ADR-003)
 
 Qoidalar:
   - superadmin enterprise_id=NULL.
   - Birinchi admin yangi korxona enterprise_id'siga ega.
   - Parol hech qachon javobda/logda.
   - Optimistik lock (version) PATCH da tekshiriladi.
+  - Platforma do'koni: enterprise_id=NULL, is_platform_managed=True.
 """
 
 from __future__ import annotations
@@ -31,16 +34,24 @@ import string
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import json
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.crypto import blind_index
 from app.core.errors import AppError
 from app.core.jwt import hash_password
+from app.core.security import mask_pii
+from app.models.audit import AuditLog
 from app.models.enterprise import ALL_MODULE_KEYS, DEFAULT_ENTERPRISE_UUID, Enterprise
+from app.models.outbox import OutboxEvent
+from app.models.store import Store
 from app.models.user import AppUser
 from app.modules.superadmin.schemas import (
     EnterpriseCreate,
     EnterpriseUpdate,
+    PlatformStoreCreate,
     StatsOut,
 )
 from app.modules.users.schemas import UserCreate
@@ -665,4 +676,133 @@ async def list_all_banners(
     rows = (await db.execute(list_stmt)).all()
 
     items = [(row[0], row[1]) for row in rows]
+    return items, total
+
+
+# ─── Platforma Do'konlari (ADR-003) ──────────────────────────────────────────
+
+
+async def create_platform_store(
+    db: AsyncSession,
+    data: PlatformStoreCreate,
+    actor_id: uuid.UUID | None = None,
+) -> Store:
+    """
+    Platforma do'konini yaratadi — superadmin uchun (ADR-003 Variant B).
+
+    enterprise_id=NULL, is_platform_managed=True.
+    PII (inn, inps, owner_name, phone) EncryptedString orqali shifrlangan saqlanadi.
+    inn_bi, phone_bi blind-index yoziladi.
+    Audit + outbox yoziladi.
+
+    Raises:
+        AppError("superadmin.duplicate_inn", 409): INN platforma do'konida allaqachon mavjud.
+    """
+    # INN unikalligi (faqat platforma do'konlari orasida — enterprise_id IS NULL)
+    if data.inn:
+        bi = blind_index(data.inn)
+        dup_stmt = select(Store.id).where(
+            Store.inn_bi == bi,
+            Store.enterprise_id.is_(None),
+            Store.deleted_at.is_(None),
+        )
+        dup_result = await db.execute(dup_stmt)
+        if dup_result.scalar_one_or_none() is not None:
+            raise AppError("superadmin.duplicate_inn", status_code=409)
+
+    store = Store(
+        name=data.name,
+        owner_name=data.owner_name,
+        phone=data.phone,
+        address=data.address,
+        gps_lat=data.gps_lat,
+        gps_lng=data.gps_lng,
+        inn=data.inn,
+        inps=data.inps,
+        # Blind-index: None bo'lmagan qiymatlar uchun
+        inn_bi=blind_index(data.inn) if data.inn else None,
+        phone_bi=blind_index(data.phone) if data.phone else None,
+        # ADR-003: platforma do'koni — enterprise_id NULL, bayroq True
+        enterprise_id=None,
+        is_platform_managed=True,
+    )
+    db.add(store)
+    await db.flush()
+
+    logger.info(
+        "superadmin.platform_store_created id=%s name=%s actor=%s",
+        str(store.id),
+        store.name,
+        str(actor_id) if actor_id else "system",
+    )
+
+    # Audit log
+    audit = AuditLog(
+        actor_id=actor_id,
+        action="create",
+        entity_type="store",
+        entity_id=str(store.id),
+        before_json=None,
+        after_json=json.dumps(
+            mask_pii({
+                "id": str(store.id),
+                "name": store.name,
+                "inn": store.inn,
+                "phone": store.phone,
+                "is_platform_managed": store.is_platform_managed,
+            }),
+            default=str,
+        ),
+    )
+    db.add(audit)
+
+    # Outbox event
+    outbox = OutboxEvent(
+        aggregate_type="store",
+        aggregate_id=str(store.id),
+        event_type="store.created",
+        payload=json.dumps({
+            "id": str(store.id),
+            "name": store.name,
+            "is_platform_managed": store.is_platform_managed,
+        }, default=str),
+    )
+    db.add(outbox)
+
+    return store
+
+
+async def list_platform_stores(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[Store], int]:
+    """
+    Barcha platforma do'konlari ro'yxati — cross-tenant, paginated.
+
+    Faqat is_platform_managed=True do'konlar (enterprise_id IS NULL).
+    Soft-delete filtrlangan.
+
+    Returns:
+        (items, total)
+    """
+    base_where = [
+        Store.is_platform_managed.is_(True),
+        Store.deleted_at.is_(None),
+    ]
+
+    count_stmt = select(func.count()).select_from(Store).where(*base_where)
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    list_stmt = (
+        select(Store)
+        .where(*base_where)
+        .order_by(Store.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    result = await db.execute(list_stmt)
+    items = list(result.scalars().all())
+
     return items, total

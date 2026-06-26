@@ -126,11 +126,15 @@ async def _create_order(
     buyer_token: str,
     product_id: str,
     qty: str = "2",
+    store_id: str | None = None,
 ) -> dict:
     """Buyurtma yaratadi."""
+    body: dict = {"lines": [{"product_id": product_id, "qty": qty}]}
+    if store_id is not None:
+        body["store_id"] = store_id
     resp = await client.post(
         "/marketplace/orders",
-        json={"lines": [{"product_id": product_id, "qty": qty}]},
+        json=body,
         headers={"Authorization": f"Bearer {buyer_token}"},
     )
     return resp
@@ -411,8 +415,24 @@ async def test_list_incoming_has_names(
     db_session.add(store_obj)
     await db_session.flush()
 
-    # A do'koni buyurtma beradi
-    resp = await _create_order(mp_client, token_a_store, pid_b, qty="3")
+    # Shartnoma-Gate: store_obj ↔ enterprise_b aktiv shartnoma
+    from datetime import date
+    from app.models.contract import Contract
+    gate_contract = Contract(
+        store_id=store_obj.id,
+        number="NAMES-CONTRACT-A-B",
+        valid_from=date(2025, 1, 1),
+        valid_to=date(2030, 12, 31),
+        contract_type="trade",
+        enterprise_id=enterprise_a.id,
+        supplier_enterprise_id=enterprise_b.id,
+        version=1,
+    )
+    db_session.add(gate_contract)
+    await db_session.flush()
+
+    # A do'koni buyurtma beradi (store_id ham uzatiladi — gate uchun)
+    resp = await _create_order(mp_client, token_a_store, pid_b, qty="3", store_id=str(store_obj.id))
     assert resp.status_code == 201, f"Buyurtma yaratilmadi: {resp.text}"
     order_id = resp.json()["id"]
 

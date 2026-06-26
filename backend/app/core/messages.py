@@ -571,6 +571,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ru": "Сервис хранения изображений баннера временно недоступен, попробуйте позже",
     },
 
+    # ── Marketplace (MP_C) — Shartnoma-Gate ─────────────────────────────────
+    "marketplace.contract_required": {
+        "uz": "Bu korxona bilan shartnoma yo'q — agent orqali buyurtma bering",
+        "ru": "Договор с данным поставщиком отсутствует — оформите заказ через агента",
+    },
+    "marketplace.onetime_not_agent": {
+        "uz": "Shartnomasiz buyurtmani faqat agent bera oladi",
+        "ru": "Заказ без договора может оформить только агент",
+    },
+
     # ── Marketplace (MP5) — Qaynoq aksiyalar ────────────────────────────────
     "marketplace.promo_not_featured": {
         "uz": "Aksiya marketplace'da qaynoq sifatida belgilanmagan",

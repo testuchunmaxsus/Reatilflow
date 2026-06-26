@@ -122,11 +122,11 @@ class MarketplaceOrder(Base):
 
     # ─── Xaridor (buyer) ─────────────────────────────────────────────────────
 
-    buyer_enterprise_id: Mapped[uuid.UUID] = mapped_column(
+    buyer_enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("enterprise.id", ondelete="RESTRICT"),
-        nullable=False,
-        comment="Xaridor korxona FK → enterprise (buyer side)",
+        nullable=True,  # 0035: DROP NOT NULL — mustaqil do'kon korxonaga ega emas
+        comment="Xaridor korxona FK → enterprise (buyer side; NULL=mustaqil do'kon, 0035)",
     )
 
     buyer_store_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -209,6 +209,23 @@ class MarketplaceOrder(Base):
         comment="Klient idempotentlik UUID — UNIQUE(buyer_enterprise_id, client_uuid)",
     )
 
+    # ─── Shartnoma-Gate (0035) ────────────────────────────────────────────────
+
+    is_onetime: Mapped[bool] = mapped_column(
+        __import__("sqlalchemy").Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Bir martalik buyurtma: agent bypass orqali (shartnoma yo'q holat, 0035)",
+    )
+
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Bir martalik buyurtmani bergan agent FK → app_user (0035)",
+    )
+
     # ─── Vaqt ────────────────────────────────────────────────────────────────
 
     created_at: Mapped[datetime] = mapped_column(
@@ -262,6 +279,12 @@ class MarketplaceOrder(Base):
     courier: Mapped["AppUser | None"] = relationship(
         "AppUser",
         foreign_keys="[MarketplaceOrder.courier_id]",
+        lazy="select",
+    )
+
+    agent: Mapped["AppUser | None"] = relationship(
+        "AppUser",
+        foreign_keys="[MarketplaceOrder.agent_id]",
         lazy="select",
     )
 

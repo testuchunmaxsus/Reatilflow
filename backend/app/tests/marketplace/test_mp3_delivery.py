@@ -80,9 +80,17 @@ async def courier_b2(db_session: AsyncSession, enterprise_b: Enterprise) -> AppU
 async def store_a(
     db_session: AsyncSession,
     enterprise_a: Enterprise,
+    enterprise_b: Enterprise,
     store_user_a: AppUser,
 ) -> Store:
-    """Korxona A do'koni."""
+    """Korxona A do'koni.
+
+    Shartnoma-Gate (ADR-003 Bo'lak C): store_a ↔ enterprise_b aktiv shartnomasi ham yaratiladi.
+    Barcha MP3 testlari buyurtma berishdan avval bu shartnoma mavjud bo'lishi kerak.
+    """
+    from datetime import date
+    from app.models.contract import Contract
+
     store = Store(
         id=uuid.uuid4(),
         name="Do'kon A",
@@ -92,6 +100,21 @@ async def store_a(
     )
     db_session.add(store)
     await db_session.flush()
+
+    # Shartnoma-Gate: store_a ↔ enterprise_b (supplier) aktiv shartnoma
+    contract = Contract(
+        store_id=store.id,
+        number="MP3-CONTRACT-A-B",
+        valid_from=date(2025, 1, 1),
+        valid_to=date(2030, 12, 31),
+        contract_type="trade",
+        enterprise_id=enterprise_a.id,           # legacy MT1
+        supplier_enterprise_id=enterprise_b.id,  # Shartnoma-Gate
+        version=1,
+    )
+    db_session.add(contract)
+    await db_session.flush()
+
     return store
 
 

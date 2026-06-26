@@ -123,7 +123,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     #   tickets: create + view                   → row-level scope
     #   customers: view + create + edit (o'z do'konlari)  → row-level scope
     #   stats: view (o'z natijasi)               → row-level scope
-    #   contracts: view (o'z do'konlari)         → row-level scope
+    #   contracts: view + create (o'z/biriktirilgan do'konlari) → row-level scope (ADR-003)
     #   promo: view
     #   orders: create + view (o'z do'konlari)  → row-level scope (T11)
     "agent": (
@@ -136,7 +136,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.TICKETS,     Action.VIEW, Action.CREATE)
         | _p(Module.CUSTOMERS,   Action.VIEW, Action.CREATE, Action.EDIT)
         | _p(Module.STATS,       Action.VIEW)
-        | _p(Module.CONTRACTS,   Action.VIEW)
+        | _p(Module.CONTRACTS,   Action.VIEW, Action.CREATE)   # ADR-003: agent shartnoma tuzadi
         | _p(Module.PROMO,       Action.VIEW)
         # T11: agent o'z do'konlari uchun buyurtma yaratadi + ko'radi + holat o'zgartiradi
         | _p(Module.ORDERS,      Action.VIEW, Action.CREATE, Action.EDIT)

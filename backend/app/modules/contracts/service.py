@@ -312,6 +312,10 @@ async def create_contract(
     await _check_number_unique(db, data.store_id, data.number)
 
     # ── Shartnoma yaratish ───────────────────────────────────────────────────
+    # supplier_enterprise_id — SERVER-AVTORITAR: agent/admin o'z korxonasidan foydalanadi.
+    # Klient bera olmaydi — foydalanuvchi korxonasi server tomonida o'rnatiladi.
+    supplier_eid: uuid.UUID | None = user.enterprise_id if user is not None else None
+
     contract = Contract(
         store_id=data.store_id,
         number=data.number,
@@ -321,7 +325,8 @@ async def create_contract(
         contract_type=data.contract_type,
         branch_id=data.branch_id,
         client_uuid=data.client_uuid,
-        enterprise_id=enterprise_id,  # MT2: server-authoritative
+        enterprise_id=enterprise_id,          # MT2: server-authoritative (legacy/buyer-holder)
+        supplier_enterprise_id=supplier_eid,  # Shartnoma-Gate: server-authoritative
     )
 
     db.add(contract)
@@ -340,6 +345,7 @@ async def create_contract(
         "number": contract.number,
         "valid_from": str(contract.valid_from),
         "valid_to": str(contract.valid_to),
+        "supplier_enterprise_id": str(contract.supplier_enterprise_id) if contract.supplier_enterprise_id else None,
     }
     await _write_audit(db, actor_id, "create", str(contract.id), after=after)
     await _write_outbox(db, str(contract.id), "contract.created", {
@@ -348,6 +354,7 @@ async def create_contract(
         "number": contract.number,
         "valid_from": str(contract.valid_from),
         "valid_to": str(contract.valid_to),
+        "supplier_enterprise_id": str(contract.supplier_enterprise_id) if contract.supplier_enterprise_id else None,
     })
 
     # ── Redis kalit saqlash ──────────────────────────────────────────────────
