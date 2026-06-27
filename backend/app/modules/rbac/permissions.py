@@ -61,6 +61,8 @@ class Module(StrEnum):
     MARKETPLACE = "marketplace"  # MP1: B2B Marketplace katalog
     PUSH = "push"            # S2: Push bildirishnomalar
     ANALYTICS = "analytics"  # Faza 4: AI Tahlil (korxona-egasi paneli)
+    IMPORT = "import"        # AI Import: Excel/Nakladnoy import
+    ASSISTANT = "assistant"  # AI Assistant: o'zbekcha yordamchi chat
 
 
 class Action(StrEnum):
@@ -113,6 +115,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.PUSH, Action.VIEW, Action.CREATE)
         # Faza 4: administrator AI tahlil panelini ko'radi
         | _p(Module.ANALYTICS, Action.VIEW)
+        # AI Import: administrator Excel/nakladnoy import qiladi
+        | _p(Module.IMPORT, Action.VIEW, Action.CREATE)
+        # AI Assistant: administrator yordamchi chatdan foydalanadi
+        | _p(Module.ASSISTANT, Action.VIEW)
     ),
 
     # ─── Savdo agenti ──────────────────────────────────────────────────────────
@@ -150,6 +156,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE)
         # S2: agent o'z qurilma tokenini ro'yxatdan o'tkazadi
         | _p(Module.PUSH, Action.CREATE)
+        # AI Assistant: agent yordamchi chatdan foydalanadi
+        | _p(Module.ASSISTANT, Action.VIEW)
     ),
 
     # ─── Kuryer (yetkazib beruvchi) ────────────────────────────────────────────
@@ -182,6 +190,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # POS: agent — ruxsati yo'q (pos checkout faqat store roli uchun)
         # S2: kuryer o'z qurilma tokenini ro'yxatdan o'tkazadi
         | _p(Module.PUSH, Action.CREATE)
+        # AI Assistant: kuryer yordamchi chatdan foydalanadi
+        | _p(Module.ASSISTANT, Action.VIEW)
     ),
 
     # ─── Buxgalter ─────────────────────────────────────────────────────────────
@@ -222,6 +232,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.PUSH, Action.CREATE)
         # Faza 4: buxgalter AI tahlil panelini ko'radi
         | _p(Module.ANALYTICS, Action.VIEW)
+        # AI Import: buxgalter Excel/nakladnoy import qiladi (katalogga)
+        | _p(Module.IMPORT, Action.VIEW, Action.CREATE)
+        # AI Assistant: buxgalter yordamchi chatdan foydalanadi
+        | _p(Module.ASSISTANT, Action.VIEW)
     ),
 
     # ─── Do'kon (mijoz) ────────────────────────────────────────────────────────
@@ -256,6 +270,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.MARKETPLACE, Action.VIEW, Action.CREATE, Action.EDIT)
         # S2: do'kon (kassir) o'z qurilma tokenini ro'yxatdan o'tkazadi
         | _p(Module.PUSH, Action.CREATE)
+        # AI Import: do'kon StoreInventory'ga import qiladi
+        | _p(Module.IMPORT, Action.VIEW, Action.CREATE)
+        # AI Assistant: do'kon yordamchi chatdan foydalanadi
+        | _p(Module.ASSISTANT, Action.VIEW)
     ),
 
     # ─── Superadmin (platforma egasi) ─────────────────────────────────────────

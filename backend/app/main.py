@@ -39,6 +39,8 @@ from app.modules.marketplace.router import router as marketplace_router
 from app.modules.pos.router import router as pos_router
 from app.modules.stats.router import router as stats_router
 from app.modules.analytics.router import router as analytics_router
+from app.modules.import_data.router import router as import_router
+from app.modules.assistant.router import router as assistant_router
 from app.modules.delivery.router import router as delivery_router
 from app.modules.gps.router import router as gps_router
 from app.modules.push.router import router as push_router
@@ -498,4 +500,20 @@ app.include_router(
     prefix="/analytics",
     tags=["analytics"],
     dependencies=[require_module("analytics")],
+)
+
+# AI Import — gated (Excel + nakladnoy rasm import)
+app.include_router(
+    import_router,
+    prefix="/import",
+    tags=["import"],
+    dependencies=[require_module("import")],
+)
+
+# AI Assistant — gated (o'zbekcha yordamchi chat)
+app.include_router(
+    assistant_router,
+    prefix="/assistant",
+    tags=["assistant"],
+    dependencies=[require_module("assistant")],
 )

@@ -154,6 +154,8 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     # Groq model (tez + bepul)
     groq_model: str = "llama-3.3-70b-versatile"
+    # Groq vision modeli (Llama 4 — rasm OCR uchun)
+    groq_vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     # AI boyitishni to'liq o'chirish (kalit bo'lsa ham)
     analytics_ai_enabled: bool = True
 
