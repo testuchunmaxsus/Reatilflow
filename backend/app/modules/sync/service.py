@@ -353,6 +353,281 @@ async def _handle_delivery_status_update(
         )
 
 
+async def _handle_store_update(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"store.update" — mobil ilova outbox orqali yuborgan do'kon yangilash.
+
+    Mobil payload (store_repository.dart ~97-107):
+      {store_id, version, name?, owner_name?, phone?, address?, gps_lat?, gps_lng?}.
+    customers.service.update_store() QAYTA ISHLATILADI — optimistik lock,
+    IDOR (scope filtri), audit+outbox shu yerda.
+
+    server_id = store.id (UUID).
+    """
+    from app.modules.customers import service as customers_service
+    from app.modules.customers.schemas import StoreUpdate
+
+    payload = op.payload
+    try:
+        store_id = uuid.UUID(payload["store_id"])
+        version = int(payload["version"])
+        update_fields: dict[str, Any] = {"version": version}
+        for field in ("name", "owner_name", "phone", "address", "gps_lat", "gps_lng"):
+            if field in payload and payload[field] is not None:
+                update_fields[field] = payload[field]
+        data = StoreUpdate.model_validate(update_fields)
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.debug("store.update payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        store = await customers_service.update_store(
+            db=db,
+            store_id=store_id,
+            data=data,
+            actor_id=actor_id,
+            user=user,
+            enterprise_id=enterprise_id,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(store.id),
+        )
+    except AppError as exc:
+        if exc.message_key in ("customers.version_conflict",):
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
+async def _handle_store_assign_agent(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"store.assign_agent" — mobil ilova outbox orqali yuborgan agent biriktirish.
+
+    Mobil payload (store_repository.dart ~150-157):
+      {store_id, agent_id}.
+    customers.service.assign_agent() QAYTA ISHLATILADI — agent mavjudligi,
+    enterprise tekshiruvi, idempotent (allaqachon biriktirilgan → mavjudni qaytaradi),
+    audit+outbox shu yerda.
+
+    server_id = store.id (UUID).
+    """
+    from app.modules.customers import service as customers_service
+
+    payload = op.payload
+    try:
+        store_id = uuid.UUID(payload["store_id"])
+        agent_id = uuid.UUID(payload["agent_id"])
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.debug("store.assign_agent payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        await customers_service.assign_agent(
+            db=db,
+            store_id=store_id,
+            agent_id=agent_id,
+            actor_id=actor_id,
+            user=user,
+            enterprise_id=enterprise_id,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(store_id),
+        )
+    except AppError as exc:
+        if exc.message_key in ("customers.store_not_found", "customers.agent_not_found"):
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
+async def _handle_contract_create(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"contract.create" — mobil ilova outbox orqali yuborgan shartnoma yaratish.
+
+    Mobil payload (contract_repository.dart ~34-38 + contract_models.dart ~106-113):
+      {client_uuid, store_id, number, valid_from, valid_to}.
+    supplier_enterprise_id SERVER-AVTORITAR: user.enterprise_id dan olinadi.
+    contracts.service.create_contract() QAYTA ISHLATILADI — (store_id, number)
+    unikalligi, Redis idempotentlik (client_uuid), scope (agent o'z do'konlari),
+    audit+outbox shu yerda.
+
+    server_id = contract.id (UUID).
+    """
+    from app.modules.contracts import service as contracts_service
+    from app.modules.contracts.schemas import ContractCreate
+
+    payload = op.payload
+    try:
+        # client_uuid: op.client_uuid yoki payload'dan
+        client_uuid_val = op.client_uuid
+        if client_uuid_val is None and "client_uuid" in payload:
+            try:
+                client_uuid_val = str(uuid.UUID(payload["client_uuid"]))
+            except (ValueError, TypeError):
+                pass
+
+        data = ContractCreate.model_validate({
+            "store_id": payload["store_id"],
+            "number": payload["number"],
+            "valid_from": payload["valid_from"],
+            "valid_to": payload["valid_to"],
+            "client_uuid": client_uuid_val,
+        })
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.debug("contract.create payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        contract = await contracts_service.create_contract(
+            db=db,
+            data=data,
+            actor_id=actor_id,
+            user=user,
+            redis=redis,
+            enterprise_id=enterprise_id,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(contract.id),
+        )
+    except AppError as exc:
+        if exc.message_key in ("contracts.duplicate_number",):
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
+async def _handle_marketplace_order_create(
+    op: SyncOp,
+    actor_id: uuid.UUID,
+    user: AppUser,
+    db: AsyncSession,
+    redis: Any,
+    enterprise_id: uuid.UUID | None = None,
+) -> OpResult:
+    """"marketplace_order.create" — mobil ilova outbox orqali yuborgan marketplace buyurtma.
+
+    Mobil payload (onetime_order_providers.dart ~57-64):
+      {client_uuid, product_id, qty, store_id, is_onetime}.
+    marketplace.service.create_order() QAYTA ISHLATILADI — Shartnoma-Gate
+    (activ shartnoma → is_onetime=False; agent bypass → is_onetime=True; yo'q → 409),
+    server-avtoritar narx, idempotentlik (client_uuid), audit+outbox shu yerda.
+
+    Shartnoma-Gate 409 → OpResult status="conflict" + message_key="marketplace.contract_required".
+    server_id = marketplace_order.id (UUID).
+    """
+    from decimal import Decimal as _Decimal
+    from app.modules.marketplace import service as marketplace_service
+    from app.modules.marketplace.service import OrderLineInput
+
+    payload = op.payload
+    try:
+        product_id = uuid.UUID(payload["product_id"])
+        qty = _Decimal(str(payload["qty"]))
+        store_id = uuid.UUID(payload["store_id"])
+        # client_uuid: op.client_uuid yoki payload'dan
+        client_uuid_val: uuid.UUID | None = None
+        if op.client_uuid is not None:
+            try:
+                client_uuid_val = uuid.UUID(op.client_uuid)
+            except (ValueError, TypeError):
+                pass
+        if client_uuid_val is None and "client_uuid" in payload:
+            try:
+                client_uuid_val = uuid.UUID(str(payload["client_uuid"]))
+            except (ValueError, TypeError):
+                pass
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.debug("marketplace_order.create payload xatosi: %r", exc)
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="common.validation_error",
+        )
+
+    try:
+        order = await marketplace_service.create_order(
+            db=db,
+            buyer_user=user,
+            lines=[OrderLineInput(product_id=product_id, qty=qty)],
+            client_uuid=client_uuid_val,
+            buyer_store_id=store_id,
+        )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="applied",
+            server_id=str(order.id),
+        )
+    except AppError as exc:
+        if exc.message_key == "marketplace.contract_required":
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="conflict",
+                message_key=exc.message_key,
+            )
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key=exc.message_key,
+        )
+
+
 async def _handle_gps_ingest(
     op: SyncOp,
     actor_id: uuid.UUID,
@@ -407,6 +682,11 @@ _OP_REGISTRY: dict[
     "attendance.check_out": _handle_attendance_check_out,
     "delivery.status_update": _handle_delivery_status_update,
     "gps.ingest": _handle_gps_ingest,
+    # Ko'prik (bridge) op'lar — T-bridge
+    "store.update": _handle_store_update,
+    "store.assign_agent": _handle_store_assign_agent,
+    "contract.create": _handle_contract_create,
+    "marketplace_order.create": _handle_marketplace_order_create,
 }
 
 

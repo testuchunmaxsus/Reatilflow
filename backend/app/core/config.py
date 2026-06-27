@@ -144,6 +144,14 @@ class Settings(BaseSettings):
     # Push worker davriy ishga tushirish oraligi (sekunda)
     push_poll_interval_seconds: int = 30
 
+    # ─── AI Tahlil (Faza 4) ─────────────────────────────────────────────────
+    # Anthropic API kaliti (ixtiyoriy) — bo'lmasa rule-based fallback
+    anthropic_api_key: str | None = None
+    # Claude model ID (default: tez va arzon)
+    anthropic_model: str = "claude-3-haiku-20240307"
+    # AI boyitishni to'liq o'chirish (ANTHROPIC_API_KEY bo'lsa ham)
+    analytics_ai_enabled: bool = True
+
     # ─── PII shifrlash kalitlari (T5) ──────────────────────────────────────
     # AES-256-GCM kaliti: 64 belgili hex (openssl rand -hex 32)
     # Dev default: haqiqiy 64 belgili hex — SHA-256 fallback yo'q (HIGH xavfsizlik fix).

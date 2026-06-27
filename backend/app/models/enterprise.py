@@ -40,6 +40,7 @@ ALL_MODULE_KEYS: list[str] = [
     "push",
     "pos",
     "marketplace",  # MP1: B2B marketplace katalog
+    "analytics",    # Faza 4: AI Tahlil (korxona-egasi paneli)
 ]
 
 # Default korxona UUID (jonli ma'lumot backfill uchun — migratsiya 0020)

@@ -60,6 +60,7 @@ class Module(StrEnum):
     POS = "pos"              # POS: Chakana sotuv yadrosi
     MARKETPLACE = "marketplace"  # MP1: B2B Marketplace katalog
     PUSH = "push"            # S2: Push bildirishnomalar
+    ANALYTICS = "analytics"  # Faza 4: AI Tahlil (korxona-egasi paneli)
 
 
 class Action(StrEnum):
@@ -110,6 +111,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT, Action.CREATE)
         # S2: administrator push bildirishnomalar log'ini ko'radi va qurilma tokenini boshqaradi
         | _p(Module.PUSH, Action.VIEW, Action.CREATE)
+        # Faza 4: administrator AI tahlil panelini ko'radi
+        | _p(Module.ANALYTICS, Action.VIEW)
     ),
 
     # ─── Savdo agenti ──────────────────────────────────────────────────────────
@@ -217,6 +220,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _p(Module.MARKETPLACE, Action.VIEW, Action.EDIT, Action.CREATE)
         # S2: buxgalter o'z qurilma tokenini ro'yxatdan o'tkazadi
         | _p(Module.PUSH, Action.CREATE)
+        # Faza 4: buxgalter AI tahlil panelini ko'radi
+        | _p(Module.ANALYTICS, Action.VIEW)
     ),
 
     # ─── Do'kon (mijoz) ────────────────────────────────────────────────────────

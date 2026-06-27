@@ -38,6 +38,7 @@ from app.modules.promo.router import router as promo_router
 from app.modules.marketplace.router import router as marketplace_router
 from app.modules.pos.router import router as pos_router
 from app.modules.stats.router import router as stats_router
+from app.modules.analytics.router import router as analytics_router
 from app.modules.delivery.router import router as delivery_router
 from app.modules.gps.router import router as gps_router
 from app.modules.push.router import router as push_router
@@ -489,4 +490,12 @@ app.include_router(
     prefix="/stats",
     tags=["stats"],
     dependencies=[require_module("stats")],
+)
+
+# Faza 4: AI Tahlil — gated (korxona-egasi paneli)
+app.include_router(
+    analytics_router,
+    prefix="/analytics",
+    tags=["analytics"],
+    dependencies=[require_module("analytics")],
 )

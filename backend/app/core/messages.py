@@ -618,6 +618,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Ichki server xatosi",
         "ru": "Внутренняя ошибка сервера",
     },
+
+    # ── AI Tahlil (analytics) — Faza 4 ──────────────────────────────────────
+    "analytics.invalid_period": {
+        "uz": "Noto'g'ri davr: boshlanish vaqti tugash vaqtidan katta bo'lishi mumkin emas",
+        "ru": "Неверный период: дата начала не может быть позже даты окончания",
+    },
+    "analytics.invalid_order": {
+        "uz": "Noto'g'ri tartib parametri: faqat 'top' yoki 'bottom' qabul qilinadi",
+        "ru": "Неверный параметр сортировки: допустимы только 'top' или 'bottom'",
+    },
 }
 
 
