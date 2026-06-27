@@ -7,6 +7,8 @@
  *   - velocity past                 → ko'k
  *
  * Popup: do'kon nomi + sotilgan qty + revenue + velocity/kun.
+ *
+ * Maydon nomlari: GeoVelocityItem.gps_lat / gps_lng (backend bilan mos).
  */
 
 import "leaflet/dist/leaflet.css";
@@ -47,13 +49,19 @@ function getMarkerRadius(velocity: number, maxVelocity: number): number {
 }
 
 export function GeoVelocityMap({ stores }: GeoVelocityMapProps) {
-  const withGps = stores.filter((s) => s.lat !== null && s.lng !== null);
-  const maxVelocity = Math.max(...withGps.map((s) => s.velocity_per_day), 0);
+  // gps_lat/gps_lng — backend: GeoVelocityItem.gps_lat / gps_lng
+  const withGps = (stores ?? []).filter(
+    (s) => s.gps_lat !== null && s.gps_lat !== undefined &&
+           s.gps_lng !== null && s.gps_lng !== undefined,
+  );
+  const maxVelocity = withGps.length > 0
+    ? Math.max(...withGps.map((s) => s.velocity_per_day ?? 0))
+    : 0;
 
   // Xarita markazini birinchi nuqtaga qarab hisoblash
   const center: [number, number] =
     withGps.length > 0
-      ? [withGps[0].lat as number, withGps[0].lng as number]
+      ? [withGps[0].gps_lat as number, withGps[0].gps_lng as number]
       : DEFAULT_CENTER;
 
   if (withGps.length === 0) {
@@ -76,36 +84,39 @@ export function GeoVelocityMap({ stores }: GeoVelocityMapProps) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
-      {withGps.map((store) => (
-        <CircleMarker
-          key={store.store_id}
-          center={[store.lat as number, store.lng as number]}
-          radius={getMarkerRadius(store.velocity_per_day, maxVelocity)}
-          pathOptions={{
-            color: getMarkerColor(store.velocity_per_day, maxVelocity),
-            fillColor: getMarkerColor(store.velocity_per_day, maxVelocity),
-            fillOpacity: 0.75,
-          }}
-        >
-          <Popup>
-            <div style={{ minWidth: 180 }}>
-              <strong>{store.store_name}</strong>
-              {store.address && (
-                <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
-                  {store.address}
-                </div>
-              )}
-              <div style={{ marginTop: 6, fontSize: 13 }}>
-                <div>Sotilgan: <strong>{store.sold_qty}</strong> dona</div>
-                <div>Daromad: <strong>{Number(store.revenue).toLocaleString()} UZS</strong></div>
-                <div>
-                  Tezlik: <strong>{store.velocity_per_day.toFixed(1)}</strong> dona/kun
+      {withGps.map((store) => {
+        const vel = store.velocity_per_day ?? 0;
+        return (
+          <CircleMarker
+            key={store.store_id}
+            center={[store.gps_lat as number, store.gps_lng as number]}
+            radius={getMarkerRadius(vel, maxVelocity)}
+            pathOptions={{
+              color: getMarkerColor(vel, maxVelocity),
+              fillColor: getMarkerColor(vel, maxVelocity),
+              fillOpacity: 0.75,
+            }}
+          >
+            <Popup>
+              <div style={{ minWidth: 180 }}>
+                <strong>{store.store_name}</strong>
+                {store.address && (
+                  <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
+                    {store.address}
+                  </div>
+                )}
+                <div style={{ marginTop: 6, fontSize: 13 }}>
+                  <div>Sotilgan: <strong>{(store.sold_qty ?? 0).toLocaleString()}</strong> dona</div>
+                  <div>Daromad: <strong>{Number(store.revenue ?? 0).toLocaleString()} UZS</strong></div>
+                  <div>
+                    Tezlik: <strong>{vel.toFixed(1)}</strong> dona/kun
+                  </div>
                 </div>
               </div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
+            </Popup>
+          </CircleMarker>
+        );
+      })}
     </MapContainer>
   );
 }

@@ -189,56 +189,69 @@ function AnalyticsDashboardContent() {
         <Text c="red">{t("errors.unknown")}</Text>
       ) : overview ? (
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }}>
+          {/* contracted_store_count — backend: OverviewOut.contracted_store_count */}
           <StatCard
             label={t("analytics.overview.contracted_stores", { defaultValue: "Shartnoma do'konlar" })}
-            value={overview.contracted_stores_count}
+            value={(overview.contracted_store_count ?? 0).toLocaleString()}
             color="blue"
           />
+          {/* contract_status.active — backend: OverviewOut.contract_status.active */}
           <StatCard
             label={t("analytics.overview.active_contracts", { defaultValue: "Faol shartnomalar" })}
-            value={overview.active_contracts}
+            value={(overview.contract_status?.active ?? 0).toLocaleString()}
             color="green"
           />
+          {/* contract_status.expiring — backend: OverviewOut.contract_status.expiring */}
           <StatCard
             label={t("analytics.overview.expiring_contracts", { defaultValue: "Tugayotgan" })}
-            value={overview.expiring_contracts}
+            value={(overview.contract_status?.expiring ?? 0).toLocaleString()}
             color="yellow.7"
-            badge={overview.expiring_contracts > 0 ? { text: "!", color: "yellow" } : undefined}
-          />
-          <StatCard
-            label={t("analytics.overview.expired_contracts", { defaultValue: "Muddati o'tgan" })}
-            value={overview.expired_contracts}
-            color="red"
-          />
-          <StatCard
-            label={t("analytics.overview.total_sold_qty", { defaultValue: "Sotilgan (dona)" })}
-            value={overview.total_sold_qty.toLocaleString()}
-            color="teal"
-          />
-          <StatCard
-            label={t("analytics.overview.total_revenue", { defaultValue: "Daromad (UZS)" })}
-            value={Number(overview.total_revenue).toLocaleString()}
-            color="teal"
-          />
-          <StatCard
-            label={t("analytics.overview.expiry_risk_sku", { defaultValue: "Expiry-risk SKU" })}
-            value={overview.expiry_risk_sku_count}
-            color={overview.expiry_risk_sku_count > 0 ? "red" : "gray"}
             badge={
-              overview.expiry_risk_sku_count > 0
-                ? { text: t("analytics.overview.urgent", { defaultValue: "Shoshilinch" }), color: "red" }
+              (overview.contract_status?.expiring ?? 0) > 0
+                ? { text: "!", color: "yellow" }
                 : undefined
             }
           />
-          {overview.top_product_name && (
-            <StatCard
-              label={t("analytics.overview.top_product", { defaultValue: "Eng ko'p sotiladigan" })}
-              value={overview.top_product_name}
-              color="violet"
-            />
-          )}
+          {/* contract_status.expired — backend: OverviewOut.contract_status.expired */}
+          <StatCard
+            label={t("analytics.overview.expired_contracts", { defaultValue: "Muddati o'tgan" })}
+            value={(overview.contract_status?.expired ?? 0).toLocaleString()}
+            color="red"
+          />
+          {/* sold_qty_total — backend: OverviewOut.sold_qty_total */}
+          <StatCard
+            label={t("analytics.overview.total_sold_qty", { defaultValue: "Sotilgan (dona)" })}
+            value={(overview.sold_qty_total ?? 0).toLocaleString()}
+            color="teal"
+          />
+          {/* revenue_total — backend: OverviewOut.revenue_total */}
+          <StatCard
+            label={t("analytics.overview.total_revenue", { defaultValue: "Daromad (UZS)" })}
+            value={Number(overview.revenue_total ?? 0).toLocaleString()}
+            color="teal"
+          />
+          {/* expiry_risk_count — backend: OverviewOut.expiry_risk_count */}
+          <StatCard
+            label={t("analytics.overview.expiry_risk_sku", { defaultValue: "Expiry-risk SKU" })}
+            value={(overview.expiry_risk_count ?? 0).toLocaleString()}
+            color={(overview.expiry_risk_count ?? 0) > 0 ? "red" : "gray"}
+            badge={
+              (overview.expiry_risk_count ?? 0) > 0
+                ? {
+                    text: t("analytics.overview.urgent", { defaultValue: "Shoshilinch" }),
+                    color: "red",
+                  }
+                : undefined
+            }
+          />
         </SimpleGrid>
-      ) : null}
+      ) : (
+        <Box py="md" ta="center">
+          <Text c="dimmed" size="sm">
+            {t("analytics.overview.empty", { defaultValue: "Ma'lumot yo'q" })}
+          </Text>
+        </Box>
+      )}
 
       {/* ─── Geo savdo tezligi ─── */}
       <Divider
@@ -256,8 +269,9 @@ function AnalyticsDashboardContent() {
               defaultValue: "Savdo tezligi xaritasi (qizil=tez, sariq=o'rta, ko'k=past)",
             })}
           </Text>
-          <GeoVelocityMap stores={geoData.stores} />
-          {geoData.period_days > 0 && (
+          {/* geoData.items — backend: GeoVelocityOut.items */}
+          <GeoVelocityMap stores={geoData.items ?? []} />
+          {(geoData.period_days ?? 0) > 0 && (
             <Text size="xs" c="dimmed" mt="xs">
               {t("analytics.geo.period_note", {
                 defaultValue: "Davr: {{days}} kun",
@@ -278,7 +292,7 @@ function AnalyticsDashboardContent() {
       ) : expiryError ? (
         <Text c="red">{t("errors.unknown")}</Text>
       ) : expiryData ? (
-        <ExpiryAlertsPanel items={expiryData.items} />
+        <ExpiryAlertsPanel items={expiryData.items ?? []} />
       ) : null}
 
       {/* ─── Mahsulot reytingi ─── */}
@@ -292,8 +306,9 @@ function AnalyticsDashboardContent() {
         <Text c="red">{t("errors.unknown")}</Text>
       ) : productsData ? (
         <Card withBorder padding="md">
+          {/* productsData.items — backend: ProductRankingOut.items */}
           <ProductRankingChart
-            products={productsData.products}
+            products={productsData.items ?? []}
             order={productOrder}
             onOrderChange={setProductOrder}
           />
@@ -310,7 +325,7 @@ function AnalyticsDashboardContent() {
       ) : storesError ? (
         <Text c="red">{t("errors.unknown")}</Text>
       ) : storesData ? (
-        <ContractedStoresTable stores={storesData.stores} />
+        <ContractedStoresTable stores={storesData.stores ?? []} />
       ) : null}
 
       {/* ─── AI tavsiyalar ─── */}
@@ -324,9 +339,9 @@ function AnalyticsDashboardContent() {
         <Text c="red">{t("errors.unknown")}</Text>
       ) : recsData ? (
         <RecommendationsPanel
-          recommendations={recsData.recommendations}
-          aiEnriched={recsData.ai_enriched}
-          aiSummary={recsData.ai_summary}
+          recommendations={recsData.recommendations ?? []}
+          aiEnabled={recsData.ai_enabled ?? false}
+          aiSummary={recsData.ai_summary ?? null}
         />
       ) : null}
     </Stack>

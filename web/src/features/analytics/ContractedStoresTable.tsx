@@ -3,6 +3,12 @@
  *
  * Ustunlar: Do'kon nomi | Manzil | Shartnoma holati | Muddati | Inventar qoldig'i | 30 kun sotuvi
  * Status badge: active=yashil, expiring=sariq, expired=qizil
+ *
+ * Maydon nomlari: ContractedStoreItem (backend schemas.py bilan mos).
+ *   - valid_to: string (date)
+ *   - inventory_qty: number (Decimal)
+ *   - sold_qty_30d: number (Decimal)
+ *   - revenue_30d mavjud EMAS — backend qaytarmaydi
  */
 
 import {
@@ -39,7 +45,7 @@ export function ContractedStoresTable({ stores }: ContractedStoresTableProps) {
   const { t } = useTranslation();
   const contractStatusLabel = useContractStatusLabel();
 
-  if (stores.length === 0) {
+  if ((stores ?? []).length === 0) {
     return (
       <Box py="md" ta="center">
         <Text c="dimmed" size="sm">
@@ -86,14 +92,17 @@ export function ContractedStoresTable({ stores }: ContractedStoresTableProps) {
               </Table.Td>
               <Table.Td>
                 <Text size="sm">
-                  {store.valid_to ? store.valid_to.slice(0, 10) : "—"}
+                  {/* valid_to — backend: ContractedStoreItem.valid_to (date string) */}
+                  {store.valid_to ? String(store.valid_to).slice(0, 10) : "—"}
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
-                <Text size="sm">{store.inventory_qty.toLocaleString()}</Text>
+                {/* inventory_qty — backend: Decimal */}
+                <Text size="sm">{(store.inventory_qty ?? 0).toLocaleString()}</Text>
               </Table.Td>
               <Table.Td ta="right">
-                <Text size="sm">{store.sold_qty_30d.toLocaleString()}</Text>
+                {/* sold_qty_30d — backend: Decimal */}
+                <Text size="sm">{(store.sold_qty_30d ?? 0).toLocaleString()}</Text>
               </Table.Td>
             </Table.Tr>
           ))}

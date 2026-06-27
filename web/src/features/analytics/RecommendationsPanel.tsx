@@ -1,9 +1,13 @@
 /**
  * RecommendationsPanel — AI tavsiyalar paneli.
  *
- * - Claude-boyitilgan xulosa bo'lsa yuqorida ko'rinadi (ai_enriched=true)
+ * - Claude-boyitilgan xulosa bo'lsa yuqorida ko'rinadi (ai_enabled=true)
  * - Tavsiyalar severity bo'yicha ranglangan kartalar:
- *   high → qizil, medium → sariq, low → ko'k
+ *   high → qizil, medium → sariq, low/info → ko'k
+ *
+ * Maydon nomlari:
+ *   - Props: aiEnabled (backend: RecommendationsOut.ai_enabled, eski "ai_enriched" emas)
+ *   - RecommendationItem.severity: "high" | "medium" | "low" | "info"
  */
 
 import {
@@ -27,14 +31,14 @@ import type { RecommendationItem, RecommendationSeverity } from "./types";
 
 interface RecommendationsPanelProps {
   recommendations: RecommendationItem[];
-  aiEnriched: boolean;
+  aiEnabled: boolean;        // backend: ai_enabled (eski ai_enriched emas)
   aiSummary: string | null;
 }
 
 function severityColor(severity: RecommendationSeverity): string {
   if (severity === "high") return "red";
   if (severity === "medium") return "yellow";
-  return "blue";
+  return "blue"; // low | info
 }
 
 function SeverityIcon({ severity }: { severity: RecommendationSeverity }) {
@@ -59,15 +63,16 @@ function SeverityIcon({ severity }: { severity: RecommendationSeverity }) {
 
 export function RecommendationsPanel({
   recommendations,
-  aiEnriched,
+  aiEnabled,
   aiSummary,
 }: RecommendationsPanelProps) {
   const { t } = useTranslation();
+  const items = recommendations ?? [];
 
   return (
     <Stack gap="sm">
-      {/* Claude AI xulosasi — faqat ai_enriched=true bo'lsa */}
-      {aiEnriched && aiSummary && (
+      {/* Claude AI xulosasi — faqat ai_enabled=true bo'lsa */}
+      {aiEnabled && aiSummary && (
         <Alert
           icon={<IconBrain size={18} />}
           color="violet"
@@ -80,7 +85,7 @@ export function RecommendationsPanel({
         </Alert>
       )}
 
-      {recommendations.length === 0 ? (
+      {items.length === 0 ? (
         <Box py="md" ta="center">
           <Text c="dimmed" size="sm">
             {t("analytics.recommendations.empty", {
@@ -89,7 +94,7 @@ export function RecommendationsPanel({
           </Text>
         </Box>
       ) : (
-        recommendations.map((rec, idx) => (
+        items.map((rec, idx) => (
           <Card
             key={`${rec.code}-${idx}`}
             withBorder
@@ -120,9 +125,13 @@ export function RecommendationsPanel({
                         ? t("analytics.recommendations.severity_medium", {
                             defaultValue: "O'rta",
                           })
-                        : t("analytics.recommendations.severity_low", {
-                            defaultValue: "Past",
-                          })}
+                        : rec.severity === "low"
+                          ? t("analytics.recommendations.severity_low", {
+                              defaultValue: "Past",
+                            })
+                          : t("analytics.recommendations.severity_info", {
+                              defaultValue: "Ma'lumot",
+                            })}
                   </Badge>
                 </Group>
                 <Text size="sm" c="dimmed">

@@ -4,6 +4,9 @@
  * Toggle: "Eng ko'p sotiladigan" / "Eng kam sotiladigan"
  * X-o'q: mahsulot nomi (qisqartirilgan)
  * Y-o'q: sotilgan miqdor
+ *
+ * Maydon nomlari: ProductRankingItem (backend ProductRankingItem bilan mos).
+ * Props: products = ProductRankingOut.items (backend: items, eski "products" emas).
  */
 
 import {
@@ -22,10 +25,10 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import type { ProductRankItem, ProductOrder } from "./types";
+import type { ProductRankingItem, ProductOrder } from "./types";
 
 interface ProductRankingChartProps {
-  products: ProductRankItem[];
+  products: ProductRankingItem[];
   order: ProductOrder;
   onOrderChange: (order: ProductOrder) => void;
 }
@@ -41,12 +44,12 @@ export function ProductRankingChart({
 }: ProductRankingChartProps) {
   const { t } = useTranslation();
 
-  const chartData = products.map((p) => ({
-    name: shortenName(p.product_name),
-    fullName: p.product_name,
-    sold_qty: p.sold_qty,
-    revenue: Number(p.revenue),
-    store_count: p.store_count,
+  const chartData = (products ?? []).map((p) => ({
+    name: shortenName(p.product_name ?? ""),
+    fullName: p.product_name ?? "",
+    sold_qty: p.sold_qty ?? 0,
+    revenue: Number(p.revenue ?? 0),
+    store_count: p.store_count ?? 0,
   }));
 
   return (
