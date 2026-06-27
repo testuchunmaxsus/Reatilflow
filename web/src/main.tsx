@@ -152,6 +152,12 @@ const GpsTrackPage = lazy(() =>
     default: m.GpsTrackPage,
   })),
 );
+// AI Tahlil — code-split (leaflet + recharts)
+const AnalyticsDashboardPage = lazy(() =>
+  import("@/features/analytics/AnalyticsDashboardPage").then((m) => ({
+    default: m.AnalyticsDashboardPage,
+  })),
+);
 
 // ─── POS wrapper komponentlari ───────────────────────────────────────────
 
@@ -440,6 +446,15 @@ function App() {
                       element={
                         <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
                           <GpsTrackPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /analytics — AI tahlil paneli (korxona uchun) */}
+                    <Route
+                      path="analytics"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <AnalyticsDashboardPage />
                         </Suspense>
                       }
                     />

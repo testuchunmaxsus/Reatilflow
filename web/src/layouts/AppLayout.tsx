@@ -46,6 +46,7 @@ import {
   IconCalendarStats,
   IconBox,
   IconMapPin,
+  IconBrain,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
@@ -184,6 +185,13 @@ function useNavItems(): NavItem[] {
       icon: IconMapPin,
       requiredPermission: "gps:view",
       requiredModule: "gps",
+    },
+    {
+      label: t("nav.analytics"),
+      path: "/analytics",
+      icon: IconBrain,
+      requiredPermission: "analytics:view",
+      requiredModule: "analytics",
     },
     {
       label: t("nav.agent_cabinet"),

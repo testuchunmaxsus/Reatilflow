@@ -57,7 +57,8 @@
     "agent_cabinet": "Кабинет агента",
     "attendance": "Посещаемость",
     "stock": "Склад",
-    "gps": "GPS отслеживание"
+    "gps": "GPS отслеживание",
+    "analytics": "AI Аналитика"
   },
   "common": {
     "loading": "Загрузка...",
@@ -674,7 +675,8 @@
       "stats": "Статистика",
       "push": "Push-уведомления",
       "pos": "Касса",
-      "marketplace": "Маркетплейс"
+      "marketplace": "Маркетплейс",
+      "analytics": "AI Аналитика"
     },
     "detail": {
       "back": "Назад",
@@ -965,6 +967,7 @@
         "gps": "GPS отслеживание",
         "pos": "POS продажи",
         "marketplace": "Маркетплейс",
+        "analytics": "AI Аналитика",
         "rbac": "RBAC / Аудит"
       }
     }
@@ -1377,6 +1380,71 @@
     },
     "messages": {
       "location_updated": "Местоположение обновлено"
+    }
+  },
+  "analytics": {
+    "title": "AI Аналитика — Интеллект склада магазина",
+    "access_denied": "Недостаточно прав (требуется analytics:view)",
+    "sections": {
+      "overview": "Общие показатели",
+      "geo_velocity": "Гео скорость продаж",
+      "expiry": "Истекающие товары",
+      "products": "Рейтинг товаров",
+      "stores": "Договорные магазины",
+      "recommendations": "AI Рекомендации"
+    },
+    "overview": {
+      "contracted_stores": "Договорные магазины",
+      "active_contracts": "Активные договоры",
+      "expiring_contracts": "Истекающие",
+      "expired_contracts": "Истекшие",
+      "total_sold_qty": "Продано (шт)",
+      "total_revenue": "Выручка (UZS)",
+      "expiry_risk_sku": "Expiry-risk SKU",
+      "top_product": "Лидер продаж",
+      "urgent": "Срочно"
+    },
+    "geo": {
+      "map_title": "Карта скорости продаж (красный=быстро, жёлтый=средне, синий=медленно)",
+      "period_note": "Период: {{days}} дней",
+      "no_gps": "Магазины с GPS координатами не найдены"
+    },
+    "expiry": {
+      "within_days_label": "Предупреждение (дней)",
+      "col_store": "Магазин",
+      "col_product": "Товар",
+      "col_qty": "Кол-во",
+      "col_expiry_date": "Срок",
+      "col_days_left": "Осталось дней",
+      "col_status": "Статус",
+      "status_expired": "Истёк",
+      "status_urgent": "Срочно",
+      "status_warning": "Предупреждение",
+      "overdue": "Истёк",
+      "empty": "Товаров с истекающим сроком не найдено"
+    },
+    "products": {
+      "order_top": "Топ продаж",
+      "order_bottom": "Наименее",
+      "col_sold_qty": "Продано",
+      "col_store_count": "Кол-во магазинов",
+      "empty": "Данные не найдены"
+    },
+    "stores": {
+      "col_name": "Магазин",
+      "col_address": "Адрес",
+      "col_status": "Статус договора",
+      "col_valid_to": "Срок до",
+      "col_inventory": "Остаток (шт)",
+      "col_sold_30d": "Продажи 30 дней",
+      "empty": "Договорные магазины не найдены"
+    },
+    "recommendations": {
+      "ai_summary_title": "AI Сводка (Claude)",
+      "severity_high": "Высокий",
+      "severity_medium": "Средний",
+      "severity_low": "Низкий",
+      "empty": "Рекомендаций пока нет"
     }
   },
   "customers": {

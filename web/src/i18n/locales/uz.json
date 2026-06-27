@@ -57,7 +57,8 @@
     "agent_cabinet": "Agent kabineti",
     "attendance": "Davomat",
     "stock": "Ombor",
-    "gps": "GPS kuzatuv"
+    "gps": "GPS kuzatuv",
+    "analytics": "AI Tahlil"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -674,7 +675,8 @@
       "stats": "Statistika",
       "push": "Push xabarnomalar",
       "pos": "Kassa",
-      "marketplace": "Marketplace"
+      "marketplace": "Marketplace",
+      "analytics": "AI Tahlil"
     },
     "detail": {
       "back": "Orqaga",
@@ -1377,6 +1379,71 @@
     },
     "messages": {
       "location_updated": "Joylashuv yangilandi"
+    }
+  },
+  "analytics": {
+    "title": "AI Tahlil — Do'kon-Ombor Intellekti",
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q (analytics:view kerak)",
+    "sections": {
+      "overview": "Umumiy ko'rsatkichlar",
+      "geo_velocity": "Geo savdo tezligi",
+      "expiry": "Muddati o'tayotgan tovarlar",
+      "products": "Mahsulot reytingi",
+      "stores": "Shartnoma do'konlar",
+      "recommendations": "AI Tavsiyalar"
+    },
+    "overview": {
+      "contracted_stores": "Shartnoma do'konlar",
+      "active_contracts": "Faol shartnomalar",
+      "expiring_contracts": "Tugayotgan",
+      "expired_contracts": "Muddati o'tgan",
+      "total_sold_qty": "Sotilgan (dona)",
+      "total_revenue": "Daromad (UZS)",
+      "expiry_risk_sku": "Expiry-risk SKU",
+      "top_product": "Eng ko'p sotiladigan",
+      "urgent": "Shoshilinch"
+    },
+    "geo": {
+      "map_title": "Savdo tezligi xaritasi (qizil=tez, sariq=o'rta, ko'k=past)",
+      "period_note": "Davr: {{days}} kun",
+      "no_gps": "GPS koordinatalari bo'lgan do'konlar topilmadi"
+    },
+    "expiry": {
+      "within_days_label": "Expiry ogohlantirish (kun)",
+      "col_store": "Do'kon",
+      "col_product": "Mahsulot",
+      "col_qty": "Miqdor",
+      "col_expiry_date": "Muddat",
+      "col_days_left": "Qolgan kun",
+      "col_status": "Holat",
+      "status_expired": "Muddati o'tgan",
+      "status_urgent": "Shoshilinch",
+      "status_warning": "Ogohlantirish",
+      "overdue": "O'tgan",
+      "empty": "Muddati o'tayotgan tovarlar topilmadi"
+    },
+    "products": {
+      "order_top": "Eng ko'p",
+      "order_bottom": "Eng kam",
+      "col_sold_qty": "Sotilgan",
+      "col_store_count": "Do'konlar soni",
+      "empty": "Ma'lumotlar topilmadi"
+    },
+    "stores": {
+      "col_name": "Do'kon",
+      "col_address": "Manzil",
+      "col_status": "Shartnoma holati",
+      "col_valid_to": "Muddati",
+      "col_inventory": "Qoldiq (dona)",
+      "col_sold_30d": "30 kun sotuv",
+      "empty": "Shartnoma qilgan do'konlar topilmadi"
+    },
+    "recommendations": {
+      "ai_summary_title": "AI Xulosa (Claude)",
+      "severity_high": "Yuqori",
+      "severity_medium": "O'rta",
+      "severity_low": "Past",
+      "empty": "Hozircha tavsiyalar yo'q"
     }
   },
   "customers": {
