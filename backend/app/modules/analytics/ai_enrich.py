@@ -46,10 +46,10 @@ async def enrich_with_ai(
     except ImportError:
         return None, False
 
-    # Kalit yo'q → no-op
-    api_key = getattr(settings, "anthropic_api_key", None)
+    # Kalit yo'q → no-op (Groq — bepul provayder)
+    api_key = getattr(settings, "groq_api_key", None)
     if not api_key:
-        logger.debug("ai_enrich: ANTHROPIC_API_KEY yo'q — rule-based fallback")
+        logger.debug("ai_enrich: GROQ_API_KEY yo'q — rule-based fallback")
         return None, False
 
     ai_enabled_flag = getattr(settings, "analytics_ai_enabled", True)
@@ -63,7 +63,7 @@ async def enrich_with_ai(
     try:
         import httpx
 
-        model = getattr(settings, "anthropic_model", "claude-3-haiku-20240307")
+        model = getattr(settings, "groq_model", "llama-3.3-70b-versatile")
 
         # PII-guard: faqat tavsiya kodi + jiddiylik + raqamlar + mahsulot nomi
         # Do'kon nomi ham yuborilmaydi (anonimlashtirish)
@@ -83,29 +83,30 @@ async def enrich_with_ai(
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
+                "https://api.groq.com/openai/v1/chat/completions",
                 headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
+                    "Authorization": f"Bearer {api_key}",
                     "content-type": "application/json",
                 },
                 json={
                     "model": model,
                     "max_tokens": 400,
+                    "temperature": 0.4,
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )
 
         if resp.status_code == 200:
             data = resp.json()
-            content_blocks = data.get("content", [])
-            if content_blocks and content_blocks[0].get("type") == "text":
-                summary = content_blocks[0]["text"].strip()
-                logger.info("ai_enrich: Claude boyitish muvaffaqiyatli")
-                return summary, True
+            choices = data.get("choices", [])
+            if choices:
+                summary = (choices[0].get("message", {}).get("content") or "").strip()
+                if summary:
+                    logger.info("ai_enrich: Groq boyitish muvaffaqiyatli")
+                    return summary, True
 
         logger.warning(
-            "ai_enrich: Claude noto'g'ri javob",
+            "ai_enrich: Groq noto'g'ri javob",
             extra={"status_code": resp.status_code},
         )
         return None, False

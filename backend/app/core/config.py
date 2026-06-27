@@ -149,7 +149,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     # Claude model ID (default: tez va arzon)
     anthropic_model: str = "claude-3-haiku-20240307"
-    # AI boyitishni to'liq o'chirish (ANTHROPIC_API_KEY bo'lsa ham)
+    # ─── Groq (BEPUL — tavsiya etilgan AI provayder) ────────────────────────
+    # Groq API kaliti (ixtiyoriy) — bepul tier, OpenAI-mos endpoint. Bo'lmasa rule-based.
+    groq_api_key: str | None = None
+    # Groq model (tez + bepul)
+    groq_model: str = "llama-3.3-70b-versatile"
+    # AI boyitishni to'liq o'chirish (kalit bo'lsa ham)
     analytics_ai_enabled: bool = True
 
     # ─── PII shifrlash kalitlari (T5) ──────────────────────────────────────
