@@ -195,6 +195,7 @@ class _AgentQuickActions extends ConsumerWidget {
     final hasCatalog = ref.watch(moduleEnabledProvider('catalog'));
     final hasOrders = ref.watch(moduleEnabledProvider('orders'));
     final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+    final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
 
     final actions = <_QuickActionData>[
       if (hasOrders)
@@ -213,6 +214,12 @@ class _AgentQuickActions extends ConsumerWidget {
           icon: Icons.inventory_2_rounded,
           label: 'Katalog',
           route: '/home/catalog',
+        ),
+      if (hasMarketplace)
+        _QuickActionData(
+          icon: Icons.storefront_rounded,
+          label: 'Marketplace',
+          route: '/home/marketplace',
         ),
       if (hasAttendance)
         _QuickActionData(

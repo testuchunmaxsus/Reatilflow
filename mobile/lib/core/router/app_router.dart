@@ -29,10 +29,14 @@ import '../../features/pos/pos_inventory_screen.dart';
 import '../../features/pos/pos_sale_screen.dart';
 import '../../features/pos/pos_summary_screen.dart';
 import '../../features/pos/store_dashboard.dart';
+import '../../features/contracts/contract_list_screen.dart';
+import '../../features/contracts/create_contract_screen.dart';
+import '../../features/marketplace/onetime_order_screen.dart';
 import '../../features/stores/create_store_screen.dart';
 import '../../features/stores/edit_store_screen.dart';
 import '../../features/stores/store_detail_screen.dart';
 import '../../features/stores/store_list_screen.dart';
+import '../../features/stores/store_onboarding_screen.dart';
 
 /// Yo'llar
 const String routeLogin = '/login';
@@ -84,6 +88,12 @@ const String routeMarketplaceOrders = '/home/marketplace/orders';
 const String routeMarketplaceOrderDetail = '/home/marketplace/orders/:orderId';
 const String routeMarketplaceAccept =
     '/home/marketplace/orders/:orderId/accept';
+
+// Agent: store onboarding + contracts + onetime order
+const String routeStoreOnboarding = '/home/stores/:storeId/onboarding';
+const String routeStoreContracts = '/home/stores/:storeId/contracts';
+const String routeContractCreate = '/home/stores/:storeId/contracts/create';
+const String routeOnetimeOrder = '/home/marketplace/onetime';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authNotifierProvider);
@@ -183,6 +193,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       storeId: state.pathParameters['storeId']!,
                     ),
                   ),
+                  GoRoute(
+                    path: 'onboarding',
+                    builder: (context, state) => StoreOnboardingScreen(
+                      storeId: state.pathParameters['storeId']!,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'contracts',
+                    builder: (context, state) => ContractListScreen(
+                      storeId: state.pathParameters['storeId']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'create',
+                        builder: (context, state) => CreateContractScreen(
+                          storeId: state.pathParameters['storeId']!,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ],
@@ -227,7 +257,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const PosSummaryScreen(),
           ),
 
-          // --- Do'kon: Marketplace ---
+          // --- Do'kon + Agent: Marketplace ---
           GoRoute(
             path: routeMarketplace,
             builder: (context, state) =>
@@ -251,6 +281,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                 ],
+              ),
+              // Agent: bir martalik buyurtma
+              GoRoute(
+                path: 'onetime',
+                builder: (context, state) {
+                  final storeId =
+                      state.uri.queryParameters['storeId'] ?? '';
+                  return OnetimeOrderScreen(storeId: storeId);
+                },
               ),
             ],
           ),

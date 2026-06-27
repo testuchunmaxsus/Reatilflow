@@ -135,4 +135,41 @@ class StoreRepository {
 
   /// Do'konni lokal bazadan ID bo'yicha olish
   Future<Store?> getById(String id) => _storesDao.getById(id);
+
+  /// Agentni do'konga biriktirish — OFFLINE-FIRST.
+  ///
+  /// outbox'ga 'store.assign_agent' operatsiya yozadi.
+  /// Backend: POST /customers/stores/{id}/assign-agent.
+  Future<String> assignAgent({
+    required String storeId,
+    required String agentId,
+  }) async {
+    final clientUuid = _uuid.v4();
+    final now = DateTime.now();
+
+    final payload = <String, dynamic>{
+      'store_id': storeId,
+      'agent_id': agentId,
+    };
+
+    await _outboxDao.insertOp(
+      OutboxQueueCompanion.insert(
+        opType: 'store.assign_agent',
+        clientUuid: clientUuid,
+        payload: jsonEncode(payload),
+        createdAt: Value(now),
+      ),
+    );
+
+    // Lokal bazada ham yangilash (offline display uchun)
+    await _storesDao.upsertFromSync(
+      StoresCompanion(
+        id: Value(storeId),
+        agentId: Value(agentId),
+        updatedAt: Value(now),
+      ),
+    );
+
+    return clientUuid;
+  }
 }

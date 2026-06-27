@@ -123,6 +123,9 @@ class SyncService {
               serverId: result.serverId,
             );
           }
+          // marketplace_order.create — applied (server_id ixtiyoriy)
+          // contract.create / store.assign_agent — applied, outbox tozalanadi
+          // Bu op'lar uchun lokal jadvalda server_id kerak emas (outbox yetarli)
 
         case 'duplicate':
           // Avval yuborilgan — o'chirish (idempotent)
@@ -134,6 +137,7 @@ class SyncService {
               serverId: result.serverId,
             );
           }
+          // marketplace_order.create duplicate — outbox deleteApplied tozalaydi
 
         case 'conflict':
           // IDOR yoki boshqa aktor — conflict belgilab qo'y

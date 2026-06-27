@@ -429,6 +429,8 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
 
     int successCount = 0;
     final errors = <String>[];
+    // GATE: shartnoma talab qilingan korxonalar
+    final contractRequired = <String>[];
 
     for (final item in items) {
       try {
@@ -437,10 +439,16 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
             .createOrder(
               productId: item.product.id,
               qty: item.qty,
+              supplierEnterpriseName: item.product.supplierEnterpriseName,
             );
-        final state = ref.read(createMarketplaceOrderProvider);
-        if (state is CreateOrderSuccess) successCount++;
-        if (state is CreateOrderFailure) errors.add(item.product.name);
+        final orderState = ref.read(createMarketplaceOrderProvider);
+        if (orderState is CreateOrderSuccess) {
+          successCount++;
+        } else if (orderState is CreateOrderContractRequired) {
+          contractRequired.add(item.product.supplierEnterpriseName);
+        } else if (orderState is CreateOrderFailure) {
+          errors.add(item.product.name);
+        }
         ref.read(createMarketplaceOrderProvider.notifier).reset();
       } catch (_) {
         errors.add(item.product.name);
@@ -451,9 +459,16 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
 
     setState(() => _ordering = false);
 
+    // GATE dialog — shartnoma talab qilinsa, avval ko'rsatamiz
+    if (contractRequired.isNotEmpty && mounted) {
+      await _showContractRequiredDialog(contractRequired);
+    }
+
+    if (!mounted) return;
+
     final appColors = AppTheme.colorsOf(context);
 
-    if (errors.isEmpty) {
+    if (errors.isEmpty && contractRequired.isEmpty) {
       ref.read(marketplaceCartProvider.notifier).clear();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -462,13 +477,12 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
           backgroundColor: appColors.success,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(AppSpacing.radiusMd),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
           ),
         ),
       );
       context.go('/home/marketplace/orders');
-    } else {
+    } else if (successCount > 0 && contractRequired.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -478,12 +492,59 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
           backgroundColor: appColors.warning,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(AppSpacing.radiusMd),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
           ),
         ),
       );
     }
+    // GATE + qisman muvaffaqiyat: dialog ko'rsatildi, snackbar mos kerak emas
+  }
+
+  /// 409 marketplace.contract_required — GATE dialog.
+  Future<void> _showContractRequiredDialog(
+      List<String> supplierNames) async {
+    final uniqueSuppliers = supplierNames.toSet().toList();
+    final supplierList = uniqueSuppliers.join(', ');
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.handshake_outlined, size: 40),
+        title: const Text('Shartnoma talab qilinadi'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quyidagi korxona(lar) bilan shartnomangiz yo\'q:',
+              style: Theme.of(ctx).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              supplierList,
+              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(ctx).colorScheme.primary,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Buyurtma berish uchun korxona bilan shartnoma tuzilishi kerak. '
+              'Iltimos, agentingiz bilan bog\'laning.',
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Tushunarli'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _fmtPrice(double v) {

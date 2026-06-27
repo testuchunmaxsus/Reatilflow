@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_providers.dart';
@@ -316,6 +317,15 @@ class CreateOrderFailure extends CreateOrderState {
   final String message;
 }
 
+/// Backend 409 marketplace.contract_required — shartnoma talab qilinadi.
+///
+/// Do'kon shu korxona bilan shartnomasi yo'q bo'lganda backend bu xatoni qaytaradi.
+/// UI: "Bu korxona bilan shartnomangiz yo'q. Agent orqali murojaat qiling."
+class CreateOrderContractRequired extends CreateOrderState {
+  const CreateOrderContractRequired({required this.supplierName});
+  final String supplierName;
+}
+
 /// Bitta mahsulot → bitta buyurtma notifier.
 ///
 /// Server-avtoritar: faqat product_id + qty yuboriladi.
@@ -329,6 +339,9 @@ class CreateMarketplaceOrderNotifier
   Future<void> createOrder({
     required String productId,
     required double qty,
+    // Opsional: do'kon rolida server JWT'dan aniqlaydi,
+    // agent rejimida store_id va is_onetime OnetimeOrderNotifier orqali ketadi.
+    String? supplierEnterpriseName,
   }) async {
     state = const CreateOrderLoading();
     try {
@@ -339,9 +352,32 @@ class CreateMarketplaceOrderNotifier
       );
       final order = await _repository.createOrder(request);
       state = CreateOrderSuccess(order: order);
+    } on DioException catch (e) {
+      // 409 marketplace.contract_required — GATE
+      if (e.response?.statusCode == 409) {
+        final messageKey = _extractMessageKey(e.response?.data);
+        if (messageKey == 'marketplace.contract_required') {
+          state = CreateOrderContractRequired(
+            supplierName: supplierEnterpriseName ?? 'bu korxona',
+          );
+          return;
+        }
+      }
+      state = CreateOrderFailure(
+          message: e.response?.data?['detail']?.toString() ?? e.toString());
     } on Exception catch (e) {
       state = CreateOrderFailure(message: e.toString());
     }
+  }
+
+  /// Backend xato javobidan messageKey ni ajratib olish.
+  static String? _extractMessageKey(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data['message_key'] as String? ??
+          data['code'] as String? ??
+          data['detail'] as String?;
+    }
+    return null;
   }
 
   void reset() => state = const CreateOrderIdle();

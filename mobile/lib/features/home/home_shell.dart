@@ -132,6 +132,7 @@ class _AgentNavBar extends ConsumerWidget {
     final hasCatalog = ref.watch(moduleEnabledProvider('catalog'));
     final hasOrders = ref.watch(moduleEnabledProvider('orders'));
     final hasAttendance = ref.watch(moduleEnabledProvider('attendance'));
+    final hasMarketplace = ref.watch(moduleEnabledProvider('marketplace'));
 
     final tabs = <_NavTab>[
       const _NavTab(
@@ -155,6 +156,14 @@ class _AgentNavBar extends ConsumerWidget {
           icon: Icons.inventory_2_outlined,
           selectedIcon: Icons.inventory_2_rounded,
           label: 'Katalog',
+        ),
+      if (hasMarketplace)
+        const _NavTab(
+          route: '/home/marketplace',
+          matchPrefix: '/home/marketplace',
+          icon: Icons.storefront_outlined,
+          selectedIcon: Icons.storefront_rounded,
+          label: 'Marketplace',
         ),
       if (hasOrders)
         const _NavTab(
