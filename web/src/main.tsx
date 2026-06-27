@@ -158,6 +158,12 @@ const AnalyticsDashboardPage = lazy(() =>
     default: m.AnalyticsDashboardPage,
   })),
 );
+// Import sahifasi — code-split
+const ImportPage = lazy(() =>
+  import("@/features/import/ImportPage").then((m) => ({
+    default: m.ImportPage,
+  })),
+);
 
 // ─── POS wrapper komponentlari ───────────────────────────────────────────
 
@@ -455,6 +461,15 @@ function App() {
                       element={
                         <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
                           <AnalyticsDashboardPage />
+                        </Suspense>
+                      }
+                    />
+                    {/* /import — Excel va Nakladnoy rasm import */}
+                    <Route
+                      path="import"
+                      element={
+                        <Suspense fallback={<Center py="xl"><Loader size="md" /></Center>}>
+                          <ImportPage />
                         </Suspense>
                       }
                     />

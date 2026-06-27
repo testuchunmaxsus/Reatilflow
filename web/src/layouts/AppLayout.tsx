@@ -47,12 +47,14 @@ import {
   IconBox,
   IconMapPin,
   IconBrain,
+  IconFileImport,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { usePermissions } from "@/rbac/usePermissions";
 import { useEnterprise } from "@/enterprise/EnterpriseContext";
+import { AssistantWidget } from "@/features/assistant/AssistantWidget";
 import type { UserRole } from "@/api/types";
 
 // ─── Nav elementlari ─────────────────────────────────────────────────────
@@ -192,6 +194,13 @@ function useNavItems(): NavItem[] {
       icon: IconBrain,
       requiredPermission: "analytics:view",
       requiredModule: "analytics",
+    },
+    {
+      label: t("nav.import", { defaultValue: "Import" }),
+      path: "/import",
+      icon: IconFileImport,
+      requiredPermission: "import:create",
+      requiredModule: "import",
     },
     {
       label: t("nav.agent_cabinet"),
@@ -349,6 +358,9 @@ export function AppLayout() {
       <AppShell.Main>
         <Outlet />
       </AppShell.Main>
+
+      {/* AI Chat widget — har sahifada suzuvchi tugma */}
+      <AssistantWidget />
     </AppShell>
   );
 }

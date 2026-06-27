@@ -58,7 +58,8 @@
     "attendance": "Davomat",
     "stock": "Ombor",
     "gps": "GPS kuzatuv",
-    "analytics": "AI Tahlil"
+    "analytics": "AI Tahlil",
+    "import": "Import"
   },
   "common": {
     "loading": "Yuklanmoqda...",
@@ -1445,6 +1446,75 @@
       "severity_low": "Past",
       "empty": "Hozircha tavsiyalar yo'q"
     }
+  },
+  "import": {
+    "title": "Import (Excel / Nakladnoy rasm)",
+    "access_denied": "Bu sahifani ko'rish uchun ruxsat yo'q",
+    "tabs": {
+      "excel": "Excel (.xlsx)",
+      "nakladnoy": "Nakladnoy rasmi"
+    },
+    "actions": {
+      "choose_excel": "Excel fayl tanlash",
+      "choose_image": "Nakladnoy rasmi tanlash",
+      "confirm": "Tasdiqlab import ({count})"
+    },
+    "hints": {
+      "excel": "Faqat .xlsx, maksimal 5 MB. Sarlavha qatori majburiy.",
+      "image": "JPEG, PNG, WebP, maksimal 8 MB. AI rasm o'qiydi — natijani tekshiring."
+    },
+    "parsing": "Fayl tahlil qilinmoqda...",
+    "parsing_image": "Rasm o'qilmoqda (AI Vision)...",
+    "sections": {
+      "preview": "Preview ({{count}} satr) — tahrirlang, so'ng tasdiqlang",
+      "result": "Import natijasi"
+    },
+    "preview": {
+      "empty": "Preview bo'sh — fayl yuklab ko'ring",
+      "col_name": "Mahsulot nomi",
+      "col_sku": "SKU",
+      "col_barcode": "Barcode",
+      "col_qty": "Miqdor",
+      "col_price": "Narx",
+      "col_currency": "Val.",
+      "col_expiry": "Muddat",
+      "remove_row": "Satrni o'chirish",
+      "name_required": "Majburiy",
+      "qty_positive": ">0",
+      "low_confidence": "AI aniqlik past — tekshiring"
+    },
+    "result": {
+      "created": "Yaratildi: {{n}}",
+      "skipped": "O'tkazildi: {{n}}",
+      "errors": "Xato: {{n}}",
+      "target": "Maqsad: {{t}}",
+      "error_list": "Xatoliklar:"
+    },
+    "messages": {
+      "confirm_done": "Import yakunlandi",
+      "confirm_detail": "Yaratildi: {{created}}, o'tkazib yuborildi: {{skipped}}, xato: {{errors}}"
+    },
+    "errors": {
+      "invalid_file": "Noto'g'ri fayl",
+      "xlsx_only": "Faqat .xlsx fayl qabul qilinadi",
+      "image_formats": "Faqat JPEG, PNG, WebP qabul qilinadi",
+      "too_large": "Fayl juda katta",
+      "max_5mb": "Maksimal hajm 5 MB",
+      "max_8mb": "Maksimal hajm 8 MB",
+      "vision_unavailable": "Rasm o'qib bo'lmadi. Qo'lda kiriting yoki Excel ishlating.",
+      "invalid_rows_title": "Noto'g'ri satrlar",
+      "invalid_rows_msg": "Ba'zi satrlarda nom bo'sh yoki miqdor 0. Iltimos tekshiring."
+    }
+  },
+  "assistant": {
+    "title": "AI Yordamchi",
+    "toggle_tooltip": "AI Yordamchi",
+    "greeting": "Salom! Men RETAIL tizimi bo'yicha yordam beraman. Savol bering.",
+    "thinking": "Javob tayyorlanmoqda...",
+    "input_placeholder": "Savol yozing... (Enter — yuborish)",
+    "send": "Yuborish",
+    "offline_badge": "qo'llanma",
+    "error_fallback": "Kechirasiz, hozirda javob bera olmayapman. Qayta urinib ko'ring."
   },
   "customers": {
     "actions": {
