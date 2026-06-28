@@ -17,6 +17,7 @@ MT1: RLS session variable mexanizmi.
   - RLS siyosatlari (migratsiya 0020) bu o'zgaruvchiga tayanadi.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -32,6 +33,67 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ─── Transient connect retry (DB "starting up" / qisqa uzilish) ──────────────
+# Railway Postgres qayta ishga tushganda asyncpg `CannotConnectNowError:
+# the database system is starting up` qaytaradi. pool_pre_ping mavjud ulanishni
+# tekshiradi, lekin DB butunlay rad etganda YANGI ulanish ham yarata olmaydi → 500.
+# Yechim: ulanish o'rnatishni qisqa eksponensial backoff bilan qayta urinish.
+try:
+    from asyncpg.exceptions import CannotConnectNowError as _CannotConnectNow
+    _ASYNCPG_TRANSIENT: tuple[type[BaseException], ...] = (_CannotConnectNow,)
+except Exception:  # asyncpg yo'q (sof SQLite test muhiti)
+    _ASYNCPG_TRANSIENT = ()
+
+from sqlalchemy.exc import InterfaceError as _SAInterfaceError
+from sqlalchemy.exc import OperationalError as _SAOperationalError
+
+# Faqat ulanish-darajasidagi vaqtinchalik xatolar (so'rov xatolari emas)
+_TRANSIENT_CONNECT_ERRORS: tuple[type[BaseException], ...] = (
+    *_ASYNCPG_TRANSIENT,
+    _SAOperationalError,
+    _SAInterfaceError,
+    ConnectionError,
+    OSError,
+)
+_CONNECT_RETRY_ATTEMPTS = 5
+_CONNECT_RETRY_BASE_DELAY = 0.3
+_CONNECT_RETRY_MAX_DELAY = 1.5
+
+
+async def _acquire_connected_session(
+    factory: "async_sessionmaker[AsyncSession]",
+) -> AsyncSession:
+    """
+    Sessiya ochib, ulanishni MAJBURIY o'rnatadi — transient connect xatosida retry.
+
+    `await session.connection()` pool'dan ulanish oladi (+ pool_pre_ping SELECT 1).
+    DB qayta ishga tushayotgan bo'lsa (CannotConnectNowError) qisqa backoff bilan
+    qayta urinadi. Barcha urinishlar tugasa — oxirgi xatoni qayta ko'taradi.
+    SQLite (test) — birinchi urinishda ulanadi, retry ishlamaydi.
+    """
+    last_exc: BaseException | None = None
+    for attempt in range(_CONNECT_RETRY_ATTEMPTS):
+        session = factory()
+        try:
+            await session.connection()
+            return session
+        except _TRANSIENT_CONNECT_ERRORS as exc:
+            last_exc = exc
+            await session.close()
+            if attempt == _CONNECT_RETRY_ATTEMPTS - 1:
+                break
+            delay = min(
+                _CONNECT_RETRY_MAX_DELAY, _CONNECT_RETRY_BASE_DELAY * (2 ** attempt)
+            )
+            logger.warning(
+                "db.connect.transient_retry attempt=%d/%d error=%r delay=%.2fs",
+                attempt + 1, _CONNECT_RETRY_ATTEMPTS, exc, delay,
+            )
+            await asyncio.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
+
 
 # ─── Engine sozlamalari ─────────────────────────────────────────────────────
 
@@ -149,13 +211,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     Uso'age:
         async def my_endpoint(db: AsyncSession = Depends(get_db)):
     """
-    async with AsyncSessionPrimary() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    session = await _acquire_connected_session(AsyncSessionPrimary)
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
 async def get_db_replica() -> AsyncGenerator[AsyncSession, None]:
@@ -165,13 +229,11 @@ async def get_db_replica() -> AsyncGenerator[AsyncSession, None]:
     Katalog, statistika, ro'yxat endpointlar uchun.
     Moliyaviy ma'lumotlar uchun get_db() ishlatilsin.
     """
-    async with AsyncSessionReplica() as session:
-        try:
-            yield session
-        except Exception:
-            raise
-        finally:
-            await session.close()
+    session = await _acquire_connected_session(AsyncSessionReplica)
+    try:
+        yield session
+    finally:
+        await session.close()
 
 
 async def get_timescale_db() -> AsyncGenerator[AsyncSession, None]:
@@ -183,13 +245,15 @@ async def get_timescale_db() -> AsyncGenerator[AsyncSession, None]:
     Uso'age:
         async def my_endpoint(db: AsyncSession = Depends(get_timescale_db)):
     """
-    async with AsyncSessionTimescale() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    session = await _acquire_connected_session(AsyncSessionTimescale)
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
 # ─── Startup / Shutdown ────────────────────────────────────────────────────
