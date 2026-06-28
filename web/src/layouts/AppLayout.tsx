@@ -67,6 +67,12 @@ interface NavItem {
   requiredPermission?: string;
   /** Modul kaliti — yoqilmagan bo'lsa nav elementini yashiradi */
   requiredModule?: string;
+  /**
+   * Agar belgilangan bo'lsa — faqat shu rollar ko'radi.
+   * requiredPermission/requiredModule ga QO'SHIMCHA filtr (ularni buzmaydi).
+   * Belgilanmagan bo'lsa — ruxsat va modul tekshiruviga asoslanadi (joriy xatti-harakat).
+   */
+  roles?: UserRole[];
 }
 
 function useNavItems(): NavItem[] {
@@ -111,12 +117,14 @@ function useNavItems(): NavItem[] {
       path: "/users",
       icon: IconUsers,
       requiredPermission: "rbac:view",
+      roles: ["administrator"],
     },
     {
       label: t("nav.rbac"),
       path: "/rbac",
       icon: IconShieldLock,
       requiredPermission: "rbac:create",
+      roles: ["administrator"],
     },
     {
       label: t("nav.contracts"),
@@ -180,6 +188,7 @@ function useNavItems(): NavItem[] {
       icon: IconBox,
       requiredPermission: "stock:view",
       requiredModule: "stock",
+      roles: ["administrator"],
     },
     {
       label: t("nav.gps"),
@@ -194,6 +203,7 @@ function useNavItems(): NavItem[] {
       icon: IconBrain,
       requiredPermission: "analytics:view",
       requiredModule: "analytics",
+      roles: ["administrator", "accountant"],
     },
     {
       label: t("nav.import", { defaultValue: "Import" }),
@@ -201,6 +211,7 @@ function useNavItems(): NavItem[] {
       icon: IconFileImport,
       requiredPermission: "import:create",
       requiredModule: "import",
+      roles: ["administrator", "accountant"],
     },
     {
       label: t("nav.agent_cabinet"),
@@ -209,12 +220,14 @@ function useNavItems(): NavItem[] {
       requiredPermission: "agent_cabinet:view",
       // FIX #9: agent_cabinet ALL_MODULE_KEYS_FRONTEND da yo'q — modul emas, rol-based feature.
       // requiredModule qo'shilmaydi: barcha enterpriselar uchun mavjud (modul gating kerak emas).
+      roles: ["agent"],
     },
     {
       label: t("nav.settings"),
       path: "/settings",
       icon: IconSettings,
       requiredPermission: "rbac:view",
+      roles: ["administrator"],
     },
   ];
 }
@@ -303,6 +316,8 @@ export function AppLayout() {
     if (item.requiredPermission && !can(item.requiredPermission)) return false;
     // Modul gating tekshiruvi
     if (item.requiredModule && !hasModule(item.requiredModule)) return false;
+    // Rol-darajali kuratsiya: belgilangan bo'lsa faqat shu rollar ko'radi
+    if (item.roles && user && !item.roles.includes(user.role)) return false;
     return true;
   });
 

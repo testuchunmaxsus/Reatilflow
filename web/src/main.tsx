@@ -31,7 +31,7 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/auth/LoginPage";
 import { AppLayout } from "@/layouts/AppLayout";
 import { EnterpriseProvider } from "@/enterprise/EnterpriseContext";
-import { DashboardPage } from "@/pages/DashboardPage";
+import { RoleDashboard } from "@/features/dashboard/RoleDashboard";
 import { CatalogListPage } from "@/features/catalog/CatalogListPage";
 import { CustomerListPage } from "@/features/customers/CustomerListPage";
 import { OrderListPage } from "@/features/orders/OrderListPage";
@@ -345,7 +345,7 @@ function App() {
                 {/* Himoyalangan sahifalar — tenant foydalanuvchilar */}
                 <Route element={<ProtectedRoute />}>
                   <Route element={<AppLayout />}>
-                    <Route index element={<DashboardPage />} />
+                    <Route index element={<RoleDashboard />} />
                     <Route path="catalog" element={<CatalogListPage />} />
                     <Route path="customers" element={<CustomerListPage />} />
                     <Route path="orders" element={<OrderListPage />} />
