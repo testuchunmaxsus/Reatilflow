@@ -21,6 +21,19 @@ import { Notifications } from "@mantine/notifications";
 // i18n — import before App (yuklash va konfiguratsiya)
 import "@/i18n";
 
+// Yangi deploy'dan keyin eski build'ning lazy-chunk'lari serverda bo'lmaydi —
+// Vite bunda "vite:preloadError" hodisasini chiqaradi. Sahifani bir marta
+// avtomatik yangilaymiz (sessionStorage bayrog'i cheksiz reload'dan saqlaydi).
+window.addEventListener("vite:preloadError", (event) => {
+  const KEY = "chunk-reload-at";
+  const last = Number(sessionStorage.getItem(KEY) || 0);
+  if (Date.now() - last > 15_000) {
+    sessionStorage.setItem(KEY, String(Date.now()));
+    event.preventDefault();
+    window.location.reload();
+  }
+});
+
 // Mantine CSS (zarur)
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
