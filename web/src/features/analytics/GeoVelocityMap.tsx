@@ -54,8 +54,9 @@ export function GeoVelocityMap({ stores }: GeoVelocityMapProps) {
     (s) => s.gps_lat !== null && s.gps_lat !== undefined &&
            s.gps_lng !== null && s.gps_lng !== undefined,
   );
+  // Backend Decimal maydonlarni JSON'da SATR qilib yuboradi — Number() majburiy
   const maxVelocity = withGps.length > 0
-    ? Math.max(...withGps.map((s) => s.velocity_per_day ?? 0))
+    ? Math.max(...withGps.map((s) => Number(s.velocity_per_day ?? 0)))
     : 0;
 
   // Xarita markazini birinchi nuqtaga qarab hisoblash
@@ -85,7 +86,7 @@ export function GeoVelocityMap({ stores }: GeoVelocityMapProps) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
       {withGps.map((store) => {
-        const vel = store.velocity_per_day ?? 0;
+        const vel = Number(store.velocity_per_day ?? 0);
         return (
           <CircleMarker
             key={store.store_id}
@@ -106,7 +107,7 @@ export function GeoVelocityMap({ stores }: GeoVelocityMapProps) {
                   </div>
                 )}
                 <div style={{ marginTop: 6, fontSize: 13 }}>
-                  <div>Sotilgan: <strong>{(store.sold_qty ?? 0).toLocaleString()}</strong> dona</div>
+                  <div>Sotilgan: <strong>{Number(store.sold_qty ?? 0).toLocaleString()}</strong> dona</div>
                   <div>Daromad: <strong>{Number(store.revenue ?? 0).toLocaleString()} UZS</strong></div>
                   <div>
                     Tezlik: <strong>{vel.toFixed(1)}</strong> dona/kun

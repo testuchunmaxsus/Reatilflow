@@ -68,7 +68,7 @@ export function ExpiryAlertsPanel({ items }: ExpiryAlertsPanelProps) {
         </Table.Thead>
         <Table.Tbody>
           {items.map((item, idx) => {
-            const daysLeft = item.days_left ?? 0;
+            const daysLeft = Number(item.days_left ?? 0);
             return (
               <Table.Tr key={`${item.store_id}-${item.product_id}-${idx}`}>
                 <Table.Td>
@@ -78,7 +78,7 @@ export function ExpiryAlertsPanel({ items }: ExpiryAlertsPanelProps) {
                   <Text size="sm">{item.product_name}</Text>
                 </Table.Td>
                 <Table.Td ta="right">
-                  <Text size="sm">{(item.qty ?? 0).toLocaleString()}</Text>
+                  <Text size="sm">{Number(item.qty ?? 0).toLocaleString()}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{item.expiry_date}</Text>

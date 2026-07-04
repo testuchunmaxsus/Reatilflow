@@ -47,9 +47,9 @@ export function ProductRankingChart({
   const chartData = (products ?? []).map((p) => ({
     name: shortenName(p.product_name ?? ""),
     fullName: p.product_name ?? "",
-    sold_qty: p.sold_qty ?? 0,
+    sold_qty: Number(p.sold_qty ?? 0),
     revenue: Number(p.revenue ?? 0),
-    store_count: p.store_count ?? 0,
+    store_count: Number(p.store_count ?? 0),
   }));
 
   return (

@@ -98,11 +98,11 @@ export function ContractedStoresTable({ stores }: ContractedStoresTableProps) {
               </Table.Td>
               <Table.Td ta="right">
                 {/* inventory_qty — backend: Decimal */}
-                <Text size="sm">{(store.inventory_qty ?? 0).toLocaleString()}</Text>
+                <Text size="sm">{Number(store.inventory_qty ?? 0).toLocaleString()}</Text>
               </Table.Td>
               <Table.Td ta="right">
                 {/* sold_qty_30d — backend: Decimal */}
-                <Text size="sm">{(store.sold_qty_30d ?? 0).toLocaleString()}</Text>
+                <Text size="sm">{Number(store.sold_qty_30d ?? 0).toLocaleString()}</Text>
               </Table.Td>
             </Table.Tr>
           ))}
