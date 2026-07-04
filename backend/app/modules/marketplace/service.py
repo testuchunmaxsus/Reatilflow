@@ -1218,13 +1218,20 @@ async def accept_order(
             status_code=422,
         )
 
-    # Do'kon buyer korxonasiga tegishli ekanligini tekshiramiz
+    # Do'kon buyer'ga KO'RINISHINI tekshiramiz.
+    # ADR-003 (ko'prik): do'kon buyer korxonasiga tegishli bo'lishi ham,
+    # shartnoma orqali ko'rinadigan PLATFORMA do'koni (enterprise_id IS NULL)
+    # bo'lishi ham mumkin — qattiq enterprise-tenglik platforma do'konlarda
+    # accept'ni butunlay bloklaydi.
     from app.models.store import Store
+    from app.modules.rbac.scope import get_store_visibility_filter
     store_stmt = select(Store).where(
         Store.id == effective_store_id,
-        Store.enterprise_id == order.buyer_enterprise_id,
         Store.deleted_at.is_(None),
     )
+    _vis = get_store_visibility_filter(buyer_user)
+    if _vis is not None:
+        store_stmt = store_stmt.where(_vis)
     store_result = await db.execute(store_stmt)
     store_obj = store_result.scalar_one_or_none()
     if store_obj is None:

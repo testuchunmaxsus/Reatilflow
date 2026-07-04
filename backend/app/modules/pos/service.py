@@ -57,6 +57,7 @@ from app.modules.pos.schemas import (
     PosSaleCreate,
 )
 from app.modules.rbac.enterprise_scope import apply_enterprise_filter
+from app.modules.rbac.scope import get_store_visibility_filter
 
 logger = logging.getLogger(__name__)
 
@@ -223,12 +224,21 @@ async def create_sale(
     if not data.lines:
         raise AppError("pos.empty_lines", status_code=422)
 
-    # ── 2. Do'kon mavjudligi (enterprise filtr bilan) ─────────────────────
+    # ── 2. Do'kon mavjudligi ──────────────────────────────────────────────
+    # ADR-003 (ko'prik): platforma do'konlari (enterprise_id IS NULL) ham
+    # shartnoma orqali ko'rinadi — shuning uchun oddiy enterprise-filtr emas,
+    # get_store_visibility_filter ishlatiladi (user bo'lsa). User bo'lmasa
+    # (ichki chaqiruvlar) — eski enterprise-filtr saqlanadi.
     store_stmt = select(Store).where(
         Store.id == data.store_id,
         Store.deleted_at.is_(None),
     )
-    store_stmt = apply_enterprise_filter(store_stmt, enterprise_id, Store.enterprise_id)
+    if user is not None:
+        _vis = get_store_visibility_filter(user)
+        if _vis is not None:
+            store_stmt = store_stmt.where(_vis)
+    else:
+        store_stmt = apply_enterprise_filter(store_stmt, enterprise_id, Store.enterprise_id)
     store_result = await db.execute(store_stmt)
     store = store_result.scalar_one_or_none()
     if store is None:
