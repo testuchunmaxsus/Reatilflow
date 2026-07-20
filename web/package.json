@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "start": "serve -s dist -l ${PORT:-3000}",
+    "start": "serve dist -l ${PORT:-3000}",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
