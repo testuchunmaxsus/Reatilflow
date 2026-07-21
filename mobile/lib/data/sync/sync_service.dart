@@ -66,10 +66,13 @@ class SyncService {
       final batch = pending.skip(i).take(_pushBatchSize).toList();
       final result = await _pushBatch(batch);
       if (result != SyncResult.success) {
-        lastError = result;
         if (result == SyncResult.authError) return SyncResult.authError;
-        // networkError — keyingi batch uchun to'xtatish
-        break;
+        lastError = result;
+        if (result == SyncResult.networkError) {
+          // networkError — keyingi batch uchun to'xtatish
+          break;
+        }
+        // partial — server javob berdi, keyingi batch'lar bilan davom etish
       }
     }
 
@@ -102,6 +105,7 @@ class SyncService {
     }
 
     // Har op natijasini qayta ishlash
+    bool hadConflictOrError = false;
     for (final result in response.results) {
       final item = batch.firstWhere(
         (b) => b.clientUuid == result.clientUuid,
@@ -146,6 +150,7 @@ class SyncService {
             status: 'conflict',
             responseData: result.messageKey,
           );
+          hadConflictOrError = true;
 
         case 'error':
           await _outboxDao.updateStatus(
@@ -154,10 +159,11 @@ class SyncService {
             responseData: result.messageKey,
           );
           await _outboxDao.incrementAttempts(item.id);
+          hadConflictOrError = true;
       }
     }
 
-    return SyncResult.success;
+    return hadConflictOrError ? SyncResult.partial : SyncResult.success;
   }
 
   // ============================================================
@@ -254,6 +260,12 @@ class SyncService {
     await _productsDao.upsertBatch(companions);
   }
 
+  /// Store snapshot ba'zi maydonlarni umuman yubormasligi mumkin (backend
+  /// faqat id/name/segment_id/agent_id/branch_id/version/deleted_at qaytaradi).
+  /// Bunday maydonlar uchun `Value.absent()` beriladi — shunda
+  /// `insertAllOnConflictUpdate` UPDATE'da ularga tegmaydi (lokal
+  /// phone/inn/gps/address/credit_limit saqlanib qoladi), INSERT'da esa
+  /// nullable ustunlar uchun default null qo'llanadi.
   Future<void> _applyStoreChanges(List<ChangeItem> changes) async {
     final companions = <StoresCompanion>[];
     for (final change in changes) {
@@ -261,16 +273,36 @@ class SyncService {
       companions.add(
         StoresCompanion(
           id: Value(_str(s, 'id')),
-          name: Value(_str(s, 'name')),
-          inn: Value(_strOpt(s, 'inn')),
-          phone: Value(_strOpt(s, 'phone')),
-          gpsLat: Value(s['gps_lat'] as double?),
-          gpsLng: Value(s['gps_lng'] as double?),
-          address: Value(_strOpt(s, 'address')),
-          segmentId: Value(_strOpt(s, 'segment_id')),
-          agentId: Value(_strOpt(s, 'agent_id')),
-          branchId: Value(_strOpt(s, 'branch_id')),
-          creditLimit: Value((s['credit_limit'] as num?)?.toDouble()),
+          name: s.containsKey('name')
+              ? Value(_str(s, 'name'))
+              : const Value.absent(),
+          inn: s.containsKey('inn')
+              ? Value(_strOpt(s, 'inn'))
+              : const Value.absent(),
+          phone: s.containsKey('phone')
+              ? Value(_strOpt(s, 'phone'))
+              : const Value.absent(),
+          gpsLat: s.containsKey('gps_lat')
+              ? Value(s['gps_lat'] as double?)
+              : const Value.absent(),
+          gpsLng: s.containsKey('gps_lng')
+              ? Value(s['gps_lng'] as double?)
+              : const Value.absent(),
+          address: s.containsKey('address')
+              ? Value(_strOpt(s, 'address'))
+              : const Value.absent(),
+          segmentId: s.containsKey('segment_id')
+              ? Value(_strOpt(s, 'segment_id'))
+              : const Value.absent(),
+          agentId: s.containsKey('agent_id')
+              ? Value(_strOpt(s, 'agent_id'))
+              : const Value.absent(),
+          branchId: s.containsKey('branch_id')
+              ? Value(_strOpt(s, 'branch_id'))
+              : const Value.absent(),
+          creditLimit: s.containsKey('credit_limit')
+              ? Value((s['credit_limit'] as num?)?.toDouble())
+              : const Value.absent(),
           version: Value((s['version'] as int?) ?? 1),
           createdAt: Value(_parseDate(s, 'created_at')),
           updatedAt: Value(_parseDate(s, 'updated_at')),
@@ -287,11 +319,14 @@ class SyncService {
       final s = change.snapshot;
       final serverId = _str(s, 'id');
 
-      // Lokal order ni client_uuid bo'yicha topish
-      final localOrder = await (
-        // Drift'da custom where — server_id yoki clientUuid
-        _ordersDao.getById(serverId)
-      );
+      // Avval server_id bo'yicha qidirish (push'da saqlangan bo'lsa topiladi),
+      // topilmasa client_uuid bo'yicha fallback (birinchi pull, push hali
+      // yetib bormagan holat).
+      var localOrder = await _ordersDao.getByServerId(serverId);
+      final snapshotClientUuid = _strOpt(s, 'client_uuid');
+      if (localOrder == null && snapshotClientUuid != null) {
+        localOrder = await _ordersDao.getByClientUuid(snapshotClientUuid);
+      }
 
       if (localOrder != null) {
         // Mavjud — yangilash (holat mashinasi: server-avtoritar)
@@ -323,8 +358,12 @@ class SyncService {
     final pullResult = await pull();
     if (pullResult == SyncResult.authError) return SyncResult.authError;
 
-    if (pushResult == SyncResult.partial ||
+    if (pushResult == SyncResult.networkError ||
         pullResult == SyncResult.networkError) {
+      return SyncResult.networkError;
+    }
+
+    if (pushResult == SyncResult.partial) {
       return SyncResult.partial;
     }
 

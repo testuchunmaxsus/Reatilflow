@@ -9,9 +9,17 @@ part 'outbox_dao.g.dart';
 class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   OutboxDao(super.db);
 
-  /// Yuborilishi kerak bo'lgan op'lar (pending)
+  /// Qayta urinish uchun ruxsat etilgan maksimal attempts soni.
+  static const int _maxAttempts = 5;
+
+  /// Yuborilishi kerak bo'lgan op'lar — pending yoki (error va attempts < max).
+  /// Shu tarza xato bo'lgan op'lar keyingi sync'da qayta uriniladi (dead-letter
+  /// faqat attempts limitiga yetganda).
   Future<List<OutboxQueueData>> getPending() => (select(outboxQueue)
-        ..where((o) => o.status.equals('pending'))
+        ..where((o) =>
+            o.status.equals('pending') |
+            (o.status.equals('error') &
+                o.attempts.isSmallerThanValue(_maxAttempts)))
         ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
       .get();
 
@@ -19,7 +27,11 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   Future<int> insertOp(OutboxQueueCompanion op) =>
       into(outboxQueue).insert(op);
 
-  /// Status yangilash (server javobi bo'yicha)
+  /// Status yangilash (server javobi bo'yicha).
+  ///
+  /// Attempts hisobi bu yerda YO'Q — yagona manba [incrementAttempts]
+  /// (xato yo'lida sync_service alohida chaqiradi). Bu yerda ham oshirish
+  /// ikki marta hisoblashga olib kelardi.
   Future<void> updateStatus(
     int id, {
     required String status,
@@ -29,12 +41,6 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
       OutboxQueueCompanion(
         status: Value(status),
         lastAttemptAt: Value(DateTime.now()),
-        attempts: Value(
-          (await (select(outboxQueue)..where((o) => o.id.equals(id)))
-                  .getSingleOrNull())
-              ?.attempts ??
-              0 + 1,
-        ),
         responseData:
             responseData != null ? Value(responseData) : const Value.absent(),
       ),

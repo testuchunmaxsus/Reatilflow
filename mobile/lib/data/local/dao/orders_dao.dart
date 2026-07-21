@@ -19,6 +19,16 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   Future<Order?> getById(String id) =>
       (select(orders)..where((o) => o.id.equals(id))).getSingleOrNull();
 
+  /// Server ID bo'yicha (pull — serverdan kelgan snapshot bilan moslashtirish)
+  Future<Order?> getByServerId(String serverId) => (select(orders)
+        ..where((o) => o.serverId.equals(serverId)))
+      .getSingleOrNull();
+
+  /// Client UUID bo'yicha (push idempotentligi va pull fallback uchun)
+  Future<Order?> getByClientUuid(String clientUuid) => (select(orders)
+        ..where((o) => o.clientUuid.equals(clientUuid)))
+      .getSingleOrNull();
+
   /// Do'kon bo'yicha
   Future<List<Order>> getByStoreId(String storeId) => (select(orders)
         ..where((o) => o.storeId.equals(storeId))
@@ -39,13 +49,14 @@ class OrdersDao extends DatabaseAccessor<AppDatabase> with _$OrdersDaoMixin {
   Future<void> updateOrder(OrdersCompanion order) =>
       into(orders).insertOnConflictUpdate(order);
 
-  /// Sync status yangilash
+  /// Sync status yangilash — client_uuid bo'yicha (push applied/duplicate javobida
+  /// lokal yozuvda server_id hali yo'q, faqat client_uuid barqaror kalit).
   Future<void> updateSyncStatus(
-    String id, {
+    String clientUuid, {
     required String status,
     String? serverId,
   }) async {
-    await (update(orders)..where((o) => o.id.equals(id))).write(
+    await (update(orders)..where((o) => o.clientUuid.equals(clientUuid))).write(
       OrdersCompanion(
         syncStatus: Value(status),
         serverId: serverId != null ? Value(serverId) : const Value.absent(),

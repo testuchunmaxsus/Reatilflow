@@ -440,10 +440,17 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
               productId: item.product.id,
               qty: item.qty,
               supplierEnterpriseName: item.product.supplierEnterpriseName,
+              clientUuid: item.clientUuid,
             );
         final orderState = ref.read(createMarketplaceOrderProvider);
         if (orderState is CreateOrderSuccess) {
           successCount++;
+          // Muvaffaqiyatli item'ni darhol savatdan olib tashlash — qayta
+          // bosishda faqat xato/GATE'ga tushgan itemlar qoladi va bir xil
+          // client_uuid bilan yuboriladi (dublikat bo'lmaydi).
+          ref
+              .read(marketplaceCartProvider.notifier)
+              .removeItem(item.product.id);
         } else if (orderState is CreateOrderContractRequired) {
           contractRequired.add(item.product.supplierEnterpriseName);
         } else if (orderState is CreateOrderFailure) {
@@ -469,7 +476,8 @@ class _CartFooterState extends ConsumerState<_CartFooter> {
     final appColors = AppTheme.colorsOf(context);
 
     if (errors.isEmpty && contractRequired.isEmpty) {
-      ref.read(marketplaceCartProvider.notifier).clear();
+      // Savat allaqachon bo'sh — har muvaffaqiyatli item darhol
+      // removeItem() bilan olib tashlangan edi (yuqorida).
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content:

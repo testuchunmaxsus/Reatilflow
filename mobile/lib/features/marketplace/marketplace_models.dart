@@ -409,14 +409,20 @@ class CreateMarketplaceOrderRequest {
   const CreateMarketplaceOrderRequest({
     required this.productId,
     required this.qty,
+    required this.clientUuid,
   });
 
   final String productId;
   final double qty;
 
+  /// Idempotentlik UUID — retry'da savatdagi item bilan barqaror (o'zgarmaydi),
+  /// backend dublikatni aniqlashi uchun.
+  final String clientUuid;
+
   Map<String, dynamic> toJson() => {
         'product_id': productId,
         'qty': qty,
+        'client_uuid': clientUuid,
         // Narx YUBORILMAYDI — server hisoblaydi
       };
 }

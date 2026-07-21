@@ -261,17 +261,20 @@ void main() {
       const request = CreateMarketplaceOrderRequest(
         productId: 'prod-001',
         qty: 5.0,
+        clientUuid: 'uuid-cart-001',
       );
 
       final json = request.toJson();
 
       expect(json['product_id'], equals('prod-001'));
       expect(json['qty'], equals(5.0));
+      // client_uuid — idempotentlik kaliti (backend dublikatni aniqlaydi)
+      expect(json['client_uuid'], equals('uuid-cart-001'));
       // Narx maydonlari YO'Q — server hisoblaydi
       expect(json.containsKey('price'), isFalse);
       expect(json.containsKey('unit_price'), isFalse);
       expect(json.containsKey('cost_price'), isFalse);
-      expect(json.length, equals(2)); // faqat 2 maydon
+      expect(json.length, equals(3)); // product_id + qty + client_uuid
     });
   });
 

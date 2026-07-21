@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../auth/auth_providers.dart';
 import 'marketplace_models.dart';
@@ -218,18 +219,26 @@ class MarketplaceCartItem {
   const MarketplaceCartItem({
     required this.product,
     required this.qty,
+    required this.clientUuid,
   });
 
   final MarketplaceProduct product;
   final double qty;
 
+  /// Idempotentlik UUID — savatga qo'shilganda bir marta generatsiya
+  /// qilinadi va qty o'zgarishlarida saqlanadi (retry'da bir xil bo'lishi
+  /// uchun — backend dublikatni shu orqali aniqlaydi).
+  final String clientUuid;
+
   MarketplaceCartItem copyWith({
     MarketplaceProduct? product,
     double? qty,
+    String? clientUuid,
   }) =>
       MarketplaceCartItem(
         product: product ?? this.product,
         qty: qty ?? this.qty,
+        clientUuid: clientUuid ?? this.clientUuid,
       );
 }
 
@@ -252,6 +261,8 @@ class MarketplaceCartState {
 class MarketplaceCartNotifier extends StateNotifier<MarketplaceCartState> {
   MarketplaceCartNotifier() : super(const MarketplaceCartState());
 
+  static const Uuid _uuid = Uuid();
+
   void addItem(MarketplaceProduct product) {
     final idx = state.items.indexWhere((e) => e.product.id == product.id);
     if (idx >= 0) {
@@ -260,7 +271,14 @@ class MarketplaceCartNotifier extends StateNotifier<MarketplaceCartState> {
       state = state.copyWith(items: updated);
     } else {
       state = state.copyWith(
-        items: [...state.items, MarketplaceCartItem(product: product, qty: 1)],
+        items: [
+          ...state.items,
+          MarketplaceCartItem(
+            product: product,
+            qty: 1,
+            clientUuid: _uuid.v4(),
+          ),
+        ],
       );
     }
   }
@@ -336,18 +354,25 @@ class CreateMarketplaceOrderNotifier
 
   final MarketplaceRepository _repository;
 
+  static const Uuid _uuid = Uuid();
+
   Future<void> createOrder({
     required String productId,
     required double qty,
     // Opsional: do'kon rolida server JWT'dan aniqlaydi,
     // agent rejimida store_id va is_onetime OnetimeOrderNotifier orqali ketadi.
     String? supplierEnterpriseName,
+    // Idempotentlik UUID — savat itemidan barqaror qiymat uzatiladi
+    // (retry'da o'zgarmaydi). Berilmasa (masalan testlarda) yangi
+    // generatsiya qilinadi.
+    String? clientUuid,
   }) async {
     state = const CreateOrderLoading();
     try {
       final request = CreateMarketplaceOrderRequest(
         productId: productId,
         qty: qty,
+        clientUuid: clientUuid ?? _uuid.v4(),
         // Narx YUBORILMAYDI — server hisoblaydi
       );
       final order = await _repository.createOrder(request);

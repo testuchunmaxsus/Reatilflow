@@ -378,7 +378,9 @@ void main() {
       // Narx maydonlari YO'Q
       expect(json.containsKey('price'), isFalse);
       expect(json.containsKey('unit_price'), isFalse);
-      expect(json.length, equals(2));
+      // product_id + qty + client_uuid (idempotentlik)
+      expect(json.containsKey('client_uuid'), isTrue);
+      expect(json.length, equals(3));
     });
 
     test('xatolikda CreateOrderFailure holati', () async {
