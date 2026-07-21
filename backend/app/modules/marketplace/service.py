@@ -97,6 +97,7 @@ from app.models.outbox import OutboxEvent
 from app.models.promo import Promo
 from app.models.store_inventory import StoreInventory
 from app.models.user import AppUser
+from app.modules.rbac.scope import is_superadmin
 
 
 # ─── Browse ──────────────────────────────────────────────────────────────────
@@ -479,6 +480,10 @@ async def create_order(
       - buyer_enterprise = buyer_user.enterprise_id (NULL = mustaqil do'kon).
       - buyer_store_id: agent buyurtma berganda explicit uzatilishi SHART.
         store roli uchun avtomatik topiladi.
+      - XAVFSIZLIK (IDOR): buyer_store_id EXPLICIT uzatilganda (store roli
+        avtomatik topilmagan holat) egalik `get_store_visibility_filter` orqali
+        tekshiriladi (store: o'zi; agent: biriktirilgan; admin/accountant: o'z
+        korxona/shartnoma). Boshqa do'kon nomidan buyurtma → AppError 403.
       - Shartnoma-Gate: buyer_store + supplier_enterprise bo'yicha aktiv Contract tekshiriladi.
         Aktiv shartnoma → is_onetime=False.
         Yo'q + agent bypass → is_onetime=True, agent_id=actor.id.
@@ -497,6 +502,7 @@ async def create_order(
         Yaratilgan MarketplaceOrder (lines bilan yuklangan).
 
     Raises:
+        AppError(403) — explicit buyer_store_id so'rovchiga tegishli emas (IDOR).
         AppError(404) — mahsulot published emas yoki topilmadi.
         AppError(409) — shartnoma yo'q va agent bypass ham mumkin emas.
         AppError(422) — aralash supplier, narx topilmadi, bo'sh lines.
@@ -526,6 +532,31 @@ async def create_order(
             store_stmt = select(Store.id).where(*_store_filters).limit(1)
             store_result = await db.execute(store_stmt)
             effective_buyer_store_id = store_result.scalar_one_or_none()
+    else:
+        # ── Explicit buyer_store_id egalik tekshiruvi (IDOR himoyasi) ────────
+        # Klient (REST yoki sync bridge) buyer_store_id ni EXPLICIT uzatganda
+        # (masalan agent boshqa do'kon nomidan, yoki admin/accountant), bu
+        # do'kon SO'ROVCHIGA (yoki uning ko'rinish doirasiga) tegishli ekanini
+        # SERVER tomonida tekshirish SHART — aks holda agent/store boshqa
+        # do'kon nomidan buyurtma berishi mumkin edi (IDOR). Xuddi shu
+        # `get_store_visibility_filter` accept_order() da ham qo'llaniladi
+        # (store: o'zi; agent: biriktirilgan do'konlari; admin/accountant:
+        # o'z korxona + shartnoma qilingan platforma do'koni).
+        from app.modules.rbac.scope import get_store_visibility_filter
+
+        _owner_stmt = select(Store.id).where(
+            Store.id == effective_buyer_store_id,
+            Store.deleted_at.is_(None),
+        )
+        _vis = get_store_visibility_filter(buyer_user)
+        if _vis is not None:
+            _owner_stmt = _owner_stmt.where(_vis)
+        _owner_result = await db.execute(_owner_stmt)
+        if _owner_result.scalar_one_or_none() is None:
+            raise AppError(
+                message_key="marketplace.order_store_forbidden",
+                status_code=403,
+            )
 
     # ── Idempotentlik tekshiruvi ──────────────────────────────────────────────
     if client_uuid is not None:
@@ -837,22 +868,32 @@ async def get_order(
         AppError(404) — topilmasa yoki ruxsatsiz.
     """
     user_enterprise = current_user.enterprise_id
-    if user_enterprise is None:
-        # Superadmin — hamma narsani ko'radi
+    if is_superadmin(current_user):
+        # Superadmin (role asosida) — hamma narsani ko'radi
         stmt = select(MarketplaceOrder).where(MarketplaceOrder.id == order_id)
     else:
-        # buyer_enterprise_id NULL bo'lsa — buyer_user_id orqali egalik tekshiriladi
+        # DIQQAT (IDOR): `user_enterprise` platforma-do'kon/agent aktori uchun
+        # None bo'lishi mumkin (superadmin EMAS). `buyer_enterprise_id ==
+        # user_enterprise` shartini gate qilmasdan qo'yish None==None → SQL
+        # `IS NULL` ga aylanib, BARCHA mustaqil-buyer (buyer_enterprise_id
+        # NULL) buyurtmalarni moslardi — begona platforma-do'kon buyurtmasini
+        # oshkor qilardi. Shu sabab `user_enterprise is not None` bilan gate
+        # qilinadi; NULL-buyer holat faqat quyidagi buyer_user_id sharti
+        # orqali (o'zi bergan buyurtma) ruxsat etiladi — _get_buyer_order
+        # (~1477) dagi naqsh bilan bir xil.
+        conditions = [
+            # Mustaqil do'kon buyurtmasi — buyer_enterprise_id NULL, foydalanuvchi o'zi
+            and_(
+                MarketplaceOrder.buyer_enterprise_id.is_(None),
+                MarketplaceOrder.buyer_user_id == current_user.id,
+            ),
+        ]
+        if user_enterprise is not None:
+            conditions.append(MarketplaceOrder.buyer_enterprise_id == user_enterprise)
+            conditions.append(MarketplaceOrder.supplier_enterprise_id == user_enterprise)
         stmt = select(MarketplaceOrder).where(
             MarketplaceOrder.id == order_id,
-            or_(
-                MarketplaceOrder.buyer_enterprise_id == user_enterprise,
-                MarketplaceOrder.supplier_enterprise_id == user_enterprise,
-                # Mustaqil do'kon buyurtmasi — buyer_enterprise_id NULL, foydalanuvchi o'zi
-                and_(
-                    MarketplaceOrder.buyer_enterprise_id.is_(None),
-                    MarketplaceOrder.buyer_user_id == current_user.id,
-                ),
-            ),
+            or_(*conditions),
         )
 
     result = await db.execute(stmt)
@@ -1324,6 +1365,9 @@ async def _get_supplier_order(
       - supplier_enterprise_id == supplier_user.enterprise_id tekshiradi.
         Agar buyer korxona foydalanuvchisi confirm/reject qilmoqchi bo'lsa → 403.
       - Uchinchi korxona → 404 (supplier ga ham, buyer ga ham tegishli emas).
+      - Platforma-do'kon/agent user (enterprise_id=None, role="store"/"agent")
+        HECH QACHON supplier emas → 403 (u superadmin emas — is_superadmin bilan
+        aniqlanadi, `enterprise_id is None` bilan EMAS).
 
     Returns:
         MarketplaceOrder
@@ -1345,9 +1389,18 @@ async def _get_supplier_order(
             status_code=404,
         )
 
-    # Superadmin bypass
-    if user_enterprise is None:
+    # Superadmin bypass (role asosida — enterprise_id is None EMAS)
+    if is_superadmin(supplier_user):
         return order
+
+    # Platforma-do'kon/agent user (enterprise_id=None) hech qachon supplier emas.
+    # Bu tekshiruv YO'Q bo'lsa, pastdagi None==None tengligi noto'g'ri moslashib
+    # ketishi mumkin edi (IDOR) — shu sabab aniq rad etiladi.
+    if user_enterprise is None:
+        raise AppError(
+            message_key="marketplace.order_supplier_only",
+            status_code=403,
+        )
 
     # Buyer korxona foydalanuvchisi confirm/reject qila olmaydi → 403
     if order.buyer_enterprise_id == user_enterprise and order.supplier_enterprise_id != user_enterprise:
@@ -1376,8 +1429,9 @@ async def _get_buyer_order(
 
     XAVFSIZLIK (IDOR — buyer_enterprise_id NULL holat qo'llab-quvvatlanadi):
       - Buyurtma mavjudligini tekshiradi (404 agar yo'q).
+      - Superadmin (is_superadmin — role asosida, enterprise_id is None EMAS): bypass.
       - buyer_enterprise_id mavjud bo'lsa: buyer_enterprise_id == user.enterprise_id.
-      - buyer_enterprise_id NULL bo'lsa (mustaqil do'kon):
+      - buyer_enterprise_id NULL bo'lsa (mustaqil/platforma do'kon):
           buyer_store_id yoki buyer_user_id orqali egalik tekshiriladi.
       - Agar supplier korxona foydalanuvchisi accept qilmoqchi bo'lsa → 403.
       - Uchinchi korxona → 404 (mavjudlikni oshkor qilmaslik).
@@ -1401,8 +1455,8 @@ async def _get_buyer_order(
             status_code=404,
         )
 
-    # Superadmin bypass (enterprise_id=None = superadmin)
-    if user_enterprise is None:
+    # Superadmin bypass (role asosida — enterprise_id is None EMAS)
+    if is_superadmin(buyer_user):
         return order
 
     # ── buyer_enterprise_id mavjud bo'lsa: klassik tenant tekshiruv ──────────
@@ -1425,8 +1479,12 @@ async def _get_buyer_order(
         return order
 
     # ── buyer_enterprise_id NULL: mustaqil do'kon — buyer_user_id bo'yicha tekshir ─
-    # Supplier korxona foydalanuvchisi accept qila olmaydi → 403
-    if order.supplier_enterprise_id == user_enterprise:
+    # Supplier korxona foydalanuvchisi accept qila olmaydi → 403.
+    # DIQQAT: user_enterprise `None` bo'lishi mumkin (platforma-do'kon/agent buyer) —
+    # `order.supplier_enterprise_id == user_enterprise` shartini `user_enterprise
+    # is not None` bilan gate qilamiz, aks holda None==None noto'g'ri moslashib,
+    # platforma-do'kon o'z buyurtmasida noto'g'ri 403 olishi mumkin edi.
+    if user_enterprise is not None and order.supplier_enterprise_id == user_enterprise:
         raise AppError(
             message_key="marketplace.order_buyer_only",
             status_code=403,
@@ -1689,6 +1747,13 @@ async def _get_banner_scoped(
     XAVFSIZLIK:
       - enterprise_id berilsa: faqat shu korxona banneri (IDOR-safe).
       - is_superadmin=True: har qanday bannerni oladi.
+      - enterprise_id=None VA is_superadmin=False (platforma-do'kon/agent user,
+        ADR-003: role="store"/"agent", superadmin yaratgani uchun enterprise_id=None):
+        bunday user HECH QACHON banner egasi bo'la olmaydi — deny-all (banner
+        enterprise_id ustuni bilan bog'liq, platforma-do'kon korxonaga ega emas).
+        MUHIM: bu tekshiruv yo'q bo'lsa, pastdagi filtr shart butunlay o'chib
+        qolar edi (`enterprise_id is not None` False bo'lgani sabab) va bunday
+        user istalgan boshqa korxona bannerini tahrirlashi mumkin bo'lardi (IDOR).
       - Topilmasa → 404 (mavjudlikni oshkor qilmaslik).
 
     Returns:
@@ -1699,8 +1764,12 @@ async def _get_banner_scoped(
     """
     stmt = select(AdBanner).where(AdBanner.id == banner_id)
 
-    if not is_superadmin and enterprise_id is not None:
-        stmt = stmt.where(AdBanner.enterprise_id == enterprise_id)
+    if not is_superadmin:
+        if enterprise_id is not None:
+            stmt = stmt.where(AdBanner.enterprise_id == enterprise_id)
+        else:
+            # Platforma-do'kon/agent user — banner egasi bo'la olmaydi (deny-all)
+            stmt = stmt.where(AdBanner.id.is_(None))
 
     result = await db.execute(stmt)
     banner = result.scalar_one_or_none()

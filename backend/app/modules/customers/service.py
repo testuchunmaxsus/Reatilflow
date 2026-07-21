@@ -516,6 +516,7 @@ async def assign_agent(
     actor_id: uuid.UUID | None = None,
     user: AppUser | None = None,
     enterprise_id: uuid.UUID | None = None,
+    allow_platform_onboarding: bool = False,
 ) -> AgentStore:
     """
     Do'konga agent biriktiradi (AgentStore yozadi).
@@ -524,11 +525,37 @@ async def assign_agent(
     Agent mavjudligi va roli tekshiriladi.
     Allaqachon biriktirilgan bo'lsa — mavjud yozuvni qaytaradi (idempotent).
 
+    Args:
+        allow_platform_onboarding: True bo'lsa — agent hali bog'lanmagan
+            PLATFORMA do'koniga o'zini biriktirmoqda (ADR-003 chicken-and-egg:
+            oddiy `get_store_visibility_filter` agentni hali bog'lamagani sabab
+            do'konni topa olmaydi). Bunday holda visibility filtri chetlab
+            o'tiladi, LEKIN do'kon albatta `is_platform_managed=True` bo'lishi
+            SHART tekshiriladi — aks holda agent istalgan oddiy korxona do'koniga
+            o'zini biriktirib olishi mumkin edi (IDOR). Router faqat
+            `current_user.role == "agent"` va `body.agent_id == current_user.id`
+            (o'z-ID) tasdiqlangandan KEYIN shu flagni True qiladi.
+
     Raises:
-        AppError("customers.store_not_found"): do'kon topilmasa.
+        AppError("customers.store_not_found"): do'kon topilmasa yoki (platforma
+            onboarding holatida) do'kon platforma-boshqaruvida emas.
         AppError("customers.agent_not_found"): agent topilmasa yoki noto'g'ri rol.
     """
-    store = await get_store(db, store_id, user=user, enterprise_id=enterprise_id)
+    if allow_platform_onboarding:
+        # Chicken-and-egg: agent hali do'konga bog'lanmagan — oddiy visibility
+        # filtri bilan get_store() do'konni topa olmaydi. Shu sabab to'g'ridan-
+        # to'g'ri yuklab, PLATFORMA do'koni ekanini MAJBURIY tekshiramiz.
+        _stmt = select(Store).where(
+            Store.id == store_id,
+            Store.deleted_at.is_(None),
+        )
+        _result = await db.execute(_stmt)
+        store = _result.scalar_one_or_none()
+        if store is None or not store.is_platform_managed:
+            # Mavjudlikni oshkor qilmaslik: topilmadi ham, platforma emas ham — bir xil xato.
+            raise AppError("customers.store_not_found", status_code=404)
+    else:
+        store = await get_store(db, store_id, user=user, enterprise_id=enterprise_id)
 
     # Agent tekshiruvi (enterprise bo'yicha — boshqa korxona agentini biriktirish imkonsiz)
     agent_stmt = select(AppUser).where(

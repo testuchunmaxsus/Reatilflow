@@ -3,7 +3,7 @@ Ombor servis qatlami — harakatlar va qoldiqlar biznes mantiq.
 
 Funksiyalar:
   record_movement(db, data, actor_id, redis) → StockMovement
-  get_balance(db, product_id, warehouse_id) → StockBalance
+  get_balance(db, product_id, warehouse_id, enterprise_id) → StockBalance
   list_movements(db, product_id, warehouse_id, ...) → (list[StockMovement], int)
 
 MUHIM QOIDALAR:
@@ -32,7 +32,7 @@ from app.models.audit import AuditLog
 from app.models.catalog import Product
 from app.models.outbox import OutboxEvent
 from app.models.stock import StockBalance, StockMovement
-from app.modules.rbac.enterprise_scope import apply_enterprise_filter
+from app.modules.rbac.enterprise_scope import apply_enterprise_filter, require_enterprise_filter
 from app.modules.stock.schemas import StockMovementCreate
 
 logger = logging.getLogger(__name__)
@@ -332,12 +332,31 @@ async def get_balance(
     db: AsyncSession,
     product_id: uuid.UUID,
     warehouse_id: uuid.UUID,
+    enterprise_id: uuid.UUID | None = None,
+    is_superadmin_user: bool = False,
 ) -> StockBalance:
     """
     Mahsulot + ombor qoldig'ini qaytaradi.
 
-    Yozuv mavjud bo'lmasa — noldan boshlangan yangi balans qaytaradi
-    (INSERT qilinmaydi, faqat virtual).
+    XAVFSIZLIK (IDOR): StockBalance avval faqat product_id+warehouse_id bo'yicha
+    olinardi — enterprise filtri YO'Q edi, natijada boshqa korxona ombor
+    qoldig'ini o'qish mumkin edi. Endi `enterprise_id` bilan cheklanadi
+    (record_movement bilan bir xil konvensiya).
+
+    MUHIM: `apply_enterprise_filter` `enterprise_id=None` bo'lganda filtr
+    QO'SHMAYDI (superadmin uchun mo'ljallangan). Platforma-agent kabi
+    aktorlar ham enterprise_id=None bilan keladi (superadmin EMAS) — ular
+    uchun filtrsiz so'rov cross-tenant o'qishga (IDOR) olib kelardi. Shu
+    sabab `is_superadmin_user` role-asosida (enterprise_id is None BILAN
+    ADASHTIRMASLIK) alohida uzatiladi:
+      - is_superadmin_user=True  → `apply_enterprise_filter` (filtrsiz, hammasi ko'rinadi).
+      - is_superadmin_user=False → `require_enterprise_filter` (majburiy —
+        enterprise_id=None bo'lsa ham `enterprise_id IS NULL` shartini qo'yadi,
+        faqat platforma-umumiy (NULL) qoldiqlarni ko'rsatadi, boshqa
+        korxonaga tegishli qoldiqni EMAS).
+
+    Yozuv mavjud bo'lmasa (yoki boshqa korxonaga tegishli bo'lsa) — noldan
+    boshlangan yangi (virtual) balans qaytaradi (INSERT qilinmaydi).
 
     Izoh: stock qoldig'i primary DB dan o'qiladi (replica kechikishini oldini olish).
     Bu funksiya doim primary sessiya bilan chaqirilishi kerak.
@@ -346,11 +365,16 @@ async def get_balance(
         StockBalance.product_id == product_id,
         StockBalance.warehouse_id == warehouse_id,
     )
+    if is_superadmin_user:
+        stmt = apply_enterprise_filter(stmt, enterprise_id, StockBalance.enterprise_id)
+    else:
+        stmt = require_enterprise_filter(stmt, enterprise_id, StockBalance.enterprise_id)
     result = await db.execute(stmt)
     balance = result.scalar_one_or_none()
 
     if balance is None:
         # Virtual balans — DB ga yozilmaydi, faqat qaytariladi
+        # (topilmadi yoki boshqa korxonaga tegishli — farqlanmaydi, IDOR-safe)
         balance = StockBalance(
             id=uuid7(),
             product_id=product_id,

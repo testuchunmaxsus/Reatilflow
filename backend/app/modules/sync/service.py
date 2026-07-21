@@ -54,7 +54,9 @@ from app.models.user import AppUser
 from app.modules.orders.schemas import OrderCreate, OrderLineIn
 from app.modules.orders.service import create_order
 from app.modules.rbac.enterprise_scope import apply_enterprise_filter, get_current_enterprise_id
+from app.modules.rbac.permissions import Action, Module
 from app.modules.rbac.scope import get_user_store_ids
+from app.modules.rbac.service import has_permission
 from app.modules.sync.schemas import ChangeItem, OpResult, SyncOp
 
 logger = logging.getLogger(__name__)
@@ -368,8 +370,20 @@ async def _handle_store_update(
     customers.service.update_store() QAYTA ISHLATILADI — optimistik lock,
     IDOR (scope filtri), audit+outbox shu yerda.
 
+    RBAC: REST endpoint `require_permission(CUSTOMERS, EDIT)` bilan himoyalangan —
+    sync push bitta martalik auth'dan o'tib har op'ni RBAC'siz bajarmasligi uchun
+    shu yerda ham tekshiriladi (bir martalik JWT auth ruxsat matritsasini
+    almashtirmaydi).
+
     server_id = store.id (UUID).
     """
+    if not has_permission(user, Module.CUSTOMERS, Action.EDIT):
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="rbac.permission_denied",
+        )
+
     from app.modules.customers import service as customers_service
     from app.modules.customers.schemas import StoreUpdate
 
@@ -434,8 +448,18 @@ async def _handle_store_assign_agent(
     enterprise tekshiruvi, idempotent (allaqachon biriktirilgan → mavjudni qaytaradi),
     audit+outbox shu yerda.
 
+    RBAC: REST endpoint `require_permission(CUSTOMERS, EDIT)` bilan himoyalangan —
+    sync push'da ham xuddi shu tekshiruv qo'llaniladi (per-op RBAC).
+
     server_id = store.id (UUID).
     """
+    if not has_permission(user, Module.CUSTOMERS, Action.EDIT):
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="rbac.permission_denied",
+        )
+
     from app.modules.customers import service as customers_service
 
     payload = op.payload
@@ -458,6 +482,12 @@ async def _handle_store_assign_agent(
             actor_id=actor_id,
             user=user,
             enterprise_id=enterprise_id,
+            # ESLATMA: bu yerda `allow_platform_onboarding` ATAYLAB True qilinmaydi —
+            # REST router'dagi qo'shimcha "agent faqat o'zini biriktiradi
+            # (body.agent_id == current_user.id)" cheklovi bu yerda YO'Q, shu
+            # sabab platforma-onboarding bypassini sync orqali yoqish agentga
+            # BOSHQA agent_id'ni platforma do'koniga biriktirish imkonini
+            # berardi (IDOR). Odatdagi visibility filtri qo'llanadi.
         )
         return OpResult(
             client_uuid=op.client_uuid,
@@ -495,8 +525,18 @@ async def _handle_contract_create(
     unikalligi, Redis idempotentlik (client_uuid), scope (agent o'z do'konlari),
     audit+outbox shu yerda.
 
+    RBAC: REST endpoint `require_permission(CONTRACTS, CREATE)` bilan himoyalangan —
+    sync push'da ham xuddi shu tekshiruv qo'llaniladi (per-op RBAC).
+
     server_id = contract.id (UUID).
     """
+    if not has_permission(user, Module.CONTRACTS, Action.CREATE):
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="rbac.permission_denied",
+        )
+
     from app.modules.contracts import service as contracts_service
     from app.modules.contracts.schemas import ContractCreate
 
@@ -571,7 +611,17 @@ async def _handle_marketplace_order_create(
 
     Shartnoma-Gate 409 → OpResult status="conflict" + message_key="marketplace.contract_required".
     server_id = marketplace_order.id (UUID).
+
+    RBAC: REST endpoint `require_permission(MARKETPLACE, CREATE)` bilan
+    himoyalangan — sync push'da ham xuddi shu tekshiruv qo'llaniladi (per-op RBAC).
     """
+    if not has_permission(user, Module.MARKETPLACE, Action.CREATE):
+        return OpResult(
+            client_uuid=op.client_uuid,
+            status="error",
+            message_key="rbac.permission_denied",
+        )
+
     from decimal import Decimal as _Decimal
     from app.modules.marketplace import service as marketplace_service
     from app.modules.marketplace.service import OrderLineInput

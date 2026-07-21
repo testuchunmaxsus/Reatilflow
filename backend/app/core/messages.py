@@ -516,6 +516,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Bu amalni faqat supplier korxona bajarishi mumkin",
         "ru": "Это действие может выполнить только поставщик",
     },
+    "marketplace.order_store_forbidden": {
+        "uz": "Bu do'kon nomidan buyurtma berishga ruxsatingiz yo'q",
+        "ru": "У вас нет прав оформлять заказ от имени данного магазина",
+    },
     "marketplace.order_idempotency_conflict": {
         "uz": "Bu client_uuid boshqa foydalanuvchi tomonidan allaqachon ishlatilgan",
         "ru": "Данный client_uuid уже использован другим пользователем",

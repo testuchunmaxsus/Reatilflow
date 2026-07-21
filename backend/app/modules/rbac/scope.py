@@ -15,7 +15,14 @@ Qator-darajali himoya (Row-Level Security) — SQLAlchemy filtr yordamchilari.
   | accountant       | O'z korxona do'konlari + shartnoma qilgan platforma do'konlari  |
   | agent            | Store.agent_id == user.id YOKI AgentStore orqali               |
   | store            | Store.user_id == user.id                                        |
-  | courier          | Barcha do'konlar (manzil ko'rish — faqat view, filtr yo'q)     |
+  | courier          | Store.enterprise_id == user.enterprise_id (o'z tenant)          |
+
+`is_superadmin(user) -> bool`:
+  YAGONA haqiqat manbai — `user.role == "superadmin"`. `enterprise_id is None`
+  BILAN ADASHTIRMASLIK: bu shart ADR-003 platforma-do'kon userini (role=
+  "store"/"agent", enterprise_id=None) ham qamrab oladi va cross-tenant IDOR
+  keltirib chiqaradi. Superadmin-avtorizatsiya qarorlari FAQAT shu funksiya
+  orqali qabul qilinishi kerak.
 
 Eslatma:
   - `apply_store_scope` — eski branch-darajali helper (hali ishlatiladi).
@@ -158,7 +165,24 @@ async def get_user_store_ids(user: AppUser, db: AsyncSession) -> list[Any]:
     return []
 
 
-# ─── ADR-003: Platforma do'koni ko'rinish filtri ─────────────────────────────
+# ─── Superadmin predikat (yagona haqiqat manbai) ─────────────────────────────
+
+
+def is_superadmin(user: AppUser) -> bool:
+    """
+    Foydalanuvchi superadmin ekanini tekshiradi — YAGONA haqiqat manbai.
+
+    MUHIM: `user.enterprise_id is None` bilan ADASHTIRMASLIK — bu shart ikki xil
+    aktorni qamrab oladi: (a) superadmin, (b) ADR-003 platforma-do'kon useri
+    (role="store"/"agent", superadmin yaratgani uchun enterprise_id=None).
+    Faqat `role == "superadmin"` haqiqiy superadmin belgisi (bu allaqachon
+    `superadmin/dependency.py::require_superadmin` da qo'llanilgan konvensiya).
+
+    Superadmin doim `enterprise_id is None` bo'lgani sabab bu funksiya eski
+    `enterprise_id is None` shartini TO'LIQ qamrab oladi (regressiya yo'q) —
+    lekin platforma-do'kon userini endi superadmin sifatida bypass qilmaydi.
+    """
+    return user.role == "superadmin"
 
 
 def get_store_visibility_filter(user: AppUser) -> ColumnElement | None:
@@ -170,7 +194,7 @@ def get_store_visibility_filter(user: AppUser) -> ColumnElement | None:
     qaytaradi. Qaytarilgan shartni `query.where(...)` ga berib ishlatiladi.
 
     Kimga nima ko'rinadi:
-      - superadmin (enterprise_id IS NULL):
+      - superadmin (role == "superadmin", is_superadmin(user) orqali aniqlanadi):
           None qaytaradi — filtr yo'q, barcha do'konlar ko'rinadi.
       - administrator | accountant:
           O'z korxona do'konlari (Store.enterprise_id == user.enterprise_id)
@@ -187,7 +211,7 @@ def get_store_visibility_filter(user: AppUser) -> ColumnElement | None:
       - store:
           Store.user_id == user.id
       - courier:
-          None qaytaradi — filtr yo'q (view-only, barcha manzillar).
+          Store.enterprise_id == user.enterprise_id (o'z tenant, cross-tenant emas).
       - Noma'lum rol:
           Deny-all: Store.id.is_(None).
 
@@ -204,8 +228,8 @@ def get_store_visibility_filter(user: AppUser) -> ColumnElement | None:
     """
     role = user.role
 
-    # superadmin: enterprise_id=None → barcha do'konlar ko'rinadi
-    if user.enterprise_id is None:
+    # superadmin (role asosida — enterprise_id=None EMAS): barcha do'konlar ko'rinadi
+    if is_superadmin(user):
         return None
 
     if role in ("administrator", "accountant"):
@@ -248,8 +272,10 @@ def get_store_visibility_filter(user: AppUser) -> ColumnElement | None:
         return Store.user_id == user.id
 
     elif role == "courier":
-        # Kuryer barcha do'kon manzillarini ko'ra oladi (delivery scope uchun)
-        return None
+        # Kuryer o'z korxona do'konlari manzillarini ko'radi (cross-tenant emas).
+        # Avval "None" (barcha tenant, filtr yo'q) qaytarilardi — bu kuryerga
+        # boshqa korxonalar do'konini ham ko'rsatardi. Endi tenant bilan cheklandi.
+        return Store.enterprise_id == user.enterprise_id
 
     else:
         # Noma'lum rol → deny-all (hech narsa ko'rinmaydi)

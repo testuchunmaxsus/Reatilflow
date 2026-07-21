@@ -589,12 +589,34 @@ async def test_visibility_store_role_sees_own_store(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_visibility_courier_no_filter(db_session: AsyncSession) -> None:
-    """Kuryer → None qaytadi (barcha do'kon manzillari ko'rinadi)."""
+async def test_visibility_courier_own_tenant_only(db_session: AsyncSession) -> None:
+    """
+    Kuryer → o'z korxona do'konlari bilan cheklanadi (cross-tenant IDOR tuzatildi).
+
+    ESLATMA: avval bu test `get_store_visibility_filter(courier) is None`
+    (filtr yo'q — barcha do'konlar, boshqa korxonalarniki ham) ni tekshirardi.
+    Bu XATO xavfsiz-emas xatti-harakat edi — kuryer istalgan boshqa korxona
+    do'koni manzilini ko'ra olardi (cross-tenant IDOR). IDOR klasteri tuzatilgach
+    (`rbac/scope.py::get_store_visibility_filter`), kuryer endi FAQAT o'z
+    `enterprise_id`siga tegishli do'konlarni ko'radi — test to'g'ri xavfsiz
+    holatga moslashtirildi.
+    """
     eid = uuid.uuid4()
+    other_eid = uuid.uuid4()
     courier = await create_user_with_enterprise(db_session, "courier", enterprise_id=eid)
-    result = get_store_visibility_filter(courier)
-    assert result is None, "Kuryer uchun filtr yo'q bo'lishi kerak"
+
+    own_store = await create_store_with_enterprise(db_session, "O'z korxona do'koni", enterprise_id=eid)
+    other_store = await create_store_with_enterprise(db_session, "Boshqa korxona do'koni", enterprise_id=other_eid)
+
+    visibility = get_store_visibility_filter(courier)
+    assert visibility is not None, "Kuryer uchun endi tenant filtri bo'lishi kerak"
+
+    stmt = select(Store).where(visibility)
+    result = await db_session.execute(stmt)
+    ids = {s.id for s in result.scalars().all()}
+
+    assert own_store.id in ids
+    assert other_store.id not in ids
 
 
 @pytest.mark.asyncio

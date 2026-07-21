@@ -247,19 +247,20 @@ async def assign_agent(
 
     enterprise_id = get_current_enterprise_id(current_user)
 
-    # Agent o'zini biriktirmoqda: visibility filtri chetlab o'tiladi, chunki
-    # platforma do'koni hali agent bilan bog'lanmagan (chicken-and-egg).
-    # Xavfsizlik: faqat o'z ID si uchun ruxsat (yuqorida tekshirildi).
+    # Agent o'zini biriktirmoqda: platforma do'koni hali agent bilan bog'lanmagan
+    # (chicken-and-egg) — oddiy visibility filtri do'konni topa olmaydi. Bunday
+    # holda service ichida visibility filtri chetlab o'tiladi, LEKIN faqat
+    # `is_platform_managed=True` do'konga (allow_platform_onboarding=True orqali)
+    # — oddiy korxona do'koniga agent o'zini biriktira OLMAYDI (IDOR himoyasi).
     # Administrator uchun odatdiy visibility filtri qo'llaniladi.
-    store_visibility_user = None if current_user.role == "agent" else current_user
-
     link = await service.assign_agent(
         db,
         store_id=store_id,
         agent_id=body.agent_id,
         actor_id=current_user.id,
-        user=store_visibility_user,
+        user=current_user,
         enterprise_id=enterprise_id,
+        allow_platform_onboarding=(current_user.role == "agent"),
     )
     await db.commit()
     return {

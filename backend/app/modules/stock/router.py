@@ -27,6 +27,7 @@ from app.models.user import AppUser
 from app.modules.rbac.dependency import require_permission
 from app.modules.rbac.enterprise_scope import get_current_enterprise_id
 from app.modules.rbac.permissions import Action, Module
+from app.modules.rbac.scope import is_superadmin
 from app.modules.stock import service
 from app.modules.stock.schemas import (
     PaginatedMovements,
@@ -90,7 +91,14 @@ async def get_balance(
     current_user: AppUser = require_permission(Module.STOCK, Action.VIEW),
     db: AsyncSession = Depends(get_db),
 ) -> StockBalanceOut:
-    balance = await service.get_balance(db, product_id, warehouse_id)
+    enterprise_id = get_current_enterprise_id(current_user)
+    balance = await service.get_balance(
+        db,
+        product_id,
+        warehouse_id,
+        enterprise_id=enterprise_id,
+        is_superadmin_user=is_superadmin(current_user),
+    )
     return StockBalanceOut.model_validate(balance)
 
 

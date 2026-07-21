@@ -85,6 +85,7 @@ from app.modules.marketplace.schemas import (
 )
 from app.modules.rbac.dependency import require_permission
 from app.modules.rbac.permissions import Action, Module
+from app.modules.rbac.scope import is_superadmin as _is_superadmin
 
 router = APIRouter(tags=["marketplace"])
 
@@ -1015,9 +1016,12 @@ async def patch_banner(
 
     XAVFSIZLIK:
       - enterprise_id bilan: faqat O'Z korxonasi banneri (IDOR himoyasi).
-      - Superadmin (enterprise_id=None): har qanday bannerni tahrirlaydi.
+      - Superadmin (role=="superadmin", is_superadmin() orqali): har qanday bannerni
+        tahrirlaydi. Platforma-do'kon user (enterprise_id=None, role="store"/"agent")
+        ENDI superadmin sifatida bypass qilinmaydi — o'z (mavjud bo'lmagan) korxona
+        bannerini qidiradi va IDOR-safe 404 oladi.
     """
-    is_superadmin = current_user.enterprise_id is None
+    is_superadmin = _is_superadmin(current_user)
     banner = await service.patch_banner(
         db,
         banner_id=banner_id,
@@ -1054,7 +1058,7 @@ async def delete_banner(
 
     XAVFSIZLIK: enterprise_id bilan IDOR himoyasi.
     """
-    is_superadmin = current_user.enterprise_id is None
+    is_superadmin = _is_superadmin(current_user)
     await service.delete_banner(
         db,
         banner_id=banner_id,
@@ -1094,7 +1098,7 @@ async def upload_banner_image(
     Magic-byte validatsiya storage ichida (JPEG/PNG/WebP, 5MB).
     """
     image_url = await storage.upload_product_photo(file)
-    is_superadmin = current_user.enterprise_id is None
+    is_superadmin = _is_superadmin(current_user)
     banner = await service.update_banner_image(
         db,
         banner_id=banner_id,
