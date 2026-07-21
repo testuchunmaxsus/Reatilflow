@@ -251,14 +251,31 @@ async def create_sale(
     # ── 4. Do'kon segmenti — server tomonidan ─────────────────────────────
     store_segment_id: uuid.UUID | None = store.segment_id
 
-    # ── 5. Har qator uchun StoreInventory + expiry tekshiruvi ────────────────
-    # resolved_lines: (line_in, inventory_item, unit_price, line_total)
-    resolved_lines: list[tuple] = []
-
+    # ── 5. Har mahsulot uchun StoreInventory + expiry tekshiruvi ─────────────
+    # [#12a] Bir xil product_id bo'lgan qatorlarni AGREGATSIYA qilib, umumiy
+    # talabni BIR MARTA tekshiramiz — dublikat qatorlar mustaqil tekshirilsa
+    # (har biri alohida "qty <= mavjud" ko'rsa) parallel/dublikat holatda
+    # ortiqcha sotish (oversell) yuz berishi mumkin edi.
+    demand: dict[uuid.UUID, Decimal] = {}
+    product_order: list[uuid.UUID] = []
     for line_in in data.lines:
+        if line_in.product_id not in demand:
+            demand[line_in.product_id] = Decimal("0")
+            product_order.append(line_in.product_id)
+        demand[line_in.product_id] += line_in.qty
+
+    # product_id -> (inventory_item | None, unit_price)
+    resolved_by_product: dict[uuid.UUID, tuple] = {}
+
+    now_dt = _now()
+    block_days = settings.pos_expiry_block_days
+
+    for product_id in product_order:
+        total_qty = demand[product_id]
+
         # ── 5a. Mahsulot mavjudligi ───────────────────────────────────────
         prod_stmt = select(Product).where(
-            Product.id == line_in.product_id,
+            Product.id == product_id,
             Product.is_active.is_(True),
         )
         prod_result = await db.execute(prod_stmt)
@@ -266,90 +283,80 @@ async def create_sale(
         if product is None:
             raise AppError("pos.product_not_found", status_code=404)
 
-        # ── 5b. StoreInventory: do'kon + mahsulot bo'yicha yaqinroq partiya ─
-        # Avval har holat bo'lgan inventarni topib, expiry tekshirish.
-        # Keyin faqat active + qty>0 bo'lsa sotish.
-        # PASS-1: har holat (status ixtiyoriy) — expiry blok tekshirish uchun
-        any_inv_stmt = (
-            select(StoreInventory)
-            .where(
-                StoreInventory.enterprise_id == enterprise_id,
-                StoreInventory.store_id == data.store_id,
-                StoreInventory.product_id == line_in.product_id,
-            )
-            .order_by(StoreInventory.created_at.asc())
-            .limit(1)
-        )
-        any_inv_result = await db.execute(any_inv_stmt)
-        any_inv_item = any_inv_result.scalar_one_or_none()
-
-        # Inventar bazada bor — expiry va blok tekshiruvi
-        now_dt = _now()
-        block_days = settings.pos_expiry_block_days
-        if any_inv_item is not None:
-            # ── 5c. EXPIRY blok (KRITIK) ──────────────────────────────────
-            # is_expired: status='expired' YOKI expiry_date < today
-            # is_near_expiry: expiry_date <= today + pos_expiry_block_days
-            if is_expired(any_inv_item, now_dt) or is_near_expiry(any_inv_item, now_dt, days=block_days):
-                raise AppError("pos.product_expired", status_code=422)
-
-        # PASS-2: faqat active + qty>0 partiya — sotuv uchun
+        # ── 5b. StoreInventory: do'kon + mahsulot bo'yicha AYNAN sotiladigan
+        # (FIFO — eng eski, hali qty>0 bo'lgan) partiya. [#9] Bitta so'rov —
+        # avvalgi ikki-passli mantiq (PASS-1 har-holat/PASS-2 faqat-active)
+        # boshqa-boshqa qatorlarni tanlab, aynan sotiladigan partiyaning o'zi
+        # tekshirilmasdan qolib ketishi mumkin edi. [#10] enterprise_id filtri
+        # YO'Q — store_id allaqachon _check_store_access/
+        # get_store_visibility_filter bilan tekshirilgan yagona ishonchli
+        # tenant chegara (platforma-do'konda inventar enterprise_id=NULL
+        # bo'lishi mumkin — tenant enterprise_id bilan filtrlash noto'g'ri
+        # mos kelish/kelmaslikka olib kelardi). [#12b] with_for_update() —
+        # tanlangan partiya shu tranzaksiya davomida qulflanadi (PG); SQLite
+        # no-op.
         inv_stmt = (
             select(StoreInventory)
             .where(
-                StoreInventory.enterprise_id == enterprise_id,
                 StoreInventory.store_id == data.store_id,
-                StoreInventory.product_id == line_in.product_id,
-                StoreInventory.status == "active",
+                StoreInventory.product_id == product_id,
                 StoreInventory.qty > Decimal("0"),
             )
             .order_by(StoreInventory.created_at.asc())
             .limit(1)
+            .with_for_update()
         )
         inv_result = await db.execute(inv_stmt)
         inv_item = inv_result.scalar_one_or_none()
 
-        if inv_item is None:
-            # Inventarda sotuvga yaroqli topilmadi → katalog narxiga fallback
-            # (eski testlar uchun backward-compat: inventarsiz do'kon ham sotishi mumkin)
-            if store_segment_id is None:
-                raise AppError("pos.no_price", status_code=422)
-            cat_price = await _get_product_price(db, line_in.product_id, store_segment_id)
-            if cat_price is None:
-                raise AppError("pos.no_price", status_code=422)
+        if inv_item is not None:
+            # ── 5c. EXPIRY blok (KRITIK) — aynan tanlangan partiyada ────────
+            # is_expired: status='expired' YOKI expiry_date < today
+            # is_near_expiry: expiry_date <= today + pos_expiry_block_days
+            if is_expired(inv_item, now_dt) or is_near_expiry(inv_item, now_dt, days=block_days):
+                raise AppError("pos.product_expired", status_code=422)
 
-            unit_price = cat_price
-            line_total = (unit_price * line_in.qty).quantize(Decimal("0.01"))
-            if line_total < Decimal("0"):
-                line_total = Decimal("0.00")
-            resolved_lines.append((line_in, None, unit_price, line_total))
+            # ── 5d. Yetarli qty tekshiruvi (umumiy talab) ──────────────────
+            if inv_item.qty < total_qty:
+                raise AppError(
+                    "pos.insufficient_inventory",
+                    status_code=422,
+                    params={
+                        "available": str(inv_item.qty),
+                        "requested": str(total_qty),
+                    },
+                )
+
+            # ── 5e. Narx — inventardan (server-avtoritar) ──────────────────
+            resolved_by_product[product_id] = (inv_item, inv_item.sale_price)
             continue
 
-        # ── 5d. Yetarli qty tekshiruvi ────────────────────────────────────
-        if inv_item.qty < line_in.qty:
-            raise AppError(
-                "pos.insufficient_inventory",
-                status_code=422,
-                params={
-                    "available": str(inv_item.qty),
-                    "requested": str(line_in.qty),
-                },
-            )
+        # Inventarda sotuvga yaroqli topilmadi → katalog narxiga fallback
+        # (eski testlar uchun backward-compat: inventarsiz do'kon ham sotishi mumkin)
+        if store_segment_id is None:
+            raise AppError("pos.no_price", status_code=422)
+        cat_price = await _get_product_price(db, product_id, store_segment_id)
+        if cat_price is None:
+            raise AppError("pos.no_price", status_code=422)
 
-        # ── 5e. Narx — inventardan (server-avtoritar) ─────────────────────
-        unit_price = inv_item.sale_price
+        resolved_by_product[product_id] = (None, cat_price)
+
+    # ── 6. Har qatorga narx/summasini biriktirish ────────────────────────
+    # resolved_lines: (line_in, inventory_item, unit_price, line_total)
+    resolved_lines: list[tuple] = []
+    for line_in in data.lines:
+        inv_item, unit_price = resolved_by_product[line_in.product_id]
         line_total = (unit_price * line_in.qty).quantize(Decimal("0.01"))
         if line_total < Decimal("0"):
             line_total = Decimal("0.00")
-
         resolved_lines.append((line_in, inv_item, unit_price, line_total))
 
-    # ── 6. total_amount hisoblash ─────────────────────────────────────────
+    # ── 7. total_amount hisoblash ─────────────────────────────────────────
     total_amount = Decimal(
         str(sum(lt for _, _, _, lt in resolved_lines))
     ).quantize(Decimal("0.01"))
 
-    # ── 7. PosSale INSERT ─────────────────────────────────────────────────
+    # ── 8. PosSale INSERT ─────────────────────────────────────────────────
     sale_id = uuid7()
     sale = PosSale(
         id=sale_id,
@@ -395,7 +402,13 @@ async def create_sale(
                 raise AppError("pos.idempotency_conflict", status_code=409) from exc
         raise AppError("pos.idempotency_conflict", status_code=409) from exc
 
-    # ── 8. PosSaleLine INSERT + StoreInventory atomik qty deduktsiyasi ────
+    # ── 9. PosSaleLine INSERT + StoreInventory atomik qty deduktsiyasi ────
+    # [#12b] inv_item 5-bosqichda with_for_update() bilan qulflangan (PG) —
+    # shu tranzaksiya davomida boshqa parallel checkout shu qatorni
+    # o'zgartira olmaydi. Dublikat product_id qatorlar bir xil `inv_item`
+    # ob'ektini ishlatadi (resolved_by_product) — qaytarilgan qty kamaytirish
+    # kumulyativ ravishda to'g'ri (5d bosqichda umumiy talab allaqachon
+    # tekshirilgan).
     for line_in, inv_item, unit_price, line_total in resolved_lines:
         sl = PosSaleLine(
             sale_id=sale.id,
@@ -414,7 +427,7 @@ async def create_sale(
 
     await db.flush()
 
-    # ── 9. Outbox event ───────────────────────────────────────────────────
+    # ── 10. Outbox event ───────────────────────────────────────────────────
     payload = {
         "id": str(sale.id),
         "store_id": str(data.store_id),

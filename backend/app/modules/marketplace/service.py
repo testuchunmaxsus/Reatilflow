@@ -1224,8 +1224,16 @@ async def accept_order(
           sale_price  = cost_price * (1 + markup_percent / 100)
           expiry_date = lines_info[line].expiry_date
           qty         = line.qty
-          enterprise_id = order.buyer_enterprise_id
+          enterprise_id = store.enterprise_id (ADR-036 #11 — order.buyer_enterprise_id
+                          EMAS; platforma-do'konda (enterprise_id IS NULL) buyer
+                          kontraktli tenant bo'lishi mumkin, inventar DO'KON bilan
+                          mos scope qilinishi kerak)
           store_id    = buyer_store_id (parametrdan yoki order.buyer_store_id)
+
+    CONCURRENCY (ADR-036 #8):
+      - Buyurtma qatori `with_for_update()` bilan qulflanadi — parallel ikkinchi
+        accept birinchisi commit qilguncha bloklanadi, so'ng status='accepted'
+        ko'rib 422 qaytaradi (double-accept himoyasi).
 
     Args:
         db:          AsyncSession
@@ -1244,6 +1252,9 @@ async def accept_order(
     """
     order = await _get_buyer_order(db, order_id, buyer_user)
 
+    # Optimistik dastlabki tekshiruv (qulf olishdan oldin) — keng tarqalgan
+    # holatda keraksiz store-qidiruv/qulfdan tejaydi. AUTORITAR tekshiruv
+    # pastda, qulf ostida (order_loaded.status) takrorlanadi — [#8].
     if "accepted" not in MP_VALID_TRANSITIONS.get(order.status, set()):
         raise AppError(
             message_key="marketplace.order_invalid_transition",
@@ -1286,15 +1297,34 @@ async def accept_order(
         li.line_id: li for li in lines_info
     }
 
-    # Buyurtma line'larini yuklash (selectin bo'lmasa qo'lda)
+    # Buyurtma line'larini yuklash (selectin bo'lmasa qo'lda).
+    # [#8] with_for_update() — qator qulfi: parallel ikkinchi accept birinchisi
+    # commit qilguncha shu SELECT'da bloklanadi (PG). SQLite'da no-op (test
+    # bir oqim — regressiya yo'q).
+    # populate_existing=True — `order` obyekti identity map'da allaqachon bor
+    # (_get_buyer_order yuklagan); shu SELECT bloklanib chiqqach ATTRIBUTLARNI
+    # ham eng so'nggi commit qilingan qiymatlar bilan yangilaymiz (aks holda
+    # ORM eski keshlangan status'ni qaytargan bo'lardi — qulf ma'nosiz qolardi).
     from sqlalchemy.orm import selectinload
     order_with_lines_stmt = (
         select(MarketplaceOrder)
         .options(selectinload(MarketplaceOrder.lines))
         .where(MarketplaceOrder.id == order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     ow_result = await db.execute(order_with_lines_stmt)
     order_loaded = ow_result.scalar_one()
+
+    # [#8] AUTORITAR holat-o'tish tekshiruvi — qulf ostida, eng so'nggi
+    # commit qilingan holatga nisbatan. Parallel accept ikkinchi bo'lib
+    # qulfni olganda order_loaded.status allaqachon 'accepted' bo'ladi → 422.
+    if "accepted" not in MP_VALID_TRANSITIONS.get(order_loaded.status, set()):
+        raise AppError(
+            message_key="marketplace.order_invalid_transition",
+            status_code=422,
+            params={"from_status": order_loaded.status, "to_status": "accepted"},
+        )
 
     now = datetime.now(timezone.utc)
 
@@ -1311,7 +1341,12 @@ async def accept_order(
 
         inv = StoreInventory(
             id=uuid7(),
-            enterprise_id=order.buyer_enterprise_id,
+            # [#11] order.buyer_enterprise_id EMAS — store_obj.enterprise_id.
+            # Platforma-do'kon (enterprise_id IS NULL, ADR-003) uchun buyer
+            # kontraktli tenant admin bo'lishi mumkin (order.buyer_enterprise_id
+            # != NULL), lekin inventar shu DO'KON bilan scope qilinishi kerak —
+            # store_obj allaqachon visibility-filtered yuklangan.
+            enterprise_id=store_obj.enterprise_id,
             store_id=effective_store_id,
             product_id=line.product_id,
             qty=line.qty,
@@ -1320,33 +1355,33 @@ async def accept_order(
             sale_price=sale_price,
             expiry_date=expiry_dt,
             status="active",
-            source_order_id=order.id,
+            source_order_id=order_loaded.id,
             created_at=now,
         )
         db.add(inv)
 
-    # Buyurtma holatini yangilash
-    order.status = "accepted"
-    order.accepted_at = now
-    order.updated_at = now
+    # Buyurtma holatini yangilash (qulf ostidagi ob'ekt)
+    order_loaded.status = "accepted"
+    order_loaded.accepted_at = now
+    order_loaded.updated_at = now
 
     outbox = OutboxEvent(
         aggregate_type="marketplace_order",
-        aggregate_id=str(order.id),
+        aggregate_id=str(order_loaded.id),
         event_type="marketplace.order_accepted",
         payload=json.dumps({
-            "order_id": str(order.id),
-            "buyer_enterprise_id": str(order.buyer_enterprise_id),
-            "supplier_enterprise_id": str(order.supplier_enterprise_id),
+            "order_id": str(order_loaded.id),
+            "buyer_enterprise_id": str(order_loaded.buyer_enterprise_id) if order_loaded.buyer_enterprise_id else None,
+            "supplier_enterprise_id": str(order_loaded.supplier_enterprise_id),
             "status": "accepted",
             "store_id": str(effective_store_id),
             "accepted_at": now.isoformat(),
         }),
-        enterprise_id=order.supplier_enterprise_id,
+        enterprise_id=order_loaded.supplier_enterprise_id,
     )
     db.add(outbox)
     await db.flush()
-    return order
+    return order_loaded
 
 
 # ─── Ichki yordamchilar ───────────────────────────────────────────────────────

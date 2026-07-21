@@ -9,12 +9,17 @@ DIZAYN:
   - cost_price = buyurtmadagi unit_price (server-avtoritar, o'zgartirib bo'lmaydi).
   - sale_price = cost_price * (1 + markup_percent / 100) — server tomonida hisoblanadi.
   - expiry_date — muddat (MP4: muddati o'tgan tahlil va bildirishnoma uchun asos).
-  - enterprise_id = buyer korxona (tenant-scoped, MT1 pattern).
+  - enterprise_id = buyer korxona (tenant-scoped, MT1 pattern). NULL bo'lishi
+    mumkin — platforma-do'kon (ADR-003 ko'prik, enterprise_id IS NULL,
+    mustaqil do'kon) inventari. Bunday holda scope store_id ga tayanadi
+    (do'konga kirish allaqachon get_store_visibility_filter/_check_store_access
+    bilan tekshirilgan — ADR-036).
   - source_order_id — manbasi (qaysi marketplace buyurtmadan kelgani).
 
 XAVFSIZLIK:
-  - enterprise_id NOT NULL — tenant izolyatsiyasi (MT1).
-  - Boshqa korxona bu inventarni ko'ra olmaydi (enterprise_id filtrlanadi).
+  - enterprise_id NULLABLE (ADR-036) — oddiy tenant uchun hamon o'z korxonasi
+    yoziladi (o'zgarmagan xatti-harakat); NULL faqat platforma-do'kon uchun.
+  - Boshqa korxona bu inventarni ko'ra olmaydi (store_id + visibility filtrlanadi).
   - cost_price faqat serverda o'rnatiladi (buyurtma unit_price dan).
 
 MP4 uchun asos:
@@ -69,8 +74,9 @@ class StoreInventory(Base):
     Har qabul qilingan buyurtma qatori → bitta StoreInventory yozuvi.
 
     TENANT IZOLYATSIYASI:
-      - enterprise_id NOT NULL — faqat shu korxona ko'radi.
-      - store_id — qaysi do'konda saqlanmoqda.
+      - enterprise_id NULLABLE (ADR-036) — oddiy tenant uchun o'z korxonasi,
+        platforma-do'kon (mustaqil, ADR-003) uchun NULL.
+      - store_id — qaysi do'konda saqlanmoqda (yagona ishonchli scope chegarasi).
 
     NARX MANTIQI (server-avtoritar):
       cost_price  = buyurtma unit_price (o'zgartirilmaydi).
@@ -103,11 +109,15 @@ class StoreInventory(Base):
 
     # ─── Tenant izolyatsiyasi (MT1) ──────────────────────────────────────────
 
-    enterprise_id: Mapped[uuid.UUID] = mapped_column(
+    enterprise_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("enterprise.id", ondelete="RESTRICT"),
-        nullable=False,
-        comment="Korxona FK → enterprise (MT1 tenant izolyatsiyasi, buyer korxona)",
+        nullable=True,
+        comment=(
+            "Korxona FK → enterprise (MT1 tenant izolyatsiyasi, buyer korxona). "
+            "NULL = platforma-do'kon inventari (ADR-003 ko'prik) — bunday holda "
+            "store_id bilan scope qilinadi (ADR-036)."
+        ),
     )
 
     # ─── Joylashuv ──────────────────────────────────────────────────────────
@@ -201,7 +211,7 @@ class StoreInventory(Base):
 
     # ─── Relationships ────────────────────────────────────────────────────────
 
-    enterprise: Mapped["Enterprise"] = relationship(
+    enterprise: Mapped["Enterprise | None"] = relationship(
         "Enterprise",
         foreign_keys="[StoreInventory.enterprise_id]",
         lazy="select",
