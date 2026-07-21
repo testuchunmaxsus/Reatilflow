@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -411,58 +411,75 @@ async def update_store(
     if data.inn is not None and data.inn != store.inn:
         await _check_inn_unique(db, data.inn, exclude_id=store_id, enterprise_id=enterprise_id)
 
-    # Maydonlarni yangilash
+    # Yangilanadigan maydonlar (#34: ATOMIK shartli UPDATE uchun to'planadi).
+    # DIQQAT: `store` ORM ob'ekti bu yerda ATAYLAB mutatsiya qilinmaydi —
+    # aks holda keyingi db.execute() avtoflush orqali oddiy "WHERE id=..."
+    # UPDATE'ni oldindan chiqarib, versiya-himoyalangan shartli UPDATE'ni
+    # chetlab o'tgan bo'lardi (lost-update himoyasi ishlamay qolardi).
+    changed: dict[str, object] = {}
     if data.name is not None:
-        store.name = data.name
+        changed["name"] = data.name
     if data.inn is not None:
-        store.inn = data.inn
-        store.inn_bi = blind_index(data.inn) if data.inn else None
+        changed["inn"] = data.inn
+        changed["inn_bi"] = blind_index(data.inn) if data.inn else None
     if data.inps is not None:
-        store.inps = data.inps
+        changed["inps"] = data.inps
     if data.owner_name is not None:
-        store.owner_name = data.owner_name
+        changed["owner_name"] = data.owner_name
     if data.phone is not None:
-        store.phone = data.phone
-        store.phone_bi = blind_index(data.phone) if data.phone else None
+        changed["phone"] = data.phone
+        changed["phone_bi"] = blind_index(data.phone) if data.phone else None
     if data.address is not None:
-        store.address = data.address
+        changed["address"] = data.address
     if data.gps_lat is not None:
-        store.gps_lat = data.gps_lat
+        changed["gps_lat"] = data.gps_lat
     if data.gps_lng is not None:
-        store.gps_lng = data.gps_lng
+        changed["gps_lng"] = data.gps_lng
     if data.segment_id is not None:
-        store.segment_id = data.segment_id
+        changed["segment_id"] = data.segment_id
     # admin_only fields (already guarded above for non-admin)
     if data.agent_id is not None:
-        store.agent_id = data.agent_id
+        changed["agent_id"] = data.agent_id
     if data.branch_id is not None:
-        store.branch_id = data.branch_id
+        changed["branch_id"] = data.branch_id
     if data.credit_limit is not None:
-        store.credit_limit = data.credit_limit
+        changed["credit_limit"] = data.credit_limit
     if data.user_id is not None:
-        store.user_id = data.user_id
+        changed["user_id"] = data.user_id
 
     expected_version = data.version
-    store.version = store.version + 1
-    store.updated_at = _now()
+    changed["version"] = expected_version + 1
+    changed["updated_at"] = _now()
 
+    # ATOMIK shartli UPDATE (#34): rowcount==0 → boshqa tranzaksiya o'rtada
+    # o'zgartirgan (lost-update oldini olish, PG+SQLite bir xil ishlaydi).
+    # SAVEPOINT (#15): IntegrityError (INN dublikat) faqat shu yozuvni bekor
+    # qiladi, db.rollback() EMAS — ROOT tranzaksiya buzilmaydi. Muvaffaqiyat
+    # holatida sp.commit() ATAYLAB chaqirilmaydi — SAVEPOINT ochiq
+    # qoldiriladi (orders/service.py create_order() dagi batafsil izohga
+    # qarang: release qilingan SAVEPOINT keyinroq shu so'rov ichida yuz
+    # beradigan TO'LIQ db.rollback()'dan noto'g'ri "omon qolishi" mumkin edi).
+    sp = await db.begin_nested()
     try:
-        await db.flush()
+        result = await db.execute(
+            update(Store)
+            .where(Store.id == store_id, Store.version == expected_version)
+            .values(**changed)
+        )
     except IntegrityError as exc:
-        await db.rollback()
+        await sp.rollback()
         exc_str = str(exc).lower()
         if "inn_bi" in exc_str or "uix_store_inn_bi" in exc_str:
             raise AppError("customers.duplicate_inn", status_code=409) from exc
         raise
 
-    # DB-darajali optimistik lock tekshiruvi:
-    # Agar store.version - 1 != expected_version bo'lsa, boshqa tranzaksiya
-    # o'rtada o'zgartirgan — 409 qaytaramiz.
-    # (flush muvaffaqiyatli o'tdi, lekin version tekshiruvi qo'shimcha himoya.)
-    # Asosiy tekshiruv yuqorida (store.version != data.version) o'tkazilgan;
-    # bu izoh: to'liq DB-darajali lock uchun SQLAlchemy version_id_col yoki
-    # "UPDATE ... WHERE version=:expected AND rowcount==0 → 409" ishlatilishi kerak.
-    # Hozirgi yondashuv: session-darajali tekshiruv (flush atomik tranzaksiya ichida).
+    if result.rowcount == 0:
+        # version mos kelmadi (boshqa tranzaksiya o'rtada yangilagan) → 409
+        raise AppError("customers.version_conflict", status_code=409)
+
+    # ORM ob'ektni DB bilan sinxronlash (identity-map stale bo'lmasin —
+    # keyingi audit/outbox va qaytariladigan `store` yangi qiymatlarni aks ettirsin).
+    await db.refresh(store)
 
     after = {
         "name": store.name,

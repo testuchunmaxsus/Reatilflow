@@ -98,6 +98,13 @@ class StoreInventory(Base):
         Index("ix_store_inv_expiry", "expiry_date"),
         # Yetkazish manbasi bo'yicha qidiruv + idempotentlik
         Index("ix_store_inv_source_delivery", "source_delivery_id"),
+        # Idempotentlik: client_uuid unique (#16 — import DB-backstop).
+        # PostgreSQL: migratsiya 0037 partial unique index (IS NOT NULL) yaratadi.
+        # SQLite (test): bu Index(unique=True) ishlaydi (NULL != NULL qoidasi
+        # partial ga ekvivalent — delivery.py naqshi bilan bir xil).
+        # ORM darajasida UniqueConstraint ISHLATILMAYDI — alembic autogenerate
+        # drift oldini olish uchun.
+        Index("uq_store_inv_client_uuid", "client_uuid", unique=True),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -198,6 +205,18 @@ class StoreInventory(Base):
         ForeignKey("delivery.id", ondelete="SET NULL"),
         nullable=True,
         comment="Manba yetkazish FK → delivery (agent buyurtmasi yetkazilganda yaratiladi)",
+    )
+
+    # ─── Idempotentlik (#16) ────────────────────────────────────────────────
+
+    client_uuid: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        default=None,
+        comment=(
+            "Klient/import idempotentlik UUID — UNIQUE partial index "
+            "(IS NOT NULL). Takroriy import satrini DB darajasida ushlaydi."
+        ),
     )
 
     # ─── Vaqt ────────────────────────────────────────────────────────────────

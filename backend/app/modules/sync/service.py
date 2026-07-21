@@ -631,18 +631,6 @@ async def _handle_marketplace_order_create(
         product_id = uuid.UUID(payload["product_id"])
         qty = _Decimal(str(payload["qty"]))
         store_id = uuid.UUID(payload["store_id"])
-        # client_uuid: op.client_uuid yoki payload'dan
-        client_uuid_val: uuid.UUID | None = None
-        if op.client_uuid is not None:
-            try:
-                client_uuid_val = uuid.UUID(op.client_uuid)
-            except (ValueError, TypeError):
-                pass
-        if client_uuid_val is None and "client_uuid" in payload:
-            try:
-                client_uuid_val = uuid.UUID(str(payload["client_uuid"]))
-            except (ValueError, TypeError):
-                pass
     except (KeyError, ValueError, TypeError) as exc:
         logger.debug("marketplace_order.create payload xatosi: %r", exc)
         return OpResult(
@@ -650,6 +638,38 @@ async def _handle_marketplace_order_create(
             status="error",
             message_key="common.validation_error",
         )
+
+    # client_uuid: op.client_uuid yoki payload'dan.
+    # #32: noto'g'ri (parse bo'lmaydigan) client_uuid endi JIM YUTILMAYDI —
+    # aks holda idempotentlik SELECT o'tkazib yuborilib, offline retry
+    # DUBLIKAT moliyaviy buyurtma yaratishi mumkin edi. client_uuid umuman
+    # berilmagan (None) holat ataylab idempotentliksiz so'rov bo'lishi
+    # mumkin — u buzilmaydi, faqat berilgan-lekin-yaroqsiz holat rad etiladi.
+    client_uuid_val: uuid.UUID | None = None
+    if op.client_uuid is not None:
+        try:
+            client_uuid_val = uuid.UUID(op.client_uuid)
+        except (ValueError, TypeError) as exc:
+            logger.debug(
+                "marketplace_order.create: op.client_uuid yaroqsiz: %r", exc
+            )
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="error",
+                message_key="common.validation_error",
+            )
+    elif "client_uuid" in payload and payload["client_uuid"] is not None:
+        try:
+            client_uuid_val = uuid.UUID(str(payload["client_uuid"]))
+        except (ValueError, TypeError) as exc:
+            logger.debug(
+                "marketplace_order.create: payload client_uuid yaroqsiz: %r", exc
+            )
+            return OpResult(
+                client_uuid=op.client_uuid,
+                status="error",
+                message_key="common.validation_error",
+            )
 
     try:
         order = await marketplace_service.create_order(
@@ -785,37 +805,31 @@ async def push(
             )
             continue
 
-        # SAVEPOINT: har op alohida izolyatsiyalangan nested transaction ichida
-        # Bitta op rollback bo'lsa sessiya ifloslanmaydi, qolgan op'lar toza sessiyada davom etadi.
+        # SAVEPOINT: har op alohida izolyatsiyalangan nested transaction ichida.
+        # Bitta op rollback bo'lsa sessiya ifloslanmaydi, qolgan op'lar toza
+        # sessiyada davom etadi. Muhim: handler AppError ni ichida ushlab,
+        # OpResult(error) qaytarishi mumkin — bunday hollarda ham SAVEPOINT
+        # rollback qilinadi (partial flush'lar tozalansin).
         #
-        # Muhim: handler AppError ni ichida ushlab, OpResult(error) qaytarishi mumkin.
-        # Bunday hollarda ham SAVEPOINT rollback qilinadi — partial flush'lar tozalansin.
-        # Faqat "applied"/"duplicate" natijalarda SAVEPOINT commit qilinadi.
-        # SAVEPOINT: har op alohida izolyatsiyalangan nested transaction ichida
-        # Bitta op rollback bo'lsa sessiya ifloslanmaydi, qolgan op'lar toza sessiyada davom etadi.
+        # #15: chaqiriladigan servislar (orders/contracts/customers/catalog/
+        # attendance) endi ichida db.rollback() CHAQIRMAYDI — IntegrityError
+        # o'z SAVEPOINT'i bilan ushlanadi.
         #
-        # Muhim: handler AppError ni ichida ushlab, OpResult(error) qaytarishi mumkin.
-        # Bunday hollarda ham SAVEPOINT rollback qilinadi — partial flush'lar tozalansin.
-        # Faqat "applied"/"duplicate" natijalarda SAVEPOINT commit qilinadi.
-        #
-        # Cheklov: create_order() IntegrityError da db.rollback() chaqiradi (idempotentlik).
-        # Bu full-session rollback bo'lib SAVEPOINT'ni ham bekor qiladi.
-        # Bunday hollarda sp.rollback() xato chiqaradi — qo'shimcha try/except bilan himoya.
+        # MUHIM (SAVEPOINT release naqshi): muvaffaqiyatli ("applied"/
+        # "duplicate") natijada `sp.commit()` QASDAN chaqirilmaydi — SAVEPOINT
+        # ochiq qoldiriladi. Sabab: empirik tekshirildi — SAVEPOINT release
+        # qilingandan so'ng (RELEASE SAVEPOINT), agar keyinroq shu SO'ROV
+        # ichida (masalan keyingi op'ning xatosi yoki request-darajali
+        # muvaffaqiyatsizlik) TO'LIQ db.rollback() chaqirilsa — release
+        # qilingan ma'lumot ROLLBACK'DAN NOTO'G'RI OMON QOLADI (aiosqlite/
+        # SQLAlchemy asyncio xatti-harakati, orders/service.py create_order()
+        # dagi batafsil izohga qarang). SAVEPOINT ochiq qoldirilsa, keyingi
+        # to'liq commit HAM, to'liq rollback HAM to'g'ri ishlaydi.
         sp = await db.begin_nested()
         try:
             result = await handler(op, actor_id, user, db, redis, enterprise_id=enterprise_id)
-            if result.status in ("applied", "duplicate"):
-                # Muvaffaqiyatli — SAVEPOINT commit (RELEASE SAVEPOINT)
-                try:
-                    await sp.commit()
-                except Exception:
-                    pass  # Allaqachon committed yoki xato — davom etamiz
-            else:
-                # Op xato/conflict — SAVEPOINT rollback (partial flush'larni tozalash)
-                try:
-                    await sp.rollback()
-                except Exception:
-                    pass  # Allaqachon rolled back (masalan, db.rollback() chaqirilgan)
+            if result.status not in ("applied", "duplicate"):
+                await sp.rollback()
             results.append(result)
         except AppError as exc:
             # AppError handler'dan chiqdi — SAVEPOINT rollback, sessiya toza

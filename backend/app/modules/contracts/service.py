@@ -26,7 +26,7 @@ import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -329,11 +329,23 @@ async def create_contract(
         supplier_enterprise_id=supplier_eid,  # Shartnoma-Gate: server-authoritative
     )
 
+    # SAVEPOINT (#15): db.add() dan OLDIN ochiladi — aks holda begin_nested()
+    # ichki avtoflush-snapshot mexanizmi pending `contract`ni allaqachon
+    # flush qilib, IntegrityError'ni try/except'dan TASHQARIDA chiqarib
+    # yuborishi mumkin edi. db.rollback() EMAS — ROOT tranzaksiya (sync
+    # op-savepoint) buzilmasin.
+    #
+    # MUHIM: muvaffaqiyat holatida sp.commit() ATAYLAB chaqirilmaydi —
+    # SAVEPOINT ochiq qoldiriladi (empirik tekshirilgan: release qilingan
+    # SAVEPOINT keyinroq shu funksiyada/chaqiruvchida yuz beradigan TO'LIQ
+    # db.rollback()'dan noto'g'ri "omon qolishi" mumkin — orders/service.py
+    # create_order() dagi batafsil izohga qarang).
+    sp = await db.begin_nested()
     db.add(contract)
     try:
         await db.flush()
     except IntegrityError as exc:
-        await db.rollback()
+        await sp.rollback()
         exc_str = str(exc).lower()
         if "uq_contract_store_number" in exc_str or "unique" in exc_str:
             raise AppError("contracts.duplicate_number", status_code=409) from exc
@@ -408,31 +420,57 @@ async def update_contract(
     if data.number is not None and data.number != contract.number:
         await _check_number_unique(db, contract.store_id, data.number, exclude_id=contract_id)
 
-    # Maydonlarni yangilash
+    # Yangilanadigan maydonlar (#34: ATOMIK shartli UPDATE uchun to'planadi).
+    # DIQQAT: `contract` ORM ob'ekti ATAYLAB mutatsiya qilinmaydi — aks holda
+    # keyingi db.execute() avtoflush orqali oddiy "WHERE id=..." UPDATE'ni
+    # oldindan chiqarib, versiya-himoyalangan shartli UPDATE'ni chetlab
+    # o'tgan bo'lardi (lost-update himoyasi ishlamay qolardi). catalog/service.py
+    # update_product() dagi bir xil naqsh.
+    changed: dict[str, object] = {}
     if data.number is not None:
-        contract.number = data.number
+        changed["number"] = data.number
     if data.valid_from is not None:
-        contract.valid_from = data.valid_from
+        changed["valid_from"] = data.valid_from
     if data.valid_to is not None:
-        contract.valid_to = data.valid_to
+        changed["valid_to"] = data.valid_to
     if data.signed_at is not None:
-        contract.signed_at = data.signed_at
+        changed["signed_at"] = data.signed_at
     if data.contract_type is not None:
-        contract.contract_type = data.contract_type
+        changed["contract_type"] = data.contract_type
     if data.branch_id is not None:
-        contract.branch_id = data.branch_id
+        changed["branch_id"] = data.branch_id
 
-    contract.version = contract.version + 1
-    contract.updated_at = _now()
+    expected_version = data.version
+    changed["version"] = expected_version + 1
+    changed["updated_at"] = _now()
 
+    # ATOMIK shartli UPDATE (#34): rowcount==0 → boshqa tranzaksiya o'rtada
+    # o'zgartirgan (lost-update oldini olish, PG+SQLite bir xil ishlaydi).
+    # SAVEPOINT (#15): IntegrityError (number dublikat) faqat shu yozuvni
+    # bekor qiladi, db.rollback() EMAS — ROOT tranzaksiya buzilmaydi.
+    # Muvaffaqiyat holatida sp.commit() ATAYLAB chaqirilmaydi — SAVEPOINT
+    # ochiq qoldiriladi (catalog/service.py update_product() / orders/service.py
+    # create_order() dagi batafsil izohga qarang).
+    sp = await db.begin_nested()
     try:
-        await db.flush()
+        result = await db.execute(
+            update(Contract)
+            .where(Contract.id == contract_id, Contract.version == expected_version)
+            .values(**changed)
+        )
     except IntegrityError as exc:
-        await db.rollback()
+        await sp.rollback()
         exc_str = str(exc).lower()
         if "uq_contract_store_number" in exc_str or "unique" in exc_str:
             raise AppError("contracts.duplicate_number", status_code=409) from exc
         raise
+
+    if result.rowcount == 0:
+        # version mos kelmadi (boshqa tranzaksiya o'rtada yangilagan) → 409
+        raise AppError("contracts.version_conflict", status_code=409)
+
+    # ORM ob'ektni DB bilan sinxronlash (identity-map stale bo'lmasin).
+    await db.refresh(contract)
 
     after = {
         "number": contract.number,

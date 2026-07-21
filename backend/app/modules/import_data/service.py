@@ -10,9 +10,12 @@ Maqsad:
   - Idempotentlik: client_uuid takror → skip (skipped++).
 
 DIZAYN:
-  - Migratsiya yo'q (deploy xavfsiz).
-  - StoreInventory idempotentlik: service-darajali dedup
-    (client_uuid + enterprise_id + store_id → Redis SETNX yoki in-batch set).
+  - StoreInventory idempotentlik (#16): client_uuid DB-darajali UNIQUE
+    (uq_store_inv_client_uuid, migratsiya 0037) — ASOSIY backstop. Redis
+    faqat tez-yo'l optimizatsiyasi (GET, SETNX EMAS) — commit'dan OLDIN kalit
+    qo'yilmaydi, shuning uchun commit muvaffaqiyatsiz bo'lganda dublikat
+    noto'g'ri "band" bo'lib qolmaydi. Redis kalitlari faqat commit
+    MUVAFFAQIYATLI bo'lgandan KEYIN o'rnatiladi.
   - Katalog idempotentlik: mavjud create_product client_uuid Redis keshi.
 """
 
@@ -24,6 +27,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -81,6 +85,7 @@ async def confirm_import(
     created = 0
     skipped = 0
     errors: list[RowError] = []
+    created_uuids: list[uuid.UUID] = []
 
     if target == "catalog":
         created, skipped, errors = await _confirm_catalog(
@@ -90,7 +95,7 @@ async def confirm_import(
         store_id = await _get_store_id(db, current_user)
         if store_id is None:
             raise AppError("import.store_not_found", status_code=404)
-        created, skipped, errors = await _confirm_store_inventory(
+        created, skipped, errors, created_uuids = await _confirm_store_inventory(
             db, body.rows, enterprise_id, store_id, redis
         )
 
@@ -101,6 +106,19 @@ async def confirm_import(
         await db.rollback()
         logger.error("confirm_import: commit xato: %r", exc)
         raise AppError("common.internal_error", status_code=500) from exc
+
+    # ── Redis kalit (#16): faqat commit MUVAFFAQIYATLI bo'lgandan KEYIN
+    # o'rnatiladi — tez-yo'l optimizatsiyasi, DB unikalligi asosiy backstop.
+    if target == "store_inventory" and redis is not None and created_uuids:
+        for cu in created_uuids:
+            idem_key = f"{_IDEM_STORE_INV_PREFIX}:{cu}"
+            try:
+                await redis.set(idem_key, "1", ex=_IDEM_TTL)
+            except Exception as exc:
+                logger.warning(
+                    "confirm_import: Redis kalit saqlash muvaffaqiyatsiz "
+                    "(kalit=%s, xato=%r)", idem_key, exc,
+                )
 
     return ImportConfirmOut(
         created=created,
@@ -271,11 +289,25 @@ async def _confirm_store_inventory(
     enterprise_id: uuid.UUID | None,
     store_id: uuid.UUID,
     redis=None,
-) -> tuple[int, int, list[RowError]]:
-    """Satrlarni StoreInventory ga yozadi."""
+) -> tuple[int, int, list[RowError], list[uuid.UUID]]:
+    """
+    Satrlarni StoreInventory ga yozadi.
+
+    Idempotentlik qatlamlari (#16):
+      1. In-batch set (bitta so'rov ichida takror client_uuid).
+      2. Redis GET — tez-yo'l optimizatsiyasi (SETNX EMAS — kalit faqat
+         commit muvaffaqiyatli bo'lgandan keyin qo'yiladi, confirm_import da).
+      3. DB SELECT (client_uuid bo'yicha) — asosiy tekshiruv.
+      4. DB UNIQUE + SAVEPOINT — race-guard backstop (#15 pattern).
+
+    Returns:
+        (created, skipped, errors, created_uuids) — created_uuids commit'dan
+        keyin Redis kalit o'rnatish uchun ishlatiladi.
+    """
     created = 0
     skipped = 0
     errors: list[RowError] = []
+    created_uuids: list[uuid.UUID] = []
 
     # In-batch idempotentlik seti (client_uuid → True)
     seen_uuids: set[uuid.UUID] = set()
@@ -288,16 +320,24 @@ async def _confirm_store_inventory(
                 continue
             seen_uuids.add(row.client_uuid)
 
-            # Redis dedup
+            # Redis tez-yo'l optimizatsiyasi (GET — backstop emas)
             if redis is not None:
-                idem_key = f"{_IDEM_STORE_INV_PREFIX}:{enterprise_id}:{store_id}:{row.client_uuid}"
+                idem_key = f"{_IDEM_STORE_INV_PREFIX}:{row.client_uuid}"
                 try:
-                    was_set = await redis.set(idem_key, "1", ex=_IDEM_TTL, nx=True)
-                    if not was_set:
+                    if await redis.get(idem_key) is not None:
                         skipped += 1
                         continue
                 except Exception as exc:
                     logger.warning("store_inv import: Redis dedup xato: %r", exc)
+
+            # DB-darajali idempotentlik (asosiy tekshiruv)
+            existing_stmt = select(StoreInventory.id).where(
+                StoreInventory.client_uuid == row.client_uuid
+            )
+            existing_result = await db.execute(existing_stmt)
+            if existing_result.scalar_one_or_none() is not None:
+                skipped += 1
+                continue
 
             # Mahsulotni topish (sku/barcode bo'yicha) yoki yaratish
             product = await _find_or_create_product_for_store(
@@ -320,10 +360,33 @@ async def _confirm_store_inventory(
                 status="active",
                 source_order_id=None,
                 source_delivery_id=None,
+                client_uuid=row.client_uuid,
             )
+
+            # SAVEPOINT (#15): db.add() dan OLDIN ochiladi — aks holda
+            # begin_nested() ichki avtoflush-snapshot mexanizmi pending
+            # `inv`ni allaqachon flush qilib, IntegrityError'ni try/except'dan
+            # TASHQARIDA chiqarib yuborishi mumkin edi. DB UNIQUE (client_uuid)
+            # race-guard — parallel so'rov bir xil satrni bir vaqtda yozsa
+            # faqat shu qator bekor qilinadi, ROOT tranzaksiya buzilmaydi.
+            #
+            # MUHIM: muvaffaqiyat holatida sp.commit() ATAYLAB chaqirilmaydi —
+            # SAVEPOINT ochiq qoldiriladi (empirik tekshirilgan: release
+            # qilingan SAVEPOINT keyinroq shu BATCH ichida (masalan
+            # confirm_import'ning yakuniy db.commit()'i yiqilib db.rollback()
+            # chaqirilganda) noto'g'ri "omon qolishi" mumkin edi — orders/
+            # service.py create_order() dagi batafsil izohga qarang).
+            sp = await db.begin_nested()
             db.add(inv)
-            await db.flush()
+            try:
+                await db.flush()
+            except IntegrityError:
+                await sp.rollback()
+                skipped += 1
+                continue
+
             created += 1
+            created_uuids.append(row.client_uuid)
 
         except AppError as exc:
             errors.append(
@@ -343,7 +406,7 @@ async def _confirm_store_inventory(
                 )
             )
 
-    return created, skipped, errors
+    return created, skipped, errors, created_uuids
 
 
 async def _find_or_create_product_for_store(

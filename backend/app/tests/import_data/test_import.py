@@ -325,6 +325,157 @@ async def test_confirm_agent_forbidden(
     assert exc_info.value.status_code == 403
 
 
+# ─── 4b. Confirm store_inventory — #16 idempotentlik DB-backstop ─────────────
+
+
+@pytest.mark.asyncio
+async def test_confirm_store_inventory_client_uuid_db_backstop(
+    db_session: AsyncSession,
+    store_user: AppUser,
+    default_enterprise: Enterprise,
+    fake_redis,
+):
+    """
+    #16: client_uuid takror (boshqa so'rov, Redis kesh bo'lsa ham) DB
+    UNIQUE (uq_store_inv_client_uuid) orqali skip qilinadi — asosiy backstop.
+    """
+    from app.models.store_inventory import StoreInventory
+    from app.modules.import_data.service import confirm_import
+    from sqlalchemy import select
+
+    client_uuid = uuid.uuid4()
+    rows = [
+        ConfirmRow(
+            row_index=0,
+            name="Import Tovar",
+            qty=3.0,
+            price=1000.0,
+            client_uuid=client_uuid,
+        )
+    ]
+    body = ImportConfirmIn(source="excel", rows=rows)
+
+    result1 = await confirm_import(
+        db=db_session, body=body, current_user=store_user, redis=fake_redis
+    )
+    assert result1.target == "store_inventory"
+    assert result1.created == 1
+    assert result1.skipped == 0
+
+    # Xuddi shu client_uuid bilan qayta confirm — skip (DB backstop)
+    result2 = await confirm_import(
+        db=db_session, body=body, current_user=store_user, redis=fake_redis
+    )
+    assert result2.created == 0
+    assert result2.skipped == 1
+
+    stmt = select(StoreInventory).where(StoreInventory.client_uuid == client_uuid)
+    res = await db_session.execute(stmt)
+    assert len(res.scalars().all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_store_inventory_retry_after_commit_failure_not_duplicated(
+    db_session: AsyncSession,
+    store_user: AppUser,
+    default_enterprise: Enterprise,
+    fake_redis,
+):
+    """
+    #16 regressiya: Redis idempotentlik kaliti COMMIT'DAN OLDIN emas,
+    COMMIT'DAN KEYIN qo'yiladi. Birinchi urinish commit'da yiqilsa (masalan
+    tarmoq/DB xatosi) — Redis kalit qo'yilmagan bo'lishi kerak, shuning
+    uchun keyingi retry noto'g'ri "band" bo'lib qolmaydi. Root rollback
+    (confirm_import ichida) birinchi urinishning YOZUVLARINI ham bekor
+    qiladi, shuning uchun retry MUVAFFAQIYATLI yaratadi va DUBLIKAT bo'lmaydi.
+
+    IKKITA SATR ATAYLAB ISHLATILADI (bitta emas): #15 regressiyasi — agar
+    birinchi qator SAVEPOINT'i "release" qilingan bo'lsa-yu (sp.commit()),
+    ikkinchi qator qayta ishlangandan KEYIN yakuniy commit yiqilsa, birinchi
+    qatorning "release" qilingan ma'lumoti to'liq db.rollback()'dan noto'g'ri
+    omon qolishi mumkin edi (aiosqlite/SQLAlchemy asyncio xatti-harakati).
+    """
+    from app.core.errors import AppError
+    from app.models.store_inventory import StoreInventory
+    from app.modules.import_data import service as import_service
+    from sqlalchemy import select
+
+    # store_user/default_enterprise fixture'lari faqat flush qilingan (commit
+    # emas) — keyingi simulyatsiya qilingan commit-xato rollback'i ularni ham
+    # yo'q qilib qo'ymasligi uchun avval commit qilamiz.
+    await db_session.commit()
+
+    client_uuid_1 = uuid.uuid4()
+    client_uuid_2 = uuid.uuid4()
+    rows = [
+        ConfirmRow(
+            row_index=0,
+            name="Retry Tovar 1",
+            qty=2.0,
+            price=2000.0,
+            client_uuid=client_uuid_1,
+        ),
+        ConfirmRow(
+            row_index=1,
+            name="Retry Tovar 2",
+            qty=3.0,
+            price=1500.0,
+            client_uuid=client_uuid_2,
+        ),
+    ]
+    body = ImportConfirmIn(source="excel", rows=rows)
+
+    # 1-urinish: commit simulyatsiya qilingan xato bilan yiqiladi
+    original_commit = db_session.commit
+
+    async def _failing_commit():
+        raise RuntimeError("simulyatsiya: DB ulanish xatosi")
+
+    db_session.commit = _failing_commit
+    try:
+        with pytest.raises(AppError) as exc_info:
+            await import_service.confirm_import(
+                db=db_session, body=body, current_user=store_user, redis=fake_redis
+            )
+        assert exc_info.value.status_code == 500
+    finally:
+        db_session.commit = original_commit
+
+    # Redis kalit qo'yilmagan (commit muvaffaqiyatsiz bo'lgani uchun) — HAR
+    # IKKI qator uchun ham (birinchi qator SAVEPOINT'i "release" qilingan
+    # bo'lsa ham, hali committed emas).
+    for cu in (client_uuid_1, client_uuid_2):
+        idem_key = f"{import_service._IDEM_STORE_INV_PREFIX}:{cu}"
+        assert await fake_redis.get(idem_key) is None
+
+    # DB'da ikkala qator ham YO'Q bo'lishi kerak (root rollback to'liq
+    # bekor qilgan bo'lishi kerak — #15 regressiyasi shu yerda ushlanadi)
+    for cu in (client_uuid_1, client_uuid_2):
+        stmt = select(StoreInventory).where(StoreInventory.client_uuid == cu)
+        res = await db_session.execute(stmt)
+        assert res.scalar_one_or_none() is None, (
+            f"client_uuid={cu} rollback'dan keyin ham DB'da qolib ketdi (#15 regressiya)"
+        )
+
+    # db.rollback() SQLAlchemy'da barcha sessiya ob'ektlarini "expire" qiladi
+    # (expire_on_commit sozlamasidan qat'iy nazar) — keyingi ishlatish uchun
+    # store_user'ni qayta yuklaymiz (aks holda MissingGreenlet xatosi).
+    await db_session.refresh(store_user)
+
+    # 2-urinish (retry) — muvaffaqiyatli bo'lishi kerak, "band" bo'lib qolmagan
+    result2 = await import_service.confirm_import(
+        db=db_session, body=body, current_user=store_user, redis=fake_redis
+    )
+    assert result2.created == 2, f"Retry muvaffaqiyatsiz: {result2}"
+    assert result2.skipped == 0
+
+    # DB da FAQAT bitta-bitta yozuv (dublikat yo'q)
+    for cu in (client_uuid_1, client_uuid_2):
+        stmt = select(StoreInventory).where(StoreInventory.client_uuid == cu)
+        res = await db_session.execute(stmt)
+        assert len(res.scalars().all()) == 1
+
+
 # ─── 5. HTTP endpointlar RBAC ─────────────────────────────────────────────────
 
 

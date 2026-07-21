@@ -457,6 +457,70 @@ async def test_version_conflict(catalog_client: AsyncClient, admin_user) -> None
     assert resp3.json()["message_key"] == "catalog.version_conflict"
 
 
+@pytest.mark.asyncio
+async def test_update_product_atomic_guard_catches_race(
+    db_session: AsyncSession,
+    default_enterprise,
+    admin_user,
+    monkeypatch,
+) -> None:
+    """
+    #34: session-darajali pre-check (`product.version != data.version`)
+    yagona himoya bo'lganda, ikkita parallel yozuvchi bir xil
+    `expected_version` bilan pre-check'ni ikkalasi ham o'tib ketishi mumkin
+    (lost update). ATOMIK shartli UPDATE (`WHERE version=expected`)
+    DB-darajasida haqiqiy joriy qatorga tayanadi — pre-check "eskirgan"
+    (stale) obyekt bilan o'tsa ham, UPDATE rowcount=0 qaytarib 409 beradi.
+    """
+    from sqlalchemy import update as sa_update
+
+    from app.core.errors import AppError
+    from app.modules.catalog import service as catalog_service
+    from app.modules.catalog.schemas import ProductUpdate
+
+    product = Product(
+        name_uz="Race mahsulot",
+        name_ru="Race mahsulot",
+        unit="dona",
+        is_active=True,
+        version=1,
+        enterprise_id=default_enterprise.id,
+    )
+    db_session.add(product)
+    await db_session.commit()
+    stale_version = product.version
+    assert stale_version == 1
+
+    # "Parallel" tranzaksiya — boshqa so'rov versiyani allaqachon oshirgan.
+    # ORM update() konstruktsiyasi ishlatiladi (raw text() emas) — Uuid(as_uuid=True)
+    # ustuni SQLite'da dashsiz hex sifatida saqlanadi, str(uuid) esa dashli —
+    # ular mos kelmaydi (0 qator yangilanadi). ORM konstruktsiya to'g'ri bind qiladi.
+    await db_session.execute(
+        sa_update(Product).where(Product.id == product.id).values(version=2)
+    )
+    await db_session.commit()
+
+    # get_product ni monkeypatch — eski (stale) obyektni qaytaradi, shunda
+    # update_product ichidagi pre-check (product.version != data.version) o'tadi.
+    async def _fake_get_product(db, product_id, user=None, enterprise_id=None):
+        return product
+
+    monkeypatch.setattr(catalog_service, "get_product", _fake_get_product)
+
+    with pytest.raises(AppError) as exc_info:
+        await catalog_service.update_product(
+            db_session,
+            product.id,
+            ProductUpdate(name_uz="Race Update", version=stale_version),
+            actor_id=admin_user.id,
+            user=admin_user,
+            enterprise_id=default_enterprise.id,
+        )
+
+    assert exc_info.value.message_key == "catalog.version_conflict"
+    assert exc_info.value.status_code == 409
+
+
 # ─── 6. Soft-delete tekshiruvi (qo'shimcha) ──────────────────────────────────
 
 

@@ -221,13 +221,22 @@ async def check_in(
         updated_at=now,
         enterprise_id=user.enterprise_id,  # MT2: server-authoritative (user dan olinadi)
     )
+    # SAVEPOINT (#15): db.add() dan OLDIN ochiladi — aks holda begin_nested()
+    # ichki avtoflush-snapshot mexanizmi pending `att`ni allaqachon flush
+    # qilib, IntegrityError'ni try/except'dan TASHQARIDA chiqarib yuborishi
+    # mumkin edi. db.rollback() EMAS — ROOT tranzaksiya (sync op-savepoint)
+    # buzilmasin. Muvaffaqiyat holatida sp.commit() ATAYLAB chaqirilmaydi —
+    # SAVEPOINT ochiq qoldiriladi (orders/service.py create_order() dagi
+    # batafsil izohga qarang: release qilingan SAVEPOINT keyinroq to'liq
+    # db.rollback()'dan noto'g'ri "omon qolishi" mumkin edi).
+    sp = await db.begin_nested()
     db.add(att)
     try:
         await db.flush()
     except IntegrityError:
         # Parallel ikki check-in: Postgres partial unique (user_id, work_date)
         # yoki client_uuid unique indeksi xato berdi → 409 (boshqa modullar naqshi).
-        await db.rollback()
+        await sp.rollback()
         logger.warning("check_in: race conflict, user_id=%s", actor_id)
         raise AppError("attendance.already_checked_in", status_code=409)
 

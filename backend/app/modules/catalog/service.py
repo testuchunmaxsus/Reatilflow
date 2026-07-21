@@ -43,7 +43,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -388,11 +388,24 @@ async def create_product(
         enterprise_id=enterprise_id,
     )
 
+    # SAVEPOINT (#15): db.add() dan OLDIN ochiladi — aks holda begin_nested()
+    # ichki avtoflush-snapshot mexanizmi pending `product`ni allaqachon flush
+    # qilib, IntegrityError'ni try/except'dan TASHQARIDA chiqarib yuborishi
+    # mumkin edi. db.rollback() EMAS — ROOT tranzaksiya (masalan import_data
+    # _confirm_catalog() dagi har-qatorli sikl yoki sync push batch) buzilmasin
+    # — aks holda bitta qatordagi dublikat TOCTOU xatosi butun batchda oldin
+    # flush qilingan yozuvlarni yo'qotib qo'yardi (created hisoblagichi esa
+    # sanashda davom etardi).
+    #
+    # MUHIM: muvaffaqiyat holatida sp.commit() ATAYLAB chaqirilmaydi —
+    # SAVEPOINT ochiq qoldiriladi (update_product / orders/service.py
+    # create_order() dagi batafsil izohga qarang).
+    sp = await db.begin_nested()
     db.add(product)
     try:
         await db.flush()
     except IntegrityError as exc:
-        await db.rollback()
+        await sp.rollback()
         exc_str = str(exc).lower()
         if "sku" in exc_str:
             raise AppError("catalog.duplicate_sku", status_code=409) from exc
@@ -560,42 +573,67 @@ async def update_product(
     if data.barcode is not None and data.barcode != product.barcode:
         await _check_barcode_unique(db, data.barcode, exclude_id=product_id, enterprise_id=enterprise_id)
 
-    # Maydonlarni yangilash
+    # Yangilanadigan maydonlar (#34: ATOMIK shartli UPDATE uchun to'planadi).
+    # DIQQAT: `product` ORM ob'ekti ATAYLAB mutatsiya qilinmaydi — aks holda
+    # keyingi db.execute() avtoflush orqali oddiy "WHERE id=..." UPDATE'ni
+    # oldindan chiqarib, versiya-himoyalangan shartli UPDATE'ni chetlab
+    # o'tgan bo'lardi (lost-update himoyasi ishlamay qolardi).
+    changed: dict[str, object] = {}
     if data.name_uz is not None:
-        product.name_uz = data.name_uz
+        changed["name_uz"] = data.name_uz
     if data.name_ru is not None:
-        product.name_ru = data.name_ru
+        changed["name_ru"] = data.name_ru
     if data.sku is not None:
-        product.sku = data.sku
+        changed["sku"] = data.sku
     if data.barcode is not None:
-        product.barcode = data.barcode
+        changed["barcode"] = data.barcode
     if data.mxik_code is not None:
-        product.mxik_code = data.mxik_code
+        changed["mxik_code"] = data.mxik_code
     if data.unit is not None:
-        product.unit = data.unit
+        changed["unit"] = data.unit
     if data.category_id is not None:
-        product.category_id = data.category_id
+        changed["category_id"] = data.category_id
     if data.photo_url is not None:
-        product.photo_url = data.photo_url
+        changed["photo_url"] = data.photo_url
     if data.is_active is not None:
-        product.is_active = data.is_active
+        changed["is_active"] = data.is_active
     if data.branch_scope is not None:
-        product.branch_scope = data.branch_scope
+        changed["branch_scope"] = data.branch_scope
 
-    # Versiyani oshirish
-    product.version = product.version + 1
-    product.updated_at = _now()
+    expected_version = data.version
+    changed["version"] = expected_version + 1
+    changed["updated_at"] = _now()
 
+    # ATOMIK shartli UPDATE (#34): rowcount==0 → boshqa tranzaksiya o'rtada
+    # o'zgartirgan (lost-update oldini olish, PG+SQLite bir xil ishlaydi).
+    # SAVEPOINT (#15): IntegrityError (SKU/barcode dublikat) faqat shu
+    # yozuvni bekor qiladi, db.rollback() EMAS — ROOT tranzaksiya buzilmaydi.
+    # Muvaffaqiyat holatida sp.commit() ATAYLAB chaqirilmaydi — SAVEPOINT
+    # ochiq qoldiriladi (orders/service.py create_order() dagi batafsil
+    # izohga qarang: release qilingan SAVEPOINT keyinroq shu so'rov ichida
+    # yuz beradigan TO'LIQ db.rollback()'dan noto'g'ri "omon qolishi" mumkin edi).
+    sp = await db.begin_nested()
     try:
-        await db.flush()
+        result = await db.execute(
+            update(Product)
+            .where(Product.id == product_id, Product.version == expected_version)
+            .values(**changed)
+        )
     except IntegrityError as exc:
-        await db.rollback()
+        await sp.rollback()
         exc_str = str(exc).lower()
         if "sku" in exc_str:
             raise AppError("catalog.duplicate_sku", status_code=409) from exc
         if "barcode" in exc_str:
             raise AppError("catalog.duplicate_barcode", status_code=409) from exc
         raise
+
+    if result.rowcount == 0:
+        # version mos kelmadi (boshqa tranzaksiya o'rtada yangilagan) → 409
+        raise AppError("catalog.version_conflict", status_code=409)
+
+    # ORM ob'ektni DB bilan sinxronlash (identity-map stale bo'lmasin).
+    await db.refresh(product)
 
     after = {
         "name_uz": product.name_uz,

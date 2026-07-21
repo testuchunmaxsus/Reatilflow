@@ -624,6 +624,69 @@ async def test_version_conflict_on_update(
 
 
 @pytest.mark.asyncio
+async def test_update_store_atomic_guard_catches_race(
+    db_session: AsyncSession,
+    default_enterprise,
+    make_store,
+    admin_user,
+    monkeypatch,
+) -> None:
+    """
+    #34: session-darajali pre-check (`store.version != data.version`) YAGONA
+    himoya bo'lsa, ikkita parallel yozuvchi bir xil `expected_version` bilan
+    pre-check'ni ikkalasi ham o'tib ketishi mumkin (lost update). ATOMIK
+    shartli UPDATE (`WHERE version=expected`) DB-darajasida haqiqiy joriy
+    qatorga tayanadi — pre-check "eskirgan" (stale) obyekt bilan o'tsa ham,
+    UPDATE rowcount=0 qaytarib 409 beradi.
+
+    Simulyatsiya: `get_store` monkeypatch qilinib eski (version=1) obyekt
+    qaytariladi, DB dagi haqiqiy qator esa "parallel tranzaksiya" tomonidan
+    allaqachon version=2 ga o'tkazilgan bo'ladi.
+    """
+    from sqlalchemy import update as sa_update
+
+    from app.modules.customers import service as customers_service
+    from app.modules.customers.schemas import StoreUpdate
+
+    store = await make_store(name="Race Store")
+    await db_session.commit()
+    stale_version = store.version
+    assert stale_version == 1
+
+    # "Parallel" tranzaksiya — boshqa so'rov versiyani allaqachon oshirgan.
+    # ORM update() konstruktsiyasi ishlatiladi (raw text() emas) — Uuid(as_uuid=True)
+    # ustuni SQLite'da dashsiz hex sifatida saqlanadi, str(uuid) esa dashli —
+    # ular mos kelmaydi (0 qator yangilanadi). ORM konstruktsiya to'g'ri bind qiladi.
+    await db_session.execute(
+        sa_update(Store).where(Store.id == store.id).values(version=2)
+    )
+    await db_session.commit()
+
+    # get_store ni monkeypatch — eski (stale) obyektni qaytaradi, shunda
+    # update_store ichidagi pre-check (store.version != data.version) o'tadi.
+    async def _fake_get_store(db, store_id, user=None, enterprise_id=None):
+        return store
+
+    monkeypatch.setattr(customers_service, "get_store", _fake_get_store)
+
+    with pytest.raises(Exception) as exc_info:
+        await customers_service.update_store(
+            db_session,
+            store.id,
+            StoreUpdate(name="Race Update", version=stale_version),
+            actor_id=admin_user.id,
+            user=admin_user,
+            enterprise_id=default_enterprise.id,
+        )
+
+    from app.core.errors import AppError
+
+    assert isinstance(exc_info.value, AppError)
+    assert exc_info.value.message_key == "customers.version_conflict"
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_create_store_idempotency(
     customers_client: AsyncClient,
     admin_user,

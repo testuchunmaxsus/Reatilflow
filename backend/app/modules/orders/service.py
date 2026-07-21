@@ -649,12 +649,30 @@ async def create_order(
         updated_at=_now(),
         enterprise_id=enterprise_id,  # MT2: server-authoritative
     )
+    # SAVEPOINT (#15): db.add() dan OLDIN ochiladi. Aks holda begin_nested()
+    # ichki avtoflush-snapshot mexanizmi allaqachon pending `order`ni flush
+    # qilib yuborib, IntegrityError'ni quyidagi try/except'dan TASHQARIDA
+    # chiqarib yuborishi mumkin edi. db.rollback() EMAS — ROOT tranzaksiya
+    # (va sync op-savepoint) buzilmasin, sessiya toza qolib pastdagi
+    # re-query ishlasin.
+    #
+    # MUHIM (SAVEPOINT release naqshi): muvaffaqiyat holatida `sp.commit()`
+    # QASDAN chaqirilmaydi — SAVEPOINT ochiq qoldiriladi. Sabab: empirik
+    # tekshirildi — agar shu yerda SAVEPOINT release qilinsa (sp.commit()),
+    # so'ngra shu FUNKSIYA ICHIDA pastroqda (masalan 10-qadam: qoldiq
+    # yetmasa) xato ko'tarilib chaqiruvchi (get_db() yoki test) TO'LIQ
+    # db.rollback() chaqirsa — allaqachon "release" qilingan SAVEPOINT
+    # ma'lumoti (Order yozuvi) noto'g'ri tarzda ROLLBACK'DAN OMON QOLADI
+    # (aiosqlite/SQLAlchemy asyncio xatti-harakati). SAVEPOINT ochiq
+    # qoldirilsa, keyingi to'liq commit ham, to'liq rollback ham TO'G'RI
+    # ishlaydi (ORM darajasida qo'shimcha yopish shart emas).
+    sp = await db.begin_nested()
     db.add(order)
     try:
         await db.flush()
     except IntegrityError as exc:
         # (store_id, client_uuid) dublikati — boshqa sessiya allaqachon bu yozuvni yaratgan
-        await db.rollback()
+        await sp.rollback()
         # Mavjud buyurtmani AYNI store_id + client_uuid bo'yicha qidiramiz
         # (faqat client_uuid bo'yicha qidirish → MultipleResultsFound va cross-store xavfi)
         if data.client_uuid is not None:
@@ -681,6 +699,7 @@ async def create_order(
                 # Bir xil store+client_uuid lekin boshqa aktor → 409 (DoS himoyasi)
                 raise AppError("orders.idempotency_conflict", status_code=409) from exc
         raise AppError("orders.idempotency_conflict", status_code=409) from exc
+    # Muvaffaqiyat: sp.commit() ATAYLAB chaqirilmaydi (yuqoridagi izohga qarang).
 
     # ── 9. OrderLine INSERT ───────────────────────────────────────────────
     for line_in, unit_price, line_total, seg_id, server_discount in resolved_lines:

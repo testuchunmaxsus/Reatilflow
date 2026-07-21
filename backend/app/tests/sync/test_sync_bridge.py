@@ -494,6 +494,74 @@ async def test_contract_create_duplicate_number_conflict(
 
 
 @pytest.mark.asyncio
+async def test_batch_savepoint_isolation_preserves_previous_applied_op(
+    db_session: AsyncSession,
+    fake_redis,
+    agent_user,
+    make_store,
+) -> None:
+    """
+    #15 regressiya: bitta push() batch ichida [applied, IntegrityError-conflict]
+    ketma-ketligi — ikkinchi op xato bergani uchun BIRINCHI op'ning allaqachon
+    yozilgan ma'lumoti YO'QOLMASLIGI kerak.
+
+    Eski xatti-harakat (db.rollback() servis ichida): ikkinchi op'ning
+    to'liq-sessiya rollback'i birinchi op'ning HALI COMMIT BO'LMAGAN yozuvini
+    ham bekor qilar edi (ROOT tranzaksiya bitta db_session, get_db faqat
+    request oxirida commit qiladi). SAVEPOINT izolyatsiyasi (#15) buni oldini
+    oladi — har op o'z SAVEPOINT'i ichida, xato faqat o'zini bekor qiladi.
+    """
+    store = await make_store(agent_id=agent_user.id)
+    as_ = AgentStore(agent_id=agent_user.id, store_id=store.id)
+    db_session.add(as_)
+    await db_session.flush()
+
+    valid_from, valid_to = _valid_date_range()
+    number = "2026-SP-ISO"
+
+    op1 = SyncOp(
+        op_type="contract.create",
+        client_uuid=str(uuid.uuid4()),
+        payload={
+            "store_id": str(store.id),
+            "number": number,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+        },
+    )
+    op2 = SyncOp(
+        op_type="contract.create",
+        client_uuid=str(uuid.uuid4()),
+        payload={
+            "store_id": str(store.id),
+            "number": number,  # bir xil (store_id, number) — dublikat
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+        },
+    )
+
+    results = await sync_service.push(
+        ops=[op1, op2],
+        actor_id=agent_user.id,
+        user=agent_user,
+        db=db_session,
+        redis=fake_redis,
+    )
+
+    assert results[0].status == "applied", f"op1 kutilgan 'applied': {results[0]}"
+    assert results[1].status == "conflict", f"op2 kutilgan 'conflict': {results[1]}"
+    assert results[1].message_key == "contracts.duplicate_number"
+
+    # op1 yozuvi hali sessiya ichida saqlanib turibdi (yo'qolmagan)
+    contract_id = uuid.UUID(results[0].server_id)
+    stmt = select(Contract).where(Contract.id == contract_id)
+    result = await db_session.execute(stmt)
+    contract = result.scalar_one_or_none()
+    assert contract is not None, "op1 ning shartnomasi op2 rollback'i bilan yo'qolib qoldi (#15 regressiya)"
+    assert contract.number == number
+
+
+@pytest.mark.asyncio
 async def test_contract_create_bad_payload(
     db_session: AsyncSession,
     fake_redis,
@@ -837,3 +905,53 @@ async def test_marketplace_order_create_bad_payload(
 
     assert results[0].status == "error"
     assert results[0].message_key == "common.validation_error"
+
+
+@pytest.mark.asyncio
+async def test_marketplace_order_create_invalid_client_uuid_rejected(
+    db_session: AsyncSession,
+    fake_redis,
+    make_user,
+    make_store,
+    make_product,
+    default_enterprise,
+) -> None:
+    """
+    #32 regressiya: op.client_uuid UUID sifatida parse bo'lmasa (masalan,
+    "not-a-uuid") — avval `except (ValueError, TypeError): pass` bilan JIM
+    yutilib `client_uuid_val=None` ga tushar, keyin marketplace.create_order
+    idempotentlik SELECT'ini o'tkazib yuborar edi (offline retry → dublikat
+    moliyaviy buyurtma). Endi bunday holat error qaytarishi va buyurtma
+    UMUMAN YARATILMASLIGI kerak.
+    """
+    supplier_agent, buyer_store, product = await _setup_mp_agent_bypass(
+        db_session, make_user, make_store, make_product, default_enterprise
+    )
+
+    op = SyncOp(
+        op_type="marketplace_order.create",
+        client_uuid="not-a-uuid",  # yaroqsiz — parse bo'lmaydi
+        payload={
+            "client_uuid": "not-a-uuid",
+            "product_id": str(product.id),
+            "qty": "2",
+            "store_id": str(buyer_store.id),
+            "is_onetime": True,
+        },
+    )
+
+    results = await sync_service.push(
+        ops=[op],
+        actor_id=supplier_agent.id,
+        user=supplier_agent,
+        db=db_session,
+        redis=fake_redis,
+    )
+
+    assert results[0].status == "error", f"Kutilgan 'error', topilgan: {results[0]}"
+    assert results[0].message_key == "common.validation_error"
+
+    # Buyurtma UMUMAN yaratilmagan bo'lishi kerak (non-idempotent yaratish taqiqlangan)
+    stmt = select(MarketplaceOrder).where(MarketplaceOrder.buyer_store_id == buyer_store.id)
+    result = await db_session.execute(stmt)
+    assert result.scalar_one_or_none() is None
