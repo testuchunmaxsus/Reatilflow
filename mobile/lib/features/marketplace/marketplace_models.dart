@@ -1,5 +1,24 @@
 import 'package:flutter/material.dart';
 
+// ---------------------------------------------------------------------------
+// Decimal parse helper
+//
+// Backend (pydantic v2) Decimal maydonlarni JSON SATR sifatida qaytaradi
+// (masalan "12500.00"), lekin ba'zan num (int/double) ham kelishi mumkin.
+// `(json[...] as num?)` cast String qiymat kelganda TypeError otadi — shuning
+// uchun BARCHA pul/Decimal maydonlar shu helper orqali o'qilishi kerak.
+
+/// [v] num, String yoki null bo'lishi mumkin — barqaror double'ga aylantiradi.
+double? _toDoubleOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
+}
+
+/// [_toDoubleOrNull] + fallback (talab qilinadigan maydonlar uchun).
+double _toDouble(dynamic v, [double fallback = 0.0]) =>
+    _toDoubleOrNull(v) ?? fallback;
+
 // Marketplace — modellar va javob tiplari.
 //
 // Backend endpointlari:
@@ -78,9 +97,9 @@ class MarketplacePromo {
       productId: json['product_id'] as String? ?? '',
       productName: json['product_name'] as String? ?? '',
       supplierName: json['supplier_name'] as String? ?? '',
-      originalPrice: (json['original_price'] as num?)?.toDouble() ?? 0.0,
-      promoPrice: (json['promo_price'] as num?)?.toDouble() ?? 0.0,
-      discountPercent: (json['discount_percent'] as num?)?.toDouble(),
+      originalPrice: _toDouble(json['original_price']),
+      promoPrice: _toDouble(json['promo_price']),
+      discountPercent: _toDoubleOrNull(json['discount_percent']),
       endsAt: json['ends_at'] != null
           ? DateTime.tryParse(json['ends_at'] as String)
           : null,
@@ -137,14 +156,14 @@ class MarketplaceProduct {
       name: json['name'] as String? ?? '',
       sku: json['sku'] as String? ?? '',
       unit: json['unit'] as String? ?? 'dona',
-      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      price: _toDouble(json['price']),
       supplierEnterpriseId:
           json['supplier_enterprise_id'] as String? ?? '',
       supplierEnterpriseName:
           json['supplier_enterprise_name'] as String? ?? '',
       imageUrl: json['image_url'] as String?,
       description: json['description'] as String?,
-      availableQty: (json['available_qty'] as num?)?.toDouble(),
+      availableQty: _toDoubleOrNull(json['available_qty']),
     );
   }
 
@@ -247,12 +266,12 @@ class MarketplaceOrderLine {
       lineId: json['line_id'] as String? ?? json['id'] as String? ?? '',
       productId: json['product_id'] as String? ?? '',
       productName: json['product_name'] as String? ?? '',
-      qty: (json['qty'] as num?)?.toDouble() ?? 0.0,
-      unitPrice: (json['unit_price'] as num?)?.toDouble() ?? 0.0,
+      qty: _toDouble(json['qty']),
+      unitPrice: _toDouble(json['unit_price']),
       expiryDate: json['expiry_date'] != null
           ? DateTime.tryParse(json['expiry_date'] as String)
           : null,
-      markupPercent: (json['markup_percent'] as num?)?.toDouble(),
+      markupPercent: _toDoubleOrNull(json['markup_percent']),
     );
   }
 
@@ -315,7 +334,7 @@ class MarketplaceOrder {
       createdAt: DateTime.tryParse(
               json['created_at'] as String? ?? '') ??
           DateTime.now(),
-      totalAmount: (json['total_amount'] as num?)?.toDouble(),
+      totalAmount: _toDoubleOrNull(json['total_amount']),
       proofPhotoUrl: json['proof_photo_url'] as String?,
       confirmedAt: json['confirmed_at'] != null
           ? DateTime.tryParse(json['confirmed_at'] as String)

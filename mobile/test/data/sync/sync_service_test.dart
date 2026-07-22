@@ -226,6 +226,50 @@ void main() {
       expect(pending.map((o) => o.clientUuid), contains('uuid-error-001'));
     });
 
+    test(
+        'mos kelmagan client_uuid natijasi boshqa opning statusini '
+        'buzmaydi', () async {
+      // Ikkita pending op — natija faqat noma'lum client_uuid uchun keladi.
+      await outboxDao.insertOp(
+        OutboxQueueCompanion.insert(
+          opType: 'order.create',
+          clientUuid: 'uuid-mismatch-001',
+          payload: '{}',
+        ),
+      );
+      await outboxDao.insertOp(
+        OutboxQueueCompanion.insert(
+          opType: 'order.create',
+          clientUuid: 'uuid-mismatch-002',
+          payload: '{}',
+        ),
+      );
+
+      when(() => mockApi.syncPush(any())).thenAnswer(
+        (_) async => const SyncPushResponse(
+          results: [
+            SyncOpResult(
+              clientUuid: 'uuid-unknown-999', // batch'dagi hech biriga mos emas
+              status: 'applied',
+              serverId: 'server-order-999',
+            ),
+          ],
+        ),
+      );
+
+      final result = await syncService.push();
+      // Mos kelmagan natija — hech qanday op "applied" qilinmaydi, partial.
+      expect(result, equals(SyncResult.partial));
+
+      // Ikkala op ham hali pending holatida qolishi kerak (status
+      // o'zgartirilmagan — orElse: batch.first fallback ustidan yozmasligi
+      // kerak).
+      final item1 = await outboxDao.getByClientUuid('uuid-mismatch-001');
+      final item2 = await outboxDao.getByClientUuid('uuid-mismatch-002');
+      expect(item1?.status, equals('pending'));
+      expect(item2?.status, equals('pending'));
+    });
+
     test('tarmoq xatosida networkError qaytaradi', () async {
       await outboxDao.insertOp(
         OutboxQueueCompanion.insert(

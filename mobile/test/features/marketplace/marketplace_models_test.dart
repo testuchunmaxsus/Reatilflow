@@ -91,6 +91,76 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Decimal maydonlar — backend SATR sifatida qaytarishi mumkin (pydantic v2)
+  // ---------------------------------------------------------------------------
+
+  group('Decimal maydonlar — backend JSON satr yuborsa ham crash bo\'lmaydi', () {
+    test('MarketplacePromo — narxlar satr bo\'lganda ham parse qilinadi', () {
+      final promo = MarketplacePromo.fromJson({
+        'id': 'promo-003',
+        'product_id': 'prod-003',
+        'product_name': 'Yog\'',
+        'supplier_name': 'Ferma',
+        'original_price': '12500.50',
+        'promo_price': '9600.00',
+        'discount_percent': '20.5',
+      });
+
+      expect(promo.originalPrice, equals(12500.50));
+      expect(promo.promoPrice, equals(9600.0));
+      expect(promo.discountPercent, equals(20.5));
+    });
+
+    test('MarketplaceProduct — price/available_qty satr bo\'lganda ham '
+        'parse qilinadi', () {
+      final product = MarketplaceProduct.fromJson({
+        'id': 'prod-004',
+        'name': 'Guruch',
+        'sku': 'RICE-1',
+        'unit': 'kg',
+        'price': '13750.00',
+        'supplier_enterprise_id': 'ent-1',
+        'supplier_enterprise_name': 'Guruch Fabrikasi',
+        'available_qty': '300.5',
+      });
+
+      expect(product.price, equals(13750.0));
+      expect(product.availableQty, equals(300.5));
+    });
+
+    test('MarketplaceOrderLine — qty/unit_price/markup_percent satr '
+        'bo\'lganda ham parse qilinadi', () {
+      final line = MarketplaceOrderLine.fromJson({
+        'line_id': 'line-x1',
+        'product_id': 'prod-001',
+        'product_name': 'Sut',
+        'qty': '10.0',
+        'unit_price': '5000.00',
+        'markup_percent': '15.5',
+      });
+
+      expect(line.qty, equals(10.0));
+      expect(line.unitPrice, equals(5000.0));
+      expect(line.markupPercent, equals(15.5));
+    });
+
+    test('MarketplaceOrder — total_amount satr bo\'lganda ham parse '
+        'qilinadi', () {
+      final order = MarketplaceOrder.fromJson({
+        'id': 'order-005',
+        'status': 'confirmed',
+        'supplier_enterprise_id': 'ent-1',
+        'supplier_enterprise_name': 'Sup',
+        'lines': <dynamic>[],
+        'created_at': '2026-06-23T09:00:00.000Z',
+        'total_amount': '75000.00',
+      });
+
+      expect(order.totalAmount, equals(75000.0));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // MarketplaceProduct
   // ---------------------------------------------------------------------------
 

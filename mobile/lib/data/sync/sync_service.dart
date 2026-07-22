@@ -107,10 +107,19 @@ class SyncService {
     // Har op natijasini qayta ishlash
     bool hadConflictOrError = false;
     for (final result in response.results) {
-      final item = batch.firstWhere(
-        (b) => b.clientUuid == result.clientUuid,
-        orElse: () => batch.first, // himoya: topilmasa birinchisi
-      );
+      OutboxQueueData? item;
+      for (final b in batch) {
+        if (b.clientUuid == result.clientUuid) {
+          item = b;
+          break;
+        }
+      }
+      if (item == null) {
+        // Mos client_uuid topilmadi — boshqa opning ustidan yozib qo'ymaslik
+        // uchun bu natijani o'tkazib yuboramiz (item pending holida qoladi).
+        hadConflictOrError = true;
+        continue;
+      }
 
       switch (result.status) {
         case 'applied':
