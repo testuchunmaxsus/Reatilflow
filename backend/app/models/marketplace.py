@@ -44,6 +44,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -98,6 +99,12 @@ class MarketplaceOrder(Base):
     Idempotentlik:
       client_uuid — UNIQUE(buyer_enterprise_id, client_uuid) partial index.
       Bir xil so'rovni qayta jo'natsa dublikat yaratilmaydi.
+
+      #27: buyer_enterprise_id NULL bo'lgan platforma-do'kon (ADR-003)
+      buyurtmalari uchun yuqoridagi UNIQUE ISHLAMAYDI (PG: NULL != NULL).
+      Shu sabab qo'shimcha partial-unique: (buyer_store_id, client_uuid)
+      WHERE buyer_enterprise_id IS NULL AND client_uuid IS NOT NULL
+      (0037 naqshi — PostgreSQL'da amaliy, SQLite'da model orqali quriladi).
     """
 
     __tablename__ = "marketplace_order"
@@ -110,6 +117,17 @@ class MarketplaceOrder(Base):
             "buyer_enterprise_id",
             "client_uuid",
             name="uq_mp_order_buyer_client_uuid",
+        ),
+        # #27: platforma-do'kon (buyer_enterprise_id IS NULL) idempotentlik —
+        # (buyer_store_id, client_uuid) partial-unique.
+        Index(
+            "uq_mp_order_store_client_uuid_partial",
+            "buyer_store_id",
+            "client_uuid",
+            unique=True,
+            postgresql_where=text(
+                "buyer_enterprise_id IS NULL AND client_uuid IS NOT NULL"
+            ),
         ),
     )
 

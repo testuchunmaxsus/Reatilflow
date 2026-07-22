@@ -759,6 +759,25 @@ _OP_REGISTRY: dict[
     "marketplace_order.create": _handle_marketplace_order_create,
 }
 
+# #25: op_type → modul kaliti xaritasi (per-op modul gating).
+# `require_module()` (rbac/module_gate.py) naqshi bilan bir xil — sync push
+# har op uchun umumiy router-darajali gate qo'ya olmaydi (bitta so'rovda
+# ko'p-modulli op'lar aralashishi mumkin), shuning uchun bu tekshiruv
+# push() ichida per-op bajariladi.
+# None qiymat — CORE bridge op'lar (store.update/assign_agent) — modul
+# gate'i yo'q, har doim ruxsat.
+_OP_MODULE: dict[str, str | None] = {
+    "order.create": "orders",
+    "attendance.check_in": "attendance",
+    "attendance.check_out": "attendance",
+    "delivery.status_update": "delivery",
+    "gps.ingest": "gps",
+    "contract.create": "contracts",
+    "marketplace_order.create": "marketplace",
+    "store.update": None,
+    "store.assign_agent": None,
+}
+
 
 # ─── push ─────────────────────────────────────────────────────────────────────
 
@@ -793,6 +812,18 @@ async def push(
 
     results: list[OpResult] = []
 
+    # #25: per-op modul gating — enterprise.enabled_modules bir marta yuklanadi
+    # (superadmin bypass = user.enterprise_id is None, module_gate.py naqshiga mos).
+    enabled_modules: list[str] = []
+    if user.enterprise_id is not None:
+        from app.models.enterprise import Enterprise
+
+        ent_stmt = select(Enterprise.enabled_modules).where(
+            Enterprise.id == user.enterprise_id,
+        )
+        ent_result = await db.execute(ent_stmt)
+        enabled_modules = ent_result.scalar_one_or_none() or []
+
     for op in ops:
         handler = _OP_REGISTRY.get(op.op_type)
         if handler is None:
@@ -804,6 +835,20 @@ async def push(
                 )
             )
             continue
+
+        # #25: modul gating — superadmin (enterprise_id=None) bypass.
+        # CORE bridge op'lar (_OP_MODULE qiymati None) gate'siz o'tadi.
+        if user.enterprise_id is not None:
+            mod = _OP_MODULE.get(op.op_type)
+            if mod is not None and mod not in enabled_modules:
+                results.append(
+                    OpResult(
+                        client_uuid=op.client_uuid,
+                        status="error",
+                        message_key="enterprise.module_disabled",
+                    )
+                )
+                continue
 
         # SAVEPOINT: har op alohida izolyatsiyalangan nested transaction ichida.
         # Bitta op rollback bo'lsa sessiya ifloslanmaydi, qolgan op'lar toza

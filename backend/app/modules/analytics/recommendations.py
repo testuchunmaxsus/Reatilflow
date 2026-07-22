@@ -107,10 +107,15 @@ def generate_recommendations(
             for store_item in geo_items:
                 vel = float(store_item.velocity_per_day)
                 if vel >= q75_threshold and vel > 0:
-                    # Bu do'kondagi jami qoldiq (top_products dan olib bera olmaymiz,
-                    # ammo geo_items'da store_id bo'yicha sold_qty borligidan foydalanish mumkin)
-                    # Soddalashtirish: velocity yuqori bo'lsa restock tavsiyasi
-                    projected_days = float(store_item.sold_qty) / vel if vel > 0 else 0
+                    # #31: haqiqiy qoldiqdan (StoreInventory.qty) hisoblanadi —
+                    # avval bu yerda sold_qty/velocity ishlatilgan edi, bu esa
+                    # matematik jihatdan DOIM period_days'ga teng chiqadi
+                    # (velocity = sold_qty/period_days → sold_qty/velocity =
+                    # period_days) — R3 hech qachon haqiqiy zaxirani
+                    # aks ettirmagan.
+                    projected_days = (
+                        float(store_item.inventory_qty) / vel if vel > 0 else 0
+                    )
                     if projected_days < RESTOCK_DAYS_THRESHOLD:
                         recs.append(
                             RecommendationItem(
@@ -128,6 +133,7 @@ def generate_recommendations(
                                 metric={
                                     "velocity_per_day": str(store_item.velocity_per_day),
                                     "sold_qty_period": str(store_item.sold_qty),
+                                    "inventory_qty": str(store_item.inventory_qty),
                                     "projected_days": round(projected_days, 1),
                                 },
                             )

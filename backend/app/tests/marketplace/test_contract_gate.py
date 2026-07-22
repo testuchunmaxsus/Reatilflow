@@ -478,3 +478,151 @@ async def test_gate_idor_other_store_cannot_see_order(
     assert outgoing_resp.status_code == 200
     other_ids = [o["id"] for o in outgoing_resp.json()["items"]]
     assert order_id not in other_ids, "Boshqa do'kon buyurtmani outgoing'da ko'rmasligi kerak"
+
+
+# ─── e. #28: valid_from kelajakda — hali kuchga kirmagan shartnoma ───────────
+
+
+@pytest.mark.asyncio
+async def test_gate_contract_not_yet_valid_from_returns_409(
+    mp_client: AsyncClient,
+    admin_b: AppUser,
+    store_user_a: AppUser,
+    store_a: Store,
+    enterprise_b: Enterprise,
+    db_session: AsyncSession,
+) -> None:
+    """
+    #28: Contract.valid_from hali kelmagan (kelajakda boshlanadigan
+    shartnoma) → gate hali OCHILMAYDI → 409 marketplace.contract_required.
+    """
+    contract = Contract(
+        store_id=store_a.id,
+        number="GATE-FUTURE-001",
+        valid_from=_today() + timedelta(days=10),  # hali boshlanmagan
+        valid_to=_today() + timedelta(days=365),
+        contract_type="trade",
+        supplier_enterprise_id=enterprise_b.id,
+        version=1,
+    )
+    db_session.add(contract)
+    await db_session.flush()
+
+    token_b_admin = await get_token(mp_client, admin_b)
+    token_a_store = await get_token(mp_client, store_user_a)
+
+    pid = await _create_published_product(
+        mp_client, token_b_admin, "GATE-SKU-FUTURE01"
+    )
+
+    resp = await mp_client.post(
+        "/marketplace/orders",
+        json={
+            "lines": [{"product_id": pid, "qty": "1"}],
+            "store_id": str(store_a.id),
+        },
+        headers={"Authorization": f"Bearer {token_a_store}"},
+    )
+    assert resp.status_code == 409, (
+        f"Hali kuchga kirmagan shartnoma gate'ni ochmasligi kerak: {resp.status_code} — {resp.text}"
+    )
+    assert resp.json()["message_key"] == "marketplace.contract_required"
+
+
+# ─── f. #28: contract_type != trade — gate ochilmaydi ────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_gate_contract_type_employment_returns_409(
+    mp_client: AsyncClient,
+    admin_b: AppUser,
+    store_user_a: AppUser,
+    store_a: Store,
+    enterprise_b: Enterprise,
+    db_session: AsyncSession,
+) -> None:
+    """
+    #28: Contract.contract_type="employment" (savdo emas) → gate'ni OCHMAYDI
+    → 409 marketplace.contract_required, garchi valid_from/valid_to aktiv bo'lsa ham.
+    """
+    contract = Contract(
+        store_id=store_a.id,
+        number="GATE-EMPLOYMENT-001",
+        valid_from=_today() - timedelta(days=1),
+        valid_to=_today() + timedelta(days=365),
+        contract_type="employment",  # savdo shartnomasi emas
+        supplier_enterprise_id=enterprise_b.id,
+        version=1,
+    )
+    db_session.add(contract)
+    await db_session.flush()
+
+    token_b_admin = await get_token(mp_client, admin_b)
+    token_a_store = await get_token(mp_client, store_user_a)
+
+    pid = await _create_published_product(
+        mp_client, token_b_admin, "GATE-SKU-EMP01"
+    )
+
+    resp = await mp_client.post(
+        "/marketplace/orders",
+        json={
+            "lines": [{"product_id": pid, "qty": "1"}],
+            "store_id": str(store_a.id),
+        },
+        headers={"Authorization": f"Bearer {token_a_store}"},
+    )
+    assert resp.status_code == 409, (
+        f"employment turdagi shartnoma gate'ni ochmasligi kerak: {resp.status_code} — {resp.text}"
+    )
+    assert resp.json()["message_key"] == "marketplace.contract_required"
+
+
+# ─── g. #28: contract_type NULL — legacy ruxsat (regressiya himoyasi) ────────
+
+
+@pytest.mark.asyncio
+async def test_gate_contract_type_null_legacy_allows(
+    mp_client: AsyncClient,
+    admin_b: AppUser,
+    store_user_a: AppUser,
+    store_a: Store,
+    enterprise_b: Enterprise,
+    db_session: AsyncSession,
+) -> None:
+    """
+    #28: Contract.contract_type=NULL (eski shartnoma, turi belgilanmagan) →
+    legacy-himoya sifatida gate OCHILADI (regressiya himoyasi — mavjud eski
+    shartnomalarni buzmaslik uchun).
+    """
+    contract = Contract(
+        store_id=store_a.id,
+        number="GATE-LEGACY-NULL-001",
+        valid_from=_today() - timedelta(days=1),
+        valid_to=_today() + timedelta(days=365),
+        contract_type=None,  # legacy — turi belgilanmagan
+        supplier_enterprise_id=enterprise_b.id,
+        version=1,
+    )
+    db_session.add(contract)
+    await db_session.flush()
+
+    token_b_admin = await get_token(mp_client, admin_b)
+    token_a_store = await get_token(mp_client, store_user_a)
+
+    pid = await _create_published_product(
+        mp_client, token_b_admin, "GATE-SKU-LEGACY01"
+    )
+
+    resp = await mp_client.post(
+        "/marketplace/orders",
+        json={
+            "lines": [{"product_id": pid, "qty": "1"}],
+            "store_id": str(store_a.id),
+        },
+        headers={"Authorization": f"Bearer {token_a_store}"},
+    )
+    assert resp.status_code == 201, (
+        f"contract_type=NULL legacy shartnoma gate'ni ochishi kerak: {resp.status_code} — {resp.text}"
+    )
+    assert resp.json()["is_onetime"] is False

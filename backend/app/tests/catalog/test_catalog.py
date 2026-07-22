@@ -1265,6 +1265,65 @@ async def test_global_product_visible_to_all_branches(
 
 
 @pytest.mark.asyncio
+async def test_branch_scope_json_array_format_visible_to_own_branch(
+    catalog_client: AsyncClient,
+    admin_user,
+    agent_user_branch_a,
+    agent_user_branch_b,
+) -> None:
+    """
+    #45: branch_scope TEXT ustuni JSON-array-string sifatida saqlanadi
+    (masalan '["<branch_id>"]'). Avvalgi aniq-tenglik
+    (`branch_scope == str(user.branch_id)`) bunday formatga HECH QACHON mos
+    kelmasdi — natijada B filial mahsuloti B filial agentiga ham NOTO'G'RI
+    yashiringan edi (soxta-yashirish). `.contains()` bilan endi to'g'ri
+    ko'rinadi.
+    """
+    admin_token = await get_token(catalog_client, admin_user)
+
+    resp = await catalog_client.post(
+        "/catalog/products",
+        json={
+            "name_uz": "JSON-scope mahsulot",
+            "name_ru": "JSON-scope товар",
+            "unit": "dona",
+            "branch_scope": f'["{BRANCH_B_ID}"]',
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 201
+    pid = resp.json()["id"]
+
+    # B filial agenti — o'z filialiga tegishli mahsulotni KO'RISHI kerak
+    agent_b_token = await get_token(catalog_client, agent_user_branch_b)
+    resp_b = await catalog_client.get(
+        f"/catalog/products/{pid}",
+        headers={"Authorization": f"Bearer {agent_b_token}"},
+    )
+    assert resp_b.status_code == 200, (
+        f"B filial agenti JSON-array branch_scope'li o'z mahsulotini ko'ra "
+        f"olishi kerak (#45): {resp_b.status_code} — {resp_b.text}"
+    )
+
+    list_resp_b = await catalog_client.get(
+        "/catalog/products",
+        headers={"Authorization": f"Bearer {agent_b_token}"},
+    )
+    ids_b = [p["id"] for p in list_resp_b.json()["items"]]
+    assert pid in ids_b, "Ro'yxatda ham ko'rinishi kerak"
+
+    # A filial agenti — ko'RMASLIGI kerak (IDOR himoyasi saqlanadi)
+    agent_a_token = await get_token(catalog_client, agent_user_branch_a)
+    resp_a = await catalog_client.get(
+        f"/catalog/products/{pid}",
+        headers={"Authorization": f"Bearer {agent_a_token}"},
+    )
+    assert resp_a.status_code == 404, (
+        "A filial agenti B filial mahsulotini ko'rmasligi kerak (IDOR)"
+    )
+
+
+@pytest.mark.asyncio
 async def test_branch_agent_cannot_delete_other_branch_product(
     catalog_client: AsyncClient,
     admin_user,

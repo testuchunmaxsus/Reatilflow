@@ -476,6 +476,133 @@ async def test_confirm_store_inventory_retry_after_commit_failure_not_duplicated
         assert len(res.scalars().all()) == 1
 
 
+# ─── 4c. #33 — MultipleResultsFound crash oldini olish ──────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_store_id_multiple_stores_no_crash(
+    db_session: AsyncSession,
+    store_user: AppUser,
+    default_enterprise: Enterprise,
+) -> None:
+    """
+    #33: bir foydalanuvchiga bir nechta Store bog'langan (data-anomaliya)
+    holatda `_get_store_id` avvalgi `scalar_one_or_none()` bilan
+    MultipleResultsFound (500) berardi. Endi `.limit(1)` + `.scalars().first()`
+    — deterministik natija, 500 YO'Q.
+    """
+    from app.models.store import Store
+    from app.modules.import_data.service import _get_store_id
+
+    # store_user fixture allaqachon bitta Store yaratgan — yana bittasini qo'shamiz
+    extra_store = Store(
+        name="Ikkinchi Do'kon",
+        enterprise_id=default_enterprise.id,
+        user_id=store_user.id,
+        version=1,
+    )
+    db_session.add(extra_store)
+    await db_session.flush()
+
+    # Xato ko'tarilmasligi kerak — deterministik bitta natija qaytishi kerak
+    store_id = await _get_store_id(db_session, store_user)
+    assert store_id is not None
+
+
+@pytest.mark.asyncio
+async def test_get_store_id_ignores_deleted_stores(
+    db_session: AsyncSession,
+    store_user: AppUser,
+    default_enterprise: Enterprise,
+) -> None:
+    """
+    #33: o'chirilgan (deleted_at IS NOT NULL) do'kon _get_store_id natijasida
+    chetlab o'tilishi kerak — faqat aktiv do'konlar orasidan tanlanadi.
+    """
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.models.store import Store
+    from app.modules.import_data.service import _get_store_id
+
+    # store_user'ning mavjud do'konini o'chirilgan deb belgilaymiz
+    stmt = select(Store).where(Store.user_id == store_user.id)
+    existing_store = (await db_session.execute(stmt)).scalars().first()
+    existing_store.deleted_at = datetime.now(timezone.utc)
+
+    active_store = Store(
+        name="Aktiv Do'kon",
+        enterprise_id=default_enterprise.id,
+        user_id=store_user.id,
+        version=1,
+    )
+    db_session.add(active_store)
+    await db_session.flush()
+
+    store_id = await _get_store_id(db_session, store_user)
+    assert store_id == active_store.id, (
+        "O'chirilgan do'kon emas, aktiv do'kon qaytishi kerak"
+    )
+
+
+@pytest.mark.asyncio
+async def test_find_or_create_product_multiple_matches_no_crash(
+    db_session: AsyncSession,
+    default_enterprise: Enterprise,
+) -> None:
+    """
+    #33: bitta qatorning sku VA barcode qiymatlari ikki XIL mavjud
+    mahsulotga alohida mos kelsa (or_ sharti ikkalasiga ham mos) —
+    avvalgi `scalar_one_or_none()` MultipleResultsFound (500) berardi.
+    Endi `.limit(1)` + `.scalars().first()` — deterministik, xatosiz.
+    """
+    from app.models.catalog import Product
+    from app.modules.import_data.schemas import ConfirmRow
+    from app.modules.import_data.service import _find_or_create_product_for_store
+
+    product_a = Product(
+        name_uz="Mahsulot A",
+        name_ru="Tovar A",
+        sku="DUP-SKU-1",
+        barcode="DUP-BARCODE-A",
+        unit="dona",
+        is_active=True,
+        version=1,
+        enterprise_id=default_enterprise.id,
+    )
+    product_b = Product(
+        name_uz="Mahsulot B",
+        name_ru="Tovar B",
+        sku="DUP-SKU-2",
+        barcode="DUP-BARCODE-2",
+        unit="dona",
+        is_active=True,
+        version=1,
+        enterprise_id=default_enterprise.id,
+    )
+    db_session.add_all([product_a, product_b])
+    await db_session.flush()
+
+    # Qator: sku=product_a.sku'ga, barcode=product_b.barcode'ga mos —
+    # or_(sku==.., barcode==..) IKKALASIGA HAM mos keladi.
+    row = ConfirmRow(
+        row_index=0,
+        name="Noaniq mahsulot",
+        sku="DUP-SKU-1",
+        barcode="DUP-BARCODE-2",
+        qty=1.0,
+        price=1000.0,
+        client_uuid=uuid.uuid4(),
+    )
+
+    product = await _find_or_create_product_for_store(
+        db_session, row, default_enterprise.id
+    )
+    assert product is not None
+    assert product.id in (product_a.id, product_b.id)
+
+
 # ─── 5. HTTP endpointlar RBAC ─────────────────────────────────────────────────
 
 

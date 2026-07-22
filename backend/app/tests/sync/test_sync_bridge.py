@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contract import Contract
@@ -709,6 +709,78 @@ async def test_marketplace_order_create_applied(
 
 
 @pytest.mark.asyncio
+async def test_marketplace_order_create_agent_bypass_idempotent_retry(
+    db_session: AsyncSession,
+    fake_redis,
+    make_user,
+    make_store,
+    make_product,
+    default_enterprise,
+) -> None:
+    """
+    REVIEWER REPRODUKSIYASI (KRITIK regressiya):
+    Agent-bypass (is_onetime=True, shartnoma yo'q) platforma-do'kon buyurtmasi
+    AYNI client_uuid bilan IKKI marta yuboriladi (offline retry).
+
+    Ikkinchi so'rov CRASH (500 / ushlanmagan IntegrityError) BO'LMASLIGI
+    KERAK — mavjud buyurtmani idempotent qaytarishi kerak (bir xil server_id).
+
+    Sabab (tuzatilgan bug): create_order() da idempotentlik pre-check
+    avvalgi versiyada buyer_user.enterprise_id (override'dan OLDINGI) bilan
+    qidirar edi, lekin agent-bypass buyer_enterprise_id ni keyinroq do'kon
+    enterprise'iga qayta tayinlar edi — natijada retry mavjud buyurtmani
+    topa olmay ikkinchi INSERT qilib, 0038 partial-unique indeks bilan
+    to'qnashib IntegrityError bilan crash bo'lardi.
+    """
+    supplier_agent, buyer_store, product = await _setup_mp_agent_bypass(
+        db_session, make_user, make_store, make_product, default_enterprise
+    )
+
+    client_uuid = str(uuid.uuid4())
+    payload = {
+        "client_uuid": client_uuid,
+        "product_id": str(product.id),
+        "qty": "2",
+        "store_id": str(buyer_store.id),
+        "is_onetime": True,
+    }
+
+    op1 = SyncOp(op_type="marketplace_order.create", client_uuid=client_uuid, payload=payload)
+    results1 = await sync_service.push(
+        ops=[op1],
+        actor_id=supplier_agent.id,
+        user=supplier_agent,
+        db=db_session,
+        redis=fake_redis,
+    )
+    assert results1[0].status == "applied", f"1-natija: {results1[0]}"
+    server_id_1 = results1[0].server_id
+    assert server_id_1 is not None
+
+    # AYNI client_uuid bilan takroriy urinish (masalan offline retry) —
+    # CRASH emas, idempotent "applied" + bir xil server_id qaytishi kerak.
+    op2 = SyncOp(op_type="marketplace_order.create", client_uuid=client_uuid, payload=payload)
+    results2 = await sync_service.push(
+        ops=[op2],
+        actor_id=supplier_agent.id,
+        user=supplier_agent,
+        db=db_session,
+        redis=fake_redis,
+    )
+    assert results2[0].status == "applied", (
+        f"2-natija CRASH/error bo'lmasligi, idempotent 'applied' bo'lishi kerak: {results2[0]}"
+    )
+    assert results2[0].server_id == server_id_1, "Bir xil server_id qaytishi kerak (idempotent)"
+
+    # DB da faqat BITTA buyurtma borligini tasdiqlash (dublikat INSERT yo'q)
+    count_stmt = select(func.count()).select_from(MarketplaceOrder).where(
+        MarketplaceOrder.buyer_store_id == buyer_store.id,
+    )
+    count_result = await db_session.execute(count_stmt)
+    assert count_result.scalar_one() == 1, "Faqat bitta buyurtma yaratilishi kerak (dublikat yo'q)"
+
+
+@pytest.mark.asyncio
 async def test_marketplace_order_create_idempotent(
     db_session: AsyncSession,
     fake_redis,
@@ -955,3 +1027,122 @@ async def test_marketplace_order_create_invalid_client_uuid_rejected(
     stmt = select(MarketplaceOrder).where(MarketplaceOrder.buyer_store_id == buyer_store.id)
     result = await db_session.execute(stmt)
     assert result.scalar_one_or_none() is None
+
+
+# ─── #25: per-op modul gating ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_push_op_rejected_when_module_disabled(
+    db_session: AsyncSession,
+    fake_redis,
+    make_user,
+    make_store,
+) -> None:
+    """
+    #25: enterprise.enabled_modules ichida "contracts" bo'lmasa —
+    contract.create op'i handler'gacha yetib bormasdan error qaytaradi
+    (message_key="enterprise.module_disabled") va Contract DB'da YARATILMAYDI.
+    """
+    from app.models.enterprise import Enterprise, ALL_MODULE_KEYS
+
+    # "contracts" moduli o'chirilgan korxona
+    restricted_modules = [m for m in ALL_MODULE_KEYS if m != "contracts"]
+    restricted_ent = Enterprise(
+        id=uuid.uuid4(),
+        name=f"Restricted Korxona {uuid.uuid4().hex[:6]}",
+        status="active",
+        enabled_modules=restricted_modules,
+        version=1,
+    )
+    db_session.add(restricted_ent)
+    await db_session.flush()
+
+    agent = await make_user("agent", enterprise_id=restricted_ent.id)
+    store = await make_store(agent_id=agent.id, enterprise_id=restricted_ent.id)
+    as_ = AgentStore(agent_id=agent.id, store_id=store.id)
+    db_session.add(as_)
+    await db_session.flush()
+
+    valid_from, valid_to = _valid_date_range()
+    number = f"GATE25-{uuid.uuid4().hex[:6]}"
+
+    op = SyncOp(
+        op_type="contract.create",
+        client_uuid=str(uuid.uuid4()),
+        payload={
+            "store_id": str(store.id),
+            "number": number,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+        },
+    )
+
+    results = await sync_service.push(
+        ops=[op],
+        actor_id=agent.id,
+        user=agent,
+        db=db_session,
+        redis=fake_redis,
+    )
+
+    assert results[0].status == "error", f"Kutilgan 'error', topilgan: {results[0]}"
+    assert results[0].message_key == "enterprise.module_disabled"
+
+    # Contract DB'da UMUMAN yaratilmagan (handler chaqirilmadi)
+    stmt = select(Contract).where(Contract.number == number)
+    result = await db_session.execute(stmt)
+    assert result.scalar_one_or_none() is None, (
+        "Modul o'chirilgan bo'lsa ham Contract yaratilgan — gate ishlamadi"
+    )
+
+
+@pytest.mark.asyncio
+async def test_push_core_bridge_op_bypasses_module_gate(
+    db_session: AsyncSession,
+    fake_redis,
+    make_user,
+    make_store,
+) -> None:
+    """
+    #25: store.update — CORE bridge op (_OP_MODULE=None) — hech qanday
+    modulga bog'liq emas, hatto barcha modullar o'chirilgan korxonada ham
+    applied bo'lishi kerak.
+    """
+    from app.models.enterprise import Enterprise
+
+    empty_modules_ent = Enterprise(
+        id=uuid.uuid4(),
+        name=f"Bo'sh modullar Korxona {uuid.uuid4().hex[:6]}",
+        status="active",
+        enabled_modules=[],
+        version=1,
+    )
+    db_session.add(empty_modules_ent)
+    await db_session.flush()
+
+    agent = await make_user("agent", enterprise_id=empty_modules_ent.id)
+    store = await make_store(name="Eski nom", agent_id=agent.id, enterprise_id=empty_modules_ent.id)
+    as_ = AgentStore(agent_id=agent.id, store_id=store.id)
+    db_session.add(as_)
+    await db_session.flush()
+
+    op = SyncOp(
+        op_type="store.update",
+        client_uuid=str(uuid.uuid4()),
+        payload={
+            "store_id": str(store.id),
+            "version": store.version,
+            "name": "Yangi nom (bypass)",
+        },
+    )
+
+    results = await sync_service.push(
+        ops=[op],
+        actor_id=agent.id,
+        user=agent,
+        db=db_session,
+        redis=fake_redis,
+    )
+
+    assert results[0].status == "applied", f"CORE bridge op gate'siz o'tishi kerak: {results[0]}"

@@ -98,6 +98,13 @@ class GeoVelocityItem(BaseModel):
     sold_qty: Decimal = Field(description="Tanlangan davrda sotilgan jami miqdor")
     revenue: Decimal = Field(description="Tanlangan davrda sotuv summasi")
     velocity_per_day: Decimal = Field(description="Kunlik sotuv tezligi (qty/kun)")
+    inventory_qty: Decimal = Field(
+        Decimal("0"),
+        description=(
+            "Do'kondagi joriy zaxira (StoreInventory.qty yig'indisi, #31 — "
+            "R3 restock qoidasi uchun haqiqiy 'necha kunga yetadi' hisobi)"
+        ),
+    )
 
 
 class GeoVelocityOut(BaseModel):

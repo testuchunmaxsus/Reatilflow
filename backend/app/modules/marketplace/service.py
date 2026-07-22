@@ -83,6 +83,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import String, and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -393,8 +394,15 @@ async def _check_contract_gate(
       Contract.store_id == buyer_store_id
       AND Contract.supplier_enterprise_id == supplier_enterprise_id
       AND Contract.deleted_at IS NULL
-      AND Contract.status IN ('active', 'expiring')
-          ya'ni: valid_to >= today yoki valid_to IS NULL
+      AND (Contract.valid_from IS NULL OR Contract.valid_from <= today)
+          — #28: hali kuchga kirmagan shartnoma gate'ni ochmaydi
+            (valid_from model'da NOT NULL, lekin NULL-guard defensiv).
+      AND Contract.valid_to >= today
+          ya'ni: valid_to >= today (expired emas)
+      AND (Contract.contract_type IS NULL OR Contract.contract_type == 'trade')
+          — #28: faqat savdo turi gate'ni ochadi; employment/service/other
+            gate'ni OCHMAYDI. NULL = legacy (contract_type nullable ustun) →
+            ruxsat — eski shartnomalarni buzmaslik uchun.
     """
     from datetime import datetime, timezone
     from app.models.store import AgentStore, Store
@@ -406,7 +414,12 @@ async def _check_contract_gate(
         Contract.store_id == buyer_store_id,
         Contract.supplier_enterprise_id == supplier_enterprise_id,
         Contract.deleted_at.is_(None),
+        or_(Contract.valid_from.is_(None), Contract.valid_from <= today),
         Contract.valid_to >= today,  # active yoki expiring (expired emas)
+        or_(
+            Contract.contract_type.is_(None),
+            Contract.contract_type == "trade",
+        ),
     ).limit(1)
     contract_result = await db.execute(contract_stmt)
     has_contract = contract_result.scalar_one_or_none() is not None
@@ -558,24 +571,17 @@ async def create_order(
                 status_code=403,
             )
 
-    # ── Idempotentlik tekshiruvi ──────────────────────────────────────────────
-    if client_uuid is not None:
-        idem_filters = [MarketplaceOrder.client_uuid == client_uuid]
-        if buyer_enterprise_id is not None:
-            idem_filters.append(
-                MarketplaceOrder.buyer_enterprise_id == buyer_enterprise_id
-            )
-        elif effective_buyer_store_id is not None:
-            idem_filters.append(
-                MarketplaceOrder.buyer_store_id == effective_buyer_store_id
-            )
-        existing_stmt = select(MarketplaceOrder).where(*idem_filters)
-        existing_result = await db.execute(existing_stmt)
-        existing_order = existing_result.scalar_one_or_none()
-        if existing_order is not None:
-            return existing_order
-
     # ── Mahsulotlarni yuklash va narx aniqlash ────────────────────────────────
+    # ESLATMA (tartib, KRITIK): bu blok, Shartnoma-Gate va agent-bypass
+    # buyer_enterprise_id override'i (pastda) IDEMPOTENTLIK TEKSHIRUVIDAN
+    # OLDIN bajariladi. Sabab: agent-bypass buyer_enterprise_id ni
+    # 528-qatordagi (buyer_user.enterprise_id) qiymatdan do'kon
+    # enterprise'iga QAYTA TAYINLAYDI (pastga qarang). Idempotentlik
+    # pre-check shu YAKUNIY (override'dan keyingi) buyer_enterprise_id bilan
+    # qidirishi SHART — aks holda agent-bypass retry (bir xil client_uuid)
+    # noto'g'ri (override'dan oldingi) buyer_enterprise_id bilan qidirib,
+    # mavjud buyurtmani topa olmay ikkinchi INSERT qilib, 0038 partial-unique
+    # indeks bilan to'qnashib IntegrityError bilan crash bo'lardi.
     product_ids = [line.product_id for line in lines]
     stmt = (
         select(Product)
@@ -650,6 +656,47 @@ async def create_order(
             status_code=422,
         )
 
+    # ── Idempotentlik tekshiruvi ──────────────────────────────────────────────
+    # MUHIM (tartib): shu yergacha Shartnoma-Gate + agent-bypass override
+    # bajarilgan bo'lib, `buyer_enterprise_id` va `effective_buyer_store_id`
+    # YAKUNIY qiymatlarga ega — idempotentlik qidiruvi shu qiymatlar bilan
+    # ishlaydi (yuqoridagi eslatmaga qarang).
+    #
+    # #27: kross-tenant `client_uuid`-only fallback OLIB TASHLANDI — avval
+    # buyer_enterprise_id VA buyer_store_id ikkalasi ham None bo'lganda
+    # idem_filters faqat client_uuid'dan iborat bo'lib, boshqa korxona/do'kon
+    # buyurtmasini (bir xil client_uuid bilan) noto'g'ri qaytarishi mumkin
+    # edi (kross-tenant data-leak xavfi). Endi:
+    #   - buyer_enterprise_id bor → (client_uuid, buyer_enterprise_id).
+    #   - aks holda effective_buyer_store_id bor →
+    #     (client_uuid, buyer_store_id) + buyer_enterprise_id IS NULL
+    #     (platforma-do'kon scope — DB partial-unique backstop, 0038).
+    #   - ikkalasi ham None → idempotentlik qidiruvi O'TKAZIB YUBORILADI
+    #     (kross-tenant qidiruv yo'q).
+    def _compute_idem_filters() -> list | None:
+        if client_uuid is None:
+            return None
+        if buyer_enterprise_id is not None:
+            return [
+                MarketplaceOrder.client_uuid == client_uuid,
+                MarketplaceOrder.buyer_enterprise_id == buyer_enterprise_id,
+            ]
+        if effective_buyer_store_id is not None:
+            return [
+                MarketplaceOrder.client_uuid == client_uuid,
+                MarketplaceOrder.buyer_store_id == effective_buyer_store_id,
+                MarketplaceOrder.buyer_enterprise_id.is_(None),
+            ]
+        return None
+
+    idem_filters = _compute_idem_filters()
+    if idem_filters is not None:
+        existing_stmt = select(MarketplaceOrder).where(*idem_filters)
+        existing_result = await db.execute(existing_stmt)
+        existing_order = existing_result.scalar_one_or_none()
+        if existing_order is not None:
+            return existing_order
+
     # ── Narx hisoblash va qatorlar yaratish ───────────────────────────────────
     product_map: dict[uuid.UUID, Product] = {p.id: p for p in products_found}
     order_lines: list[MarketplaceOrderLine] = []
@@ -690,8 +737,34 @@ async def create_order(
         is_onetime=is_onetime,
         agent_id=order_agent_id,
     )
+    # SAVEPOINT (belt-and-suspenders, BATCH 3A / orders/service.py naqshi):
+    # yuqoridagi idempotentlik pre-check yakuniy buyer_enterprise_id bilan
+    # to'g'ri qidiradi, lekin konkurent poyga (ikkita parallel retry) hali
+    # ham mumkin — ikkalasi ham pre-check'ni "topilmadi" holatida o'tib,
+    # bir xil (client_uuid, buyer_enterprise_id/buyer_store_id) bilan INSERT
+    # qilishga urinishi mumkin. 0038 partial-unique / uq_mp_order_buyer_
+    # client_uuid indekslari buni DB darajasida to'xtatadi (IntegrityError).
+    # SAVEPOINT db.add() dan OLDIN ochiladi (orders/service.py #15
+    # izohidagi sabab bilan bir xil): begin_nested() ichki avtoflush allaqachon
+    # pending `order`ni try/except'dan TASHQARIDA flush qilib yuborishi mumkin.
+    # db.rollback() EMAS — faqat sp.rollback() — root tranzaksiya buzilmasin.
+    sp = await db.begin_nested()
     db.add(order)
-    await db.flush()  # id olish uchun
+    try:
+        await db.flush()  # id olish uchun
+    except IntegrityError as exc:
+        await sp.rollback()
+        existing_order = None
+        if idem_filters is not None:
+            existing_stmt = select(MarketplaceOrder).where(*idem_filters)
+            existing_result = await db.execute(existing_stmt)
+            existing_order = existing_result.scalar_one_or_none()
+        if existing_order is not None:
+            return existing_order
+        raise AppError(
+            message_key="marketplace.order_idempotency_conflict",
+            status_code=409,
+        ) from exc
 
     # Lines ni order_id bilan bog'lash
     for ol in order_lines:

@@ -145,12 +145,16 @@ def _apply_branch_visibility(query, user: AppUser):
 
     # Boshqa rollar: faqat global yoki o'z branch_scope'i
     # branch_scope IS NULL → global mahsulot (barcha filiallarga ko'rinadi)
-    # branch_scope == user.branch_id → ushbu filialga tegishli mahsulot
+    # branch_scope — TEXT ustun, JSON-array-string saqlaydi (masalan
+    # '["b1","b2"]') — #45: aniq-tenglik (`== str(user.branch_id)`) hech
+    # qachon mos kelmasdi (JSON-array matni bilan solishtirilganda). Fix:
+    # `.contains()` — portable LIKE '%val%' (PG+SQLite), 512-qatordagi
+    # mavjud ilike filtr naqshiga mos.
     if user.branch_id is not None:
         return query.where(
             or_(
                 Product.branch_scope.is_(None),
-                Product.branch_scope == str(user.branch_id),
+                Product.branch_scope.contains(str(user.branch_id)),
             )
         )
     else:

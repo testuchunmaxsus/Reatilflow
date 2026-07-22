@@ -263,6 +263,43 @@ async def test_geo_velocity_with_gps(
     assert item.velocity_per_day > 0
 
 
+@pytest.mark.asyncio
+async def test_geo_velocity_includes_inventory_qty(
+    db_session: AsyncSession,
+    make_store,
+    make_product,
+    make_contract,
+    make_pos_sale,
+    make_inventory,
+    default_enterprise,
+) -> None:
+    """
+    #31: geo_velocity endi StoreInventory.qty yig'indisini `inventory_qty`
+    maydonida qaytaradi — R3 restock qoidasi haqiqiy zaxiraga tayanishi uchun.
+    """
+    store = await make_store(name="Inv Do'kon")
+    product = await make_product()
+    await make_contract(store_id=store.id, supplier_enterprise_id=default_enterprise.id)
+
+    await make_pos_sale(
+        store_id=store.id,
+        lines=[(product.id, Decimal("10"), Decimal("5000"))],
+    )
+    await make_inventory(
+        store_id=store.id,
+        product_id=product.id,
+        qty=Decimal("42"),
+    )
+    await db_session.commit()
+
+    result = await service.geo_velocity(
+        db=db_session,
+        enterprise_id=default_enterprise.id,
+    )
+    assert len(result.items) == 1
+    assert result.items[0].inventory_qty == Decimal("42")
+
+
 # ─── 5. Expiry Report ─────────────────────────────────────────────────────────
 
 
@@ -498,7 +535,9 @@ def _make_expiry_item(days_left: int, severity: str) -> ExpiryItem:
     )
 
 
-def _make_geo_item(velocity: float, sold_qty: float = 30.0) -> GeoVelocityItem:
+def _make_geo_item(
+    velocity: float, sold_qty: float = 30.0, inventory_qty: float = 0.0
+) -> GeoVelocityItem:
     return GeoVelocityItem(
         store_id=uuid.uuid4(),
         store_name="GPS Do'kon",
@@ -508,6 +547,7 @@ def _make_geo_item(velocity: float, sold_qty: float = 30.0) -> GeoVelocityItem:
         sold_qty=Decimal(str(sold_qty)),
         revenue=Decimal("100000"),
         velocity_per_day=Decimal(str(velocity)),
+        inventory_qty=Decimal(str(inventory_qty)),
     )
 
 
@@ -562,6 +602,54 @@ def test_recommendations_r4_slow_mover() -> None:
     slow_recs = [r for r in recs if r.code == "R4_slow_mover"]
     assert len(slow_recs) == 1
     assert slow_recs[0].severity == "medium"
+
+
+def test_recommendations_r3_restock_uses_real_inventory() -> None:
+    """
+    #31: R3 restock endi HAQIQIY zaxiradan (inventory_qty) hisoblanadi —
+    avval `sold_qty / velocity` ishlatilgan edi, bu esa MATEMATIK jihatdan
+    doim `period_days`ga teng chiqadi (velocity = sold_qty/period_days),
+    ya'ni R3 haqiqiy qoldiqni HECH QACHON aks ettirmagan.
+
+    Bu yerda velocity/sold_qty KATTA (eski formula bo'yicha projected_days
+    katta chiqib R3'ni bostirgan bo'lar edi), lekin inventory_qty (haqiqiy
+    qoldiq) JUDA KAM — R3 ishga tushishi kerak (necha kunga yetadi < 7).
+    """
+    low_stock_item = _make_geo_item(
+        velocity=10.0, sold_qty=300.0, inventory_qty=5.0
+    )
+    recs = generate_recommendations(
+        geo_items=[low_stock_item],
+        expiry_items=[],
+        top_products=[],
+        bottom_products=[],
+    )
+    r3_recs = [r for r in recs if r.code == "R3_restock"]
+    assert len(r3_recs) == 1, (
+        "Past zaxira + yuqori velocity → R3_restock chiqishi kerak"
+    )
+    assert r3_recs[0].metric["projected_days"] == 0.5
+    assert r3_recs[0].metric["inventory_qty"] == "5.0"
+
+
+def test_recommendations_r3_restock_skipped_when_inventory_sufficient() -> None:
+    """
+    #31 regressiya: xuddi shu yuqori velocity, lekin YETARLI zaxira
+    (inventory_qty katta) → R3 CHIQMASLIGI kerak.
+    """
+    sufficient_stock_item = _make_geo_item(
+        velocity=10.0, sold_qty=300.0, inventory_qty=1000.0
+    )
+    recs = generate_recommendations(
+        geo_items=[sufficient_stock_item],
+        expiry_items=[],
+        top_products=[],
+        bottom_products=[],
+    )
+    r3_recs = [r for r in recs if r.code == "R3_restock"]
+    assert len(r3_recs) == 0, (
+        "Yetarli zaxira bo'lsa R3_restock chiqmasligi kerak"
+    )
 
 
 def test_recommendations_r5_geo_hotspot() -> None:

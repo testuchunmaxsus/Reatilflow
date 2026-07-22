@@ -429,24 +429,29 @@ async def _find_or_create_product_for_store(
         if row.barcode:
             conditions.append(Product.barcode == row.barcode)
 
+        # #33: bir nechta mos yozuv (sku VA barcode alohida mos kelishi
+        # mumkin — MultipleResultsFound xavfi) — .limit(1) + .scalars().first()
+        # deterministik birinchi natijani qaytaradi (scalar_one_or_none()
+        # ko'p natija bo'lsa 500 bilan qulaydi).
         stmt = select(Product).where(
             or_(*conditions), Product.deleted_at.is_(None)
-        )
+        ).limit(1)
         stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
         result = await db.execute(stmt)
-        product = result.scalar_one_or_none()
+        product = result.scalars().first()
         if product is not None:
             return product
 
     # Nom bo'yicha qidirish (taxminiy — birinchi mos)
     if row.name:
+        # #33: ILIKE ko'p natija qaytarishi mumkin — .limit(1) + .scalars().first().
         stmt = select(Product).where(
             Product.name_uz.ilike(f"%{row.name}%"),
             Product.deleted_at.is_(None),
-        )
+        ).limit(1)
         stmt = apply_enterprise_filter(stmt, enterprise_id, Product.enterprise_id)
         result = await db.execute(stmt)
-        product = result.scalar_one_or_none()
+        product = result.scalars().first()
         if product is not None:
             return product
 
@@ -469,10 +474,22 @@ async def _find_or_create_product_for_store(
 
 
 async def _get_store_id(db: AsyncSession, user: AppUser) -> uuid.UUID | None:
-    """Store roli uchun foydalanuvchiga tegishli do'kon ID sini qaytaradi."""
-    stmt = select(Store.id).where(Store.user_id == user.id)
+    """Store roli uchun foydalanuvchiga tegishli do'kon ID sini qaytaradi.
+
+    #33: bitta foydalanuvchi bir nechta do'konga user_id orqali bog'langan
+    (yoki o'chirilgan do'kon qolgan) holatda scalar_one_or_none() ko'p
+    natija bilan MultipleResultsFound (500) beradi. Deterministik: faqat
+    aktiv (deleted_at IS NULL) do'konlar, eng eskisi (created_at) birinchi,
+    .limit(1) + .scalars().first().
+    """
+    stmt = (
+        select(Store.id)
+        .where(Store.user_id == user.id, Store.deleted_at.is_(None))
+        .order_by(Store.created_at)
+        .limit(1)
+    )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 def _to_decimal(val: float) -> Decimal:

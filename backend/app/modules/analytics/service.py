@@ -500,6 +500,25 @@ async def geo_velocity(
     result = await db.execute(stmt)
     rows = result.all()
 
+    # #31: joriy inventar qoldig'i (StoreInventory.qty yig'indisi) — R3 restock
+    # qoidasi uchun haqiqiy "necha kunga yetadi" hisobi (372-388 naqshi).
+    inv_stmt = (
+        select(
+            StoreInventory.store_id,
+            func.coalesce(func.sum(StoreInventory.qty), Decimal("0")).label("inv_qty"),
+        )
+        .where(
+            StoreInventory.store_id.in_(store_ids),
+            StoreInventory.product_id.in_(product_ids),
+            StoreInventory.qty > 0,
+        )
+        .group_by(StoreInventory.store_id)
+    )
+    inv_result = await db.execute(inv_stmt)
+    inv_map: dict[uuid.UUID, Decimal] = {
+        row.store_id: _to_decimal(row.inv_qty) for row in inv_result.all()
+    }
+
     items: list[GeoVelocityItem] = []
     for row in rows:
         sold_qty = _to_decimal(row.sold_qty)
@@ -514,6 +533,7 @@ async def geo_velocity(
                 sold_qty=sold_qty,
                 revenue=_to_decimal(row.revenue),
                 velocity_per_day=velocity.quantize(Decimal("0.0001")),
+                inventory_qty=inv_map.get(row.store_id, Decimal("0")),
             )
         )
 
