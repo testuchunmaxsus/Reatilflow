@@ -87,7 +87,8 @@ export function CreateMarketplaceOrderModal({
     const qty = typeof quantities[item.product.id] === "number"
       ? (quantities[item.product.id] as number)
       : Number(quantities[item.product.id]) || 0;
-    const price = item.product.price ?? item.product.marketplace_price ?? 0;
+    // FIX #41: price/marketplace_price backend Decimal — SATR sifatida keladi
+    const price = Number(item.product.price ?? item.product.marketplace_price ?? 0);
     return sum + price * qty;
   }, 0);
 
@@ -167,7 +168,8 @@ export function CreateMarketplaceOrderModal({
         {items.map((item) => {
           const qty = quantities[item.product.id];
           const qtyNum = typeof qty === "number" ? qty : Number(qty);
-          const price = item.product.price ?? item.product.marketplace_price ?? 0;
+          // FIX #41: price/marketplace_price backend Decimal — SATR sifatida keladi
+          const price = Number(item.product.price ?? item.product.marketplace_price ?? 0);
           const lineTotal = price * (isNaN(qtyNum) ? 0 : qtyNum);
 
           return (

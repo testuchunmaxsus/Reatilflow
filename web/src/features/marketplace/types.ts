@@ -40,8 +40,10 @@ export interface MarketplaceOrderLine {
   product_id: string;
   product_name: string | null;
   qty: number;
-  unit_price: number;
-  line_total: number;
+  /** Backend Decimal — JSON'da SATR sifatida qaytadi (pydantic v2) */
+  unit_price: string;
+  /** Backend Decimal — JSON'da SATR sifatida qaytadi (pydantic v2) */
+  line_total: string;
 }
 
 // ─── Kiruvchi buyurtma (supplier uchun) ──────────────────────────────────────
@@ -53,7 +55,8 @@ export interface IncomingOrder {
   supplier_enterprise_id: string;
   supplier_name: string | null;
   lines: MarketplaceOrderLine[];
-  total_amount: number;
+  /** Backend Decimal — JSON'da SATR sifatida qaytadi (pydantic v2) */
+  total_amount: string;
   status: MarketplaceOrderStatus;
   courier_id: string | null;
   courier_name: string | null;
@@ -69,7 +72,8 @@ export interface OutgoingOrder {
   supplier_enterprise_id: string;
   supplier_name: string | null;
   lines: MarketplaceOrderLine[];
-  total_amount: number;
+  /** Backend Decimal — JSON'da SATR sifatida qaytadi (pydantic v2) */
+  total_amount: string;
   status: MarketplaceOrderStatus;
   created_at: string;
   updated_at: string;
@@ -193,9 +197,10 @@ export interface MarketplaceProductOut {
   photo_url: string | null;
   is_active: boolean;
   marketplace_published: boolean;
-  marketplace_price: number | null;
-  /** Ko'rsatiladigan narx: marketplace_price yoki segment narxi */
-  price: number | null;
+  /** Backend Decimal — JSON'da SATR sifatida qaytadi (pydantic v2) */
+  marketplace_price: string | null;
+  /** Ko'rsatiladigan narx: marketplace_price yoki segment narxi (Decimal → satr) */
+  price: string | null;
   supplier_enterprise_id: string;
   supplier_name: string;
   created_at: string;

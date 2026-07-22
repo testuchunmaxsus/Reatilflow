@@ -25,6 +25,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
 import { useApiError } from "@/hooks/useApiError";
+import { toLocalYMD } from "@/utils/date";
 import { useAcceptOrder } from "../api/marketplaceApi";
 import type { OutgoingOrder, AcceptOrderLinePayload } from "../types";
 
@@ -93,8 +94,9 @@ export function AcceptOrderModal({
       const markup = typeof st.markup_percent === "number"
         ? st.markup_percent
         : Number(st.markup_percent);
-      // ISO YYYY-MM-DD
-      const expiry = st.expiry_date!.toISOString().split("T")[0];
+      // FIX #19: mahalliy sana (UTC+5) — toISOString() UTC ga o'girib
+      // O'zbekistonda kunni orqaga surib yuborardi
+      const expiry = toLocalYMD(st.expiry_date!);
       return { line_id: l.id, expiry_date: expiry, markup_percent: markup };
     });
     try {

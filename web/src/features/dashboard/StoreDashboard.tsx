@@ -33,12 +33,15 @@ import { Can } from "@/rbac/Can";
 import { usePosSummary, usePosInventory } from "@/features/pos/api/posApi";
 import { useOutgoingOrders } from "@/features/marketplace/api/marketplaceApi";
 import { useBalance } from "@/features/finance/api/financeApi";
+import { toLocalYMD } from "@/utils/date";
 import { StatCard, formatAmount } from "./components/StatCard";
 import { QuickLinkCard } from "./components/QuickLinkCard";
 
-// Bugungi sana "YYYY-MM-DD" formatda
+// Bugungi sana "YYYY-MM-DD" formatda (mahalliy — UTC+5, FIX #40:
+// toISOString() UTC sana qaytarib, 00:00-05:00 oralig'ida kechagi kunni
+// ko'rsatardi)
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalYMD(new Date());
 }
 
 // Kam qolgan tovar — client-side heuristika (ostona: qty < 5 yoki muddati o'tayotgan)

@@ -23,15 +23,28 @@ import "@/i18n";
 
 // Yangi deploy'dan keyin eski build'ning lazy-chunk'lari serverda bo'lmaydi —
 // Vite bunda "vite:preloadError" hodisasini chiqaradi. Sahifani bir marta
-// avtomatik yangilaymiz (sessionStorage bayrog'i cheksiz reload'dan saqlaydi).
+// avtomatik yangilaymiz.
+// FIX #39: avval faqat 15s oyna ichida IKKINCHI xatoda preventDefault
+// chaqirilmasdi (standart harakat — xatoni qayta uloqtirish — oq sahifaga
+// olib kelardi) va doimiy stale-cache holatida cheksiz reload sikli yuzaga
+// kelishi mumkin edi. Endi: HAR DOIM preventDefault chaqiriladi, reload esa
+// sessiya davomida FAQAT bir marta amalga oshiriladi (sessionStorage
+// hisoblagichi bilan cheklangan — cheksiz sikl bo'lmaydi).
 window.addEventListener("vite:preloadError", (event) => {
-  const KEY = "chunk-reload-at";
-  const last = Number(sessionStorage.getItem(KEY) || 0);
-  if (Date.now() - last > 15_000) {
-    sessionStorage.setItem(KEY, String(Date.now()));
-    event.preventDefault();
-    window.location.reload();
+  event.preventDefault();
+
+  const COUNT_KEY = "chunk-reload-count";
+  const MAX_RELOADS = 1;
+  const count = Number(sessionStorage.getItem(COUNT_KEY) || 0);
+
+  if (count >= MAX_RELOADS) {
+    // Reload allaqachon urinib ko'rilgan — yana urinish cheksiz sikl
+    // xavfini tug'diradi. Foydalanuvchi ErrorBoundary orqali xabar oladi.
+    return;
   }
+
+  sessionStorage.setItem(COUNT_KEY, String(count + 1));
+  window.location.reload();
 });
 
 // Mantine CSS (zarur)
@@ -39,6 +52,8 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ApiError } from "@/api/client";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/auth/LoginPage";
@@ -232,12 +247,12 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 daqiqa
       retry: (failureCount, error) => {
-        // 401/403 xatolarida qayta urinmaymiz
+        // FIX #49: ApiError.message lokalizatsiya matni ("Ruxsat yo'q" va h.k.)
+        // bo'lgani uchun error.message.includes("401"/"403") shart HECH
+        // QACHON bajarilmasdi. Status KODI orqali tekshiramiz.
         if (
-          error instanceof Error &&
-          error.message.includes("401") ||
-          error instanceof Error &&
-          error.message.includes("403")
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
         ) {
           return false;
         }
@@ -514,6 +529,8 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

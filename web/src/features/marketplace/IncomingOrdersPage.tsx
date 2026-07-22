@@ -271,7 +271,7 @@ export function IncomingOrdersPage() {
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" ff="monospace">
-                      {order.total_amount.toLocaleString()} UZS
+                      {Number(order.total_amount).toLocaleString()} UZS
                     </Text>
                   </Table.Td>
                   <Table.Td>

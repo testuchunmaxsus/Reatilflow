@@ -37,7 +37,7 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
 import { Can } from "@/rbac/Can";
@@ -212,6 +212,18 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
   // Savat
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  // FIX #18: checkout idempotentligi — har yangi savat uchun barqaror
+  // client_uuid. Tarmoq uzilib checkout qayta urinilsa (savat o'zgarmagan
+  // holda) AYNI uuid yuboriladi — backend (store_id, client_uuid) UNIQUE
+  // bo'yicha dublikat sotuvni oldini oladi. Savat bo'shab qolganda (muvaffaqiyat
+  // yoki tozalash) — keyingi checkout uchun yangi uuid generatsiya qilinadi.
+  const clientUuidRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (cart.length === 0) {
+      clientUuidRef.current = null;
+    }
+  }, [cart.length]);
+
   // To'lov
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -284,7 +296,10 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
         autoClose: 2000,
       });
     },
-    [t],
+    // FIX #50: productNameMap ham deps ga qo'shildi — aks holda katalog
+    // nomlari yuklangandan keyin ham savatga eski (bo'sh) closure orqali
+    // mahsulot ID nom sifatida tushib qolardi
+    [t, productNameMap],
   );
 
   // ─── Savat miqdor o'zgartirish ────────────────────────────────────────────
@@ -322,6 +337,10 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
+    if (!clientUuidRef.current) {
+      clientUuidRef.current = crypto.randomUUID();
+    }
+
     try {
       const sale = await createSale.mutateAsync({
         store_id: storeId,
@@ -331,6 +350,7 @@ export function PosSalePage({ storeId, onSaleComplete }: PosSalePageProps) {
           qty: c.qty,
         })),
         customer_phone: customerPhone || null,
+        client_uuid: clientUuidRef.current,
       });
 
       notifications.show({
