@@ -124,28 +124,32 @@ def upgrade() -> None:
 
     # ── 3. app_user.branch_id → branch.id FK (ON DELETE SET NULL) ──────────
     # Mavjud app_user.branch_id qiymatlari NULL — xavfsiz FK qo'shish.
-    app_user_fks = {fk["name"] for fk in insp2.get_foreign_keys("app_user")}
-    if _APP_USER_FK not in app_user_fks:
-        op.create_foreign_key(
-            _APP_USER_FK,
-            "app_user",
-            _BRANCH_TABLE,
-            ["branch_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
+    # #46: SQLite `op.create_foreign_key` (ALTER TABLE ADD CONSTRAINT) ni
+    # QO'LLAB-QUVVATLAMAYDI (NotImplementedError) — faqat PostgreSQL'da.
+    # SQLite test sxemasi model'dan `create_all` bilan quriladi (FK'siz).
+    if is_postgres:
+        app_user_fks = {fk["name"] for fk in insp2.get_foreign_keys("app_user")}
+        if _APP_USER_FK not in app_user_fks:
+            op.create_foreign_key(
+                _APP_USER_FK,
+                "app_user",
+                _BRANCH_TABLE,
+                ["branch_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
 
-    # ── 4. store.branch_id → branch.id FK (ON DELETE SET NULL) ─────────────
-    store_fks = {fk["name"] for fk in insp2.get_foreign_keys("store")}
-    if _STORE_FK not in store_fks:
-        op.create_foreign_key(
-            _STORE_FK,
-            "store",
-            _BRANCH_TABLE,
-            ["branch_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
+        # ── 4. store.branch_id → branch.id FK (ON DELETE SET NULL) ─────────
+        store_fks = {fk["name"] for fk in insp2.get_foreign_keys("store")}
+        if _STORE_FK not in store_fks:
+            op.create_foreign_key(
+                _STORE_FK,
+                "store",
+                _BRANCH_TABLE,
+                ["branch_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
 
 
 def downgrade() -> None:

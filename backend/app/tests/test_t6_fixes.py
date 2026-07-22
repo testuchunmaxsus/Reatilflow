@@ -243,6 +243,58 @@ def test_dev_env_allows_default_keys() -> None:
     assert s.app_env == "development"
 
 
+# ─── #37 fail-safe: dev-default kalit har doim CRITICAL log ─────────────────
+
+
+def test_dev_env_weak_keys_logs_critical(caplog) -> None:
+    """
+    development muhitida ham dev-default/CHANGE_ME kalitlar ANIQLANSA
+    logger.critical chaqirilishi kerak (blok emas — start buzilmaydi, lekin
+    ko'rinadigan ogohlantirish beriladi — #37 fail-safe).
+    """
+    import logging as _logging
+
+    from app.core.config import Settings
+
+    dev_default_pii = "213aa3cd714c3c908d44865643e3aff4e6018d4d147857dfd8f54a361fb50884"
+    dev_default_blind = "8d8305efc948d6c95b5048f4f914fc205ad45f5294e3ee71cee7911c230a189f"
+
+    with caplog.at_level(_logging.CRITICAL, logger="app.core.config"):
+        s = Settings(
+            app_env="development",
+            jwt_secret_key="CHANGE_ME_in_env_file_never_use_this_default",
+            pii_encryption_key=dev_default_pii,
+            blind_index_key=dev_default_blind,
+        )
+
+    assert s.app_env == "development"
+    critical_messages = [r.message for r in caplog.records if r.levelno == _logging.CRITICAL]
+    assert any("weak_jwt_secret" in m for m in critical_messages)
+    assert any("weak_pii_keys" in m for m in critical_messages)
+
+
+def test_is_hardened_env_property() -> None:
+    """#37: faqat AYNAN 'development' yumshoq; boshqa qiymatlar hardened."""
+    from app.core.config import Settings
+
+    dev = Settings(app_env="development", jwt_secret_key="a" * 64)
+    prod = Settings(
+        app_env="production",
+        jwt_secret_key="c" * 64,
+        pii_encryption_key="deadbeefcafe1234" * 4,
+        blind_index_key="0011223344556677" * 4,
+    )
+    staging = Settings(
+        app_env="staging",
+        jwt_secret_key="d" * 64,
+        pii_encryption_key="deadbeefcafe1234" * 4,
+        blind_index_key="0011223344556677" * 4,
+    )
+    assert dev.is_hardened_env is False
+    assert prod.is_hardened_env is True
+    assert staging.is_hardened_env is True
+
+
 # ─── 5. before_update — bytes holati ─────────────────────────────────────────
 
 @pytest.fixture

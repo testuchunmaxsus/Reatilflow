@@ -217,6 +217,22 @@ async def refresh_tokens(
     if not user.is_active:
         raise AuthAppError("auth.inactive_user", status_code=403)
 
+    # #44: suspend qilingan korxona foydalanuvchisi refresh orqali ham
+    # sessiyani cheksiz uzaytira olmasligi kerak — login()dagi AYNAN shu
+    # tekshiruv (satr yuqorida) refresh yo'lida ham qo'llanadi.
+    # superadmin (enterprise_id=None) tekshirilmaydi.
+    if user.enterprise_id is not None:
+        ent_stmt = select(Enterprise).where(Enterprise.id == user.enterprise_id)
+        ent_result = await db.execute(ent_stmt)
+        enterprise = ent_result.scalar_one_or_none()
+        if enterprise is not None and enterprise.status == "suspended":
+            logger.info(
+                "refresh.failed user_id=%s reason=enterprise_suspended enterprise_id=%s",
+                user.id,
+                str(user.enterprise_id),
+            )
+            raise AppError("enterprise.suspended", status_code=403)
+
     logger.info("refresh.rotated user_id=%s jti=%s", user.id, jti)
     return _generate_token_pair(user)
 

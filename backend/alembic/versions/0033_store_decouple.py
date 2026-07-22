@@ -80,17 +80,22 @@ def downgrade() -> None:
         # ── 2. enterprise_id nullable → NOT NULL tiklash ─────────────────────
         # OGOHLANTIRISH: NULL enterprise_id bo'lgan qatorlar mavjud bo'lsa
         # bu amal muvaffaqiyatsiz bo'ladi — NULL qatorlarni avval tozalang.
+        # #47: `deleted_at IS NULL` sharti OLIB TASHLANDI — keyingi
+        # `ALTER COLUMN ... SET NOT NULL` BARCHA qatorlarga (soft-delete
+        # qilingan NULL qatorlar ham) qo'llanadi, shuning uchun guard ham
+        # ularni sanashi shart (aks holda guard 0 ko'rsatib o'tadi va ALTER
+        # o'rtada soft-delete qatorda crash bo'ladi).
         null_count_result = bind.execute(
             sa.text(
                 "SELECT COUNT(*) FROM store "
-                "WHERE enterprise_id IS NULL AND deleted_at IS NULL"
+                "WHERE enterprise_id IS NULL"
             )
         )
         null_count = null_count_result.scalar() or 0
         if null_count > 0:
             raise RuntimeError(
                 f"downgrade() BLOKLANDI: store jadvalida {null_count} ta qator "
-                "enterprise_id=NULL (faol). "
+                "enterprise_id=NULL (soft-delete qilinganlar ham hisobga olindi). "
                 "enterprise_id NOT NULL ga qaytarish uchun avval bu qatorlarni "
                 "o'chiring yoki enterprise_id belgilang."
             )

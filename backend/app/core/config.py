@@ -5,11 +5,14 @@ Barcha o'zgaruvchilar .env faylidan (yoki muhit o'zgaruvchilaridan) o'qiladi.
 Hech qachon bu yerda real qiymat yozmang — faqat .env.example dan foydalaning.
 """
 
+import logging
 from functools import lru_cache
 from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -171,17 +174,39 @@ class Settings(BaseSettings):
         "8d8305efc948d6c95b5048f4f914fc205ad45f5294e3ee71cee7911c230a189f"
     )
 
+    @property
+    def is_hardened_env(self) -> bool:
+        """
+        #37 fail-safe: faqat AYNAN "development" yumshoq (validatsiya o'tkazib
+        yuboriladi). Har qanday boshqa/kutilmagan qiymat — qattiq (hardened) deb
+        hisoblanadi. Bu default-deny naqsh: `APP_ENV` o'rnatilmasa yoki noto'g'ri
+        yozilsa (Settings validatsiyasidan o'tolmasa — startup crash bo'ladi;
+        lekin Literal ro'yxatidagi qiymatlar ichida faqat "development" yumshoq),
+        hardening jimgina o'chib qolmaydi.
+        """
+        return self.app_env != "development"
+
     @model_validator(mode="after")
     def validate_jwt_secret_in_prod(self) -> "Settings":
-        """Production/staging muhitida zaif JWT kalitni rad etish."""
-        if self.app_env in ("production", "staging"):
-            key = self.jwt_secret_key
-            if key.startswith("CHANGE_ME") or len(key) < 32:
-                raise ValueError(
-                    "JWT_SECRET_KEY production/staging muhitida kamida 32 belgili "
-                    "bo'lishi va 'CHANGE_ME' bilan boshlanmasligi shart. "
-                    "openssl rand -hex 32 bilan yangi kalit yarating."
-                )
+        """Production/staging muhitida zaif JWT kalitni rad etish (fail-safe)."""
+        key = self.jwt_secret_key
+        is_weak = key.startswith("CHANGE_ME") or len(key) < 32
+        if is_weak:
+            # Muhitdan qat'i nazar — ko'rinadigan CRITICAL log (blok emas).
+            # #37: agar app_env noto'g'ri/aniqlanmagan sabab bilan "development"
+            # bo'lib qolsa ham, bu ogohlantirish jonli loglarda ko'rinadi.
+            logger.critical(
+                "config.weak_jwt_secret app_env=%s — JWT_SECRET_KEY zaif "
+                "('CHANGE_ME' yoki <32 belgi). openssl rand -hex 32 bilan "
+                "yangi kalit yarating va .env/muhit o'zgaruvchisiga qo'ying.",
+                self.app_env,
+            )
+        if self.is_hardened_env and is_weak:
+            raise ValueError(
+                "JWT_SECRET_KEY production/staging muhitida kamida 32 belgili "
+                "bo'lishi va 'CHANGE_ME' bilan boshlanmasligi shart. "
+                "openssl rand -hex 32 bilan yangi kalit yarating."
+            )
         return self
 
     @model_validator(mode="after")
@@ -232,7 +257,24 @@ class Settings(BaseSettings):
                 "openssl rand -hex 32 bilan yangi kalit yarating."
             )
 
-        if self.app_env in ("production", "staging"):
+        # #37 fail-safe: dev-default/CHANGE_ME kalit aniqlansa — MUHITDAN
+        # QAT'I NAZAR ko'rinadigan CRITICAL log (blok emas, startup buzilmaydi).
+        _uses_change_me = (
+            "CHANGE_ME" in self.pii_encryption_key or "CHANGE_ME" in self.blind_index_key
+        )
+        _uses_dev_default = (
+            self.pii_encryption_key == _DEV_DEFAULT_PII_KEY
+            or self.blind_index_key == _DEV_DEFAULT_BLIND_KEY
+        )
+        if _uses_change_me or _uses_dev_default:
+            logger.critical(
+                "config.weak_pii_keys app_env=%s — PII_ENCRYPTION_KEY/BLIND_INDEX_KEY "
+                "dev-default yoki 'CHANGE_ME' qiymatda. openssl rand -hex 32 bilan "
+                "yangi unikal kalitlar yarating va .env/muhit o'zgaruvchisiga qo'ying.",
+                self.app_env,
+            )
+
+        if self.is_hardened_env:
             if "CHANGE_ME" in self.pii_encryption_key:
                 raise ValueError(
                     "PII_ENCRYPTION_KEY production/staging muhitida 'CHANGE_ME' "

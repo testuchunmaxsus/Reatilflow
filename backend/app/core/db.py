@@ -45,49 +45,94 @@ logger = logging.getLogger(__name__)
 # Railway Postgres qayta ishga tushganda asyncpg `CannotConnectNowError:
 # the database system is starting up` qaytaradi. pool_pre_ping mavjud ulanishni
 # tekshiradi, lekin DB butunlay rad etganda YANGI ulanish ham yarata olmaydi → 500.
-# Yechim: ulanish o'rnatishni qisqa eksponensial backoff bilan qayta urinish.
+# Yechim (#38): retry FASTAT haqiqiy ulanish o'rnatish nuqtasida — engine
+# `async_creator`ida (pastda `_make_engine`) — get_db/get_db_replica/
+# get_timescale_db esa LAZY (eager `session.connection()` chaqirilmaydi, pool
+# ulanishni birinchi haqiqiy so'rovda oladi va tezda bo'shatadi).
 try:
-    from asyncpg.exceptions import CannotConnectNowError as _CannotConnectNow
-    _ASYNCPG_TRANSIENT: tuple[type[BaseException], ...] = (_CannotConnectNow,)
+    from asyncpg.exceptions import (
+        CannotConnectNowError as _CannotConnectNow,
+    )
+    from asyncpg.exceptions import (
+        ConnectionDoesNotExistError as _ConnectionDoesNotExist,
+    )
+    _ASYNCPG_TRANSIENT_TYPES: tuple[type[BaseException], ...] = (
+        _CannotConnectNow,
+        _ConnectionDoesNotExist,
+    )
 except Exception:  # asyncpg yo'q (sof SQLite test muhiti)
-    _ASYNCPG_TRANSIENT = ()
+    _ASYNCPG_TRANSIENT_TYPES = ()
 
-from sqlalchemy.exc import InterfaceError as _SAInterfaceError
-from sqlalchemy.exc import OperationalError as _SAOperationalError
-
-# Faqat ulanish-darajasidagi vaqtinchalik xatolar (so'rov xatolari emas)
-_TRANSIENT_CONNECT_ERRORS: tuple[type[BaseException], ...] = (
-    *_ASYNCPG_TRANSIENT,
-    _SAOperationalError,
-    _SAInterfaceError,
-    ConnectionError,
-    OSError,
+# TCP darajasida "DB hali ko'tarilmagan" — port ochilmagan/qabul qilmayapti.
+# Auth (masalan InvalidPasswordError — asyncpg.exceptions.InvalidPasswordError
+# OSError/InterfaceError EMAS, alohida PostgresError avlodi) yoki boshqa
+# config xatolari bu ro'yxatda YO'Q — ular qayta URILMAYDI (fail-fast).
+_TCP_NOT_READY_TYPES: tuple[type[BaseException], ...] = (
+    ConnectionRefusedError,
+    TimeoutError,
 )
+
+# Orqaga-moslik: eski nom (test/monkeypatch uchun) — endi faqat predikat
+# ma'lumot manbai, retry logikasi bevosita _is_transient_connect_error ishlatadi.
+_TRANSIENT_CONNECT_ERRORS: tuple[type[BaseException], ...] = (
+    *_ASYNCPG_TRANSIENT_TYPES,
+    *_TCP_NOT_READY_TYPES,
+)
+
 _CONNECT_RETRY_ATTEMPTS = 5
 _CONNECT_RETRY_BASE_DELAY = 0.3
 _CONNECT_RETRY_MAX_DELAY = 1.5
 
 
-async def _acquire_connected_session(
-    factory: "async_sessionmaker[AsyncSession]",
-) -> AsyncSession:
+def _is_transient_connect_error(exc: BaseException) -> bool:
     """
-    Sessiya ochib, ulanishni MAJBURIY o'rnatadi — transient connect xatosida retry.
+    Faqat "DB hali ko'tarilmagan / TCP tayyor emas" — HAQIQIY transient
+    ulanish xatolarini True deb topadi (predikat, keng tuple emas).
 
-    `await session.connection()` pool'dan ulanish oladi (+ pool_pre_ping SELECT 1).
-    DB qayta ishga tushayotgan bo'lsa (CannotConnectNowError) qisqa backoff bilan
-    qayta urinadi. Barcha urinishlar tugasa — oxirgi xatoni qayta ko'taradi.
-    SQLite (test) — birinchi urinishda ulanadi, retry ishlamaydi.
+    Tekshiriladi: `exc` o'zi VA (agar bo'lsa) `exc.__cause__`/`exc.orig`
+    (SQLAlchemy OperationalError/InterfaceError asyncpg xatosini shu
+    atributlarda o'raydi).
+
+    Auth (InvalidPasswordError), konfiguratsiya xatolari va umumiy
+    OSError/InterfaceError — False (qayta URILMAYDI, fail-fast).
     """
+    candidates: list[BaseException] = [exc]
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        candidates.append(orig)
+    cause = exc.__cause__
+    if cause is not None:
+        candidates.append(cause)
+
+    for candidate in candidates:
+        if _ASYNCPG_TRANSIENT_TYPES and isinstance(candidate, _ASYNCPG_TRANSIENT_TYPES):
+            return True
+        if isinstance(candidate, _TCP_NOT_READY_TYPES):
+            return True
+    return False
+
+
+async def _connect_asyncpg_with_retry(*args: Any, **kwargs: Any) -> Any:
+    """
+    `create_async_engine(..., async_creator=...)` uchun asyncpg.connect o'ragichi.
+
+    SQLAlchemy asyncpg dialekti bu funksiyani (arg/kwarg'lar bilan — URL'dan
+    olingan host/port/user/password/database) HAR bir yangi jismoniy ulanish
+    yaratilganda chaqiradi (pool birinchi so'rovda yoki pool_recycle'dan keyin).
+    Transient xato (`_is_transient_connect_error`) bo'lsa qisqa eksponensial
+    backoff bilan qayta urinadi; boshqa xatolar (auth, config) darhol qayta
+    ko'tariladi (fail-fast).
+    """
+    import asyncpg
+
     last_exc: BaseException | None = None
     for attempt in range(_CONNECT_RETRY_ATTEMPTS):
-        session = factory()
         try:
-            await session.connection()
-            return session
-        except _TRANSIENT_CONNECT_ERRORS as exc:
+            return await asyncpg.connect(*args, **kwargs)
+        except Exception as exc:
+            if not _is_transient_connect_error(exc):
+                raise
             last_exc = exc
-            await session.close()
             if attempt == _CONNECT_RETRY_ATTEMPTS - 1:
                 break
             delay = min(
@@ -121,11 +166,14 @@ def _make_engine(url: str) -> AsyncEngine:
 
     SQLite (dev/test/seed-demo) `pool_size`/`max_overflow` ni QO'LLAB-QUVVATLAMAYDI
     (StaticPool/NullPool) — bu argumentlar TypeError beradi. Shu sabab sqlite uchun
-    faqat `echo` uzatiladi; PostgreSQL/prod uchun to'liq pool sozlamalari.
+    faqat `echo` uzatiladi; PostgreSQL/prod uchun to'liq pool sozlamalari + #38
+    `async_creator` (transient-connect retry haqiqiy ulanish nuqtasida).
     """
     if url.startswith("sqlite"):
         return create_async_engine(url, echo=settings.sql_echo)
-    return create_async_engine(url, **_POOL_KWARGS)
+    return create_async_engine(
+        url, **_POOL_KWARGS, async_creator=_connect_asyncpg_with_retry
+    )
 
 
 # Primary engine — barcha yozishlar + moliyaviy o'qishlar
@@ -231,10 +279,17 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     OLDIN ishlaydi (user/enterprise_id hali noma'lum). O'zgaruvchi keyinroq,
     get_current_user() (app/modules/auth/router.py) ichida, user yuklab
     olingach _set_rls_var() orqali o'rnatiladi (xuddi shu tranzaksiyada).
+
+    #38: LAZY — pool ulanishini bu yerda MAJBURAN olmaydi (eski xatti-harakat
+    dependency-resolve paytida `session.connection()` chaqirib pool'dan
+    ulanish olar va butun request davomida ushlab turardi — DB'siz/faqat-AI
+    endpointlar ham pool'ni band qilardi). Ulanish endi birinchi haqiqiy
+    so'rovda (yoki `session.commit()`da) olinadi; transient-connect retry
+    endi engine darajasida (`_connect_asyncpg_with_retry`, `_make_engine`).
     Uso'age:
         async def my_endpoint(db: AsyncSession = Depends(get_db)):
     """
-    session = await _acquire_connected_session(AsyncSessionPrimary)
+    session = AsyncSessionPrimary()
     try:
         yield session
         await session.commit()
@@ -251,8 +306,9 @@ async def get_db_replica() -> AsyncGenerator[AsyncSession, None]:
 
     Katalog, statistika, ro'yxat endpointlar uchun.
     Moliyaviy ma'lumotlar uchun get_db() ishlatilsin.
+    #38: LAZY (izoh uchun get_db() docstring'iga qarang).
     """
-    session = await _acquire_connected_session(AsyncSessionReplica)
+    session = AsyncSessionReplica()
     try:
         yield session
     finally:
@@ -265,10 +321,11 @@ async def get_timescale_db() -> AsyncGenerator[AsyncSession, None]:
 
     GPS endpointlari faqat shu dependency'dan foydalanadi (ADR §3.2).
     OLTP primary engine dan to'liq izolyatsiya.
+    #38: LAZY (izoh uchun get_db() docstring'iga qarang).
     Uso'age:
         async def my_endpoint(db: AsyncSession = Depends(get_timescale_db)):
     """
-    session = await _acquire_connected_session(AsyncSessionTimescale)
+    session = AsyncSessionTimescale()
     try:
         yield session
         await session.commit()

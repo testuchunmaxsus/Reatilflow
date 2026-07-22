@@ -25,6 +25,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.models.enterprise import Enterprise
 from app.models.user import AppUser
 from app.tests.auth.conftest import TEST_PASSWORD, TEST_PHONE
 
@@ -388,6 +389,38 @@ async def test_refresh_inactive_user_returns_403(
         json={"refresh_token": refresh_token},
     )
     assert refresh_resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_refresh_suspended_enterprise_returns_403(
+    auth_client: AsyncClient,
+    test_user: AppUser,
+    default_enterprise: Enterprise,
+    db_session,
+) -> None:
+    """
+    #44: Login qilingan userning korxonasi suspend qilinsa, refresh 403
+    qaytarishi kerak (login()dagi enterprise.suspended naqshi refresh'da ham).
+    """
+    # Avval login — korxona faol holatda
+    login_resp = await auth_client.post(
+        "/auth/login",
+        json={"phone": TEST_PHONE, "password": TEST_PASSWORD},
+    )
+    assert login_resp.status_code == 200
+    refresh_token = login_resp.json()["refresh_token"]
+
+    # Korxonani suspend qilish
+    default_enterprise.status = "suspended"
+    await db_session.flush()
+
+    # Refresh — endi 403 bo'lishi kerak
+    refresh_resp = await auth_client.post(
+        "/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+    assert refresh_resp.status_code == 403
+    assert refresh_resp.json()["message_key"] == "enterprise.suspended"
 
 
 @pytest.mark.asyncio

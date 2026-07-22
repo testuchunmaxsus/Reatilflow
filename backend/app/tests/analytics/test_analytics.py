@@ -38,6 +38,7 @@ from app.modules.analytics.schemas import (
     ExpiryItem,
     GeoVelocityItem,
     ProductRankingItem,
+    RecommendationItem,
 )
 from app.tests.analytics.conftest import OTHER_ENTERPRISE_UUID, get_token
 from app.tests.conftest import TEST_ENTERPRISE_UUID
@@ -888,6 +889,73 @@ async def test_ai_enrich_disabled_flag() -> None:
         summary, enabled = await enrich_with_ai([])
         assert summary is None
         assert enabled is False
+
+
+# ─── 12b. ai_enrich: PII-guard whitelist (#30) — address Groq'ga sizmasligi ──
+
+
+@pytest.mark.asyncio
+async def test_ai_enrich_address_not_sent_to_groq() -> None:
+    """
+    R5_geo_hotspot metric'idagi `address` (PII) Groq prompt'iga tushmasligi kerak.
+
+    Whitelist default-deny: faqat ruxsat berilgan raqamli kalitlar o'tadi.
+    """
+    import httpx as real_httpx
+    from unittest.mock import AsyncMock, patch
+
+    rec = RecommendationItem(
+        code="R5_geo_hotspot",
+        severity="info",
+        title_uz="Sotuv markaziy nuqtasi",
+        detail_uz="test",
+        store_id=None,
+        product_id=None,
+        metric={
+            "velocity_per_day": "12.5",
+            "revenue": "1000000",
+            "address": "Toshkent, Chilonzor, Bobur ko'chasi 12-uy",
+        },
+    )
+
+    captured_payload = {}
+
+    mock_response_obj = AsyncMock()
+    mock_response_obj.status_code = 200
+    mock_response_obj.json = lambda: {
+        "choices": [{"message": {"content": "Xulosa matni"}}]
+    }
+
+    async def mock_async_post(url, headers=None, json=None):
+        captured_payload["json"] = json
+        return mock_response_obj
+
+    mock_client_instance = AsyncMock()
+    mock_client_instance.post = mock_async_post
+
+    class MockAsyncClientCM:
+        async def __aenter__(self):
+            return mock_client_instance
+
+        async def __aexit__(self, *args):
+            return False
+
+    with patch.object(real_httpx, "AsyncClient", return_value=MockAsyncClientCM()):
+        with patch("app.core.config.settings") as mock_settings:
+            mock_settings.groq_api_key = "fake-key-for-test"
+            mock_settings.groq_model = "llama-3.3-70b-versatile"
+            mock_settings.analytics_ai_enabled = True
+
+            summary, enabled = await enrich_with_ai([rec])
+
+    assert enabled is True
+    prompt = captured_payload["json"]["messages"][0]["content"]
+    assert "Chilonzor" not in prompt
+    assert "Bobur" not in prompt
+    assert "address" not in prompt
+    # Raqamli metrikalar esa saqlanishi kerak
+    assert "velocity_per_day=12.5" in prompt
+    assert "revenue=1000000" in prompt
 
 
 # ─── 13. Contracted stores: contract validity strict ─────────────────────────

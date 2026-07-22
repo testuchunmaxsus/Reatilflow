@@ -19,10 +19,52 @@ Push provider FakeProvider naqshi (no-op graceful degrade).
 from __future__ import annotations
 
 import logging
+import re
 
 from app.modules.analytics.schemas import RecommendationItem
 
 logger = logging.getLogger(__name__)
+
+# ─── PII-guard: metric kalitlari WHITELIST (default-deny) ───────────────────
+# Faqat R1-R5 qoidalarida ishlatiladigan, sof RAQAMLI kalitlar Groq'ga
+# yuborilishi mumkin. Ro'yxatda YO'Q har qanday kalit (masalan R5'dagi
+# `address`) — PROMPT'DAN AVTOMATIK CHIQARIB TASHLANADI. Yangi metric kaliti
+# qo'shilsa — default'da BLOKLANADI (fail-safe), whitelist'ga qo'lda
+# qo'shilishi kerak.
+_METRIC_KEY_WHITELIST: frozenset[str] = frozenset(
+    {
+        "qty",
+        "days_left",
+        "expiry_date",
+        "velocity_per_day",
+        "sold_qty_period",
+        "sold_qty",
+        "inventory_qty",
+        "projected_days",
+        "store_count",
+        "revenue",
+        "percent",
+        "count",
+    }
+)
+
+# Ikkinchi qatlam himoya: qiymat faqat raqam/nuqta/tire/ikki nuqta belgilaridan
+# iborat bo'lishi shart (masalan sana "2026-08-01"). Aks holda (harflar,
+# manzil kabi erkin matn) qiymat ham tashlab yuboriladi.
+_NUMERIC_VALUE_RE = re.compile(r"^[0-9.\-:]+$")
+
+
+def _sanitize_metric(metric: dict) -> dict:
+    """Metric dict'ni PII-guard whitelist orqali filtrlaydi (default-deny)."""
+    safe: dict = {}
+    for key, value in metric.items():
+        if key not in _METRIC_KEY_WHITELIST:
+            continue
+        value_str = str(value)
+        if not _NUMERIC_VALUE_RE.match(value_str):
+            continue
+        safe[key] = value
+    return safe
 
 
 async def enrich_with_ai(
@@ -65,11 +107,14 @@ async def enrich_with_ai(
 
         model = getattr(settings, "groq_model", "llama-3.3-70b-versatile")
 
-        # PII-guard: faqat tavsiya kodi + jiddiylik + raqamlar + mahsulot nomi
-        # Do'kon nomi ham yuborilmaydi (anonimlashtirish)
+        # PII-guard: faqat tavsiya kodi + jiddiylik + raqamlar.
+        # Do'kon nomi/manzili HECH QACHON yuborilmaydi (anonimlashtirish) —
+        # metric whitelist orqali filtrlanadi (_sanitize_metric), shu bois
+        # R5_geo_hotspot'dagi `address` bu yerga yetib bormaydi.
         anon_items = []
         for idx, rec in enumerate(recommendations[:10], start=1):  # Max 10 ta
-            metric_str = ", ".join(f"{k}={v}" for k, v in rec.metric.items())
+            safe_metric = _sanitize_metric(rec.metric)
+            metric_str = ", ".join(f"{k}={v}" for k, v in safe_metric.items())
             anon_items.append(
                 f"Tavsiya {idx} [{rec.severity.upper()}] {rec.code}: {metric_str}"
             )
