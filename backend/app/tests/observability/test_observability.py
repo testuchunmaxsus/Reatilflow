@@ -86,6 +86,84 @@ async def test_metrics_path_not_tracked_in_metrics(client: AsyncClient) -> None:
     assert 'path="/metrics"' not in body
 
 
+# ─── #48: production'da /metrics himoyasi ────────────────────────────────────
+#
+# `app.core.config.settings` — lru_cache singleton, `app.main` da xuddi shu
+# obyektga ishora qiladi (import orqali bog'langan). monkeypatch.setattr bilan
+# atributlarni o'zgartirish ikkala modulda ham ko'rinadi va test tugagach
+# avtomatik tiklanadi (module reload shart emas).
+
+async def test_metrics_hidden_in_production_without_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """production'da METRICS_TOKEN o'rnatilmagan bo'lsa — /metrics 404 (fosh emas)."""
+    from app.core.config import settings as core_settings
+
+    monkeypatch.setattr(core_settings, "app_env", "production")
+    monkeypatch.setattr(core_settings, "metrics_token", None)
+
+    response = await client.get("/metrics")
+    assert response.status_code == 404
+
+
+async def test_metrics_rejects_missing_auth_header_in_production(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """production'da METRICS_TOKEN bor, lekin Authorization header yo'q → 404."""
+    from app.core.config import settings as core_settings
+
+    monkeypatch.setattr(core_settings, "app_env", "production")
+    monkeypatch.setattr(core_settings, "metrics_token", "correct-token-xyz")
+
+    response = await client.get("/metrics")
+    assert response.status_code == 404
+
+
+async def test_metrics_rejects_wrong_token_in_production(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """production'da noto'g'ri Bearer token → 404 (yoki 401)."""
+    from app.core.config import settings as core_settings
+
+    monkeypatch.setattr(core_settings, "app_env", "production")
+    monkeypatch.setattr(core_settings, "metrics_token", "correct-token-xyz")
+
+    response = await client.get(
+        "/metrics", headers={"Authorization": "Bearer wrong-token"}
+    )
+    assert response.status_code in (401, 404)
+
+
+async def test_metrics_accepts_correct_token_in_production(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """production'da to'g'ri Bearer token → 200, Prometheus format."""
+    from app.core.config import settings as core_settings
+
+    monkeypatch.setattr(core_settings, "app_env", "production")
+    monkeypatch.setattr(core_settings, "metrics_token", "correct-token-xyz")
+
+    response = await client.get(
+        "/metrics", headers={"Authorization": "Bearer correct-token-xyz"}
+    )
+    assert response.status_code == 200
+    assert "http_requests_total" in response.text
+
+
+async def test_metrics_open_in_non_production_even_without_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """development/staging da METRICS_TOKEN o'rnatilgan bo'lsa ham — ochiq (dev qulayligi)."""
+    from app.core.config import settings as core_settings
+
+    monkeypatch.setattr(core_settings, "app_env", "development")
+    monkeypatch.setattr(core_settings, "metrics_token", "some-token")
+
+    response = await client.get("/metrics")
+    assert response.status_code == 200
+    assert "http_requests_total" in response.text
+
+
 # ─── 2. Correlation ID ────────────────────────────────────────────────────────
 
 async def test_correlation_id_returned_in_response(client: AsyncClient) -> None:

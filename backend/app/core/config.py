@@ -76,6 +76,12 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str | None = None
     sentry_dsn: str | None = None
 
+    # #48: /metrics himoyasi — production'da (is_hardened_env) o'rnatilgan bo'lsa,
+    # `Authorization: Bearer <token>` header talab qilinadi. O'rnatilmasa —
+    # production'da /metrics butunlay yashiriladi (404). Non-production'da
+    # ta'sir qilmaydi — endpoint ochiq qoladi (dev qulayligi).
+    metrics_token: str | None = None
+
     # ─── SQL echo — alohida o'zgaruvchi (app_debug dan mustaqil) ────────────
     # SQL_ECHO=true/false — faqat shunga bog'liq; app_debug emas
     sql_echo: bool = False

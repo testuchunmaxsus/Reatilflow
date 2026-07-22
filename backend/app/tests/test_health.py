@@ -84,3 +84,49 @@ async def test_openapi_has_paths(client: AsyncClient) -> None:
     response = await client.get("/openapi.json")
     data = response.json()
     assert "/health" in data.get("paths", {})
+
+
+# ─── #48: production'da docs/redoc/openapi.json barchasi yopiq ──────────────
+
+def test_docs_urls_open_in_development() -> None:
+    """development muhitida docs_url/redoc_url/openapi_url ochiq bo'lishi kerak."""
+    from app.main import _compute_openapi_docs_urls
+
+    docs_url, redoc_url, openapi_url = _compute_openapi_docs_urls("development")
+    assert docs_url == "/docs"
+    assert redoc_url == "/redoc"
+    assert openapi_url == "/openapi.json"
+
+
+def test_docs_urls_closed_in_production() -> None:
+    """
+    production muhitida docs_url/redoc_url/openapi_url uchalasi ham None
+    bo'lishi kerak (#48: /openapi.json docs/redoc bilan bir xil naqshda
+    yopilishi shart — to'liq API sxemasi oshkor bo'lmasin).
+    """
+    from app.main import _compute_openapi_docs_urls
+
+    docs_url, redoc_url, openapi_url = _compute_openapi_docs_urls("production")
+    assert docs_url is None
+    assert redoc_url is None
+    assert openapi_url is None
+
+
+def test_docs_urls_open_in_staging() -> None:
+    """staging muhitida (production emas) docs/redoc/openapi ochiq qoladi."""
+    from app.main import _compute_openapi_docs_urls
+
+    docs_url, redoc_url, openapi_url = _compute_openapi_docs_urls("staging")
+    assert docs_url == "/docs"
+    assert redoc_url == "/redoc"
+    assert openapi_url == "/openapi.json"
+
+
+def test_current_app_openapi_url_matches_docs_gate() -> None:
+    """
+    Joriy ishlab turgan `app` instansida openapi_url docs_url bilan bir xil
+    qoidaga bo'ysunishi kerak (ikkalasi ham None yoki ikkalasi ham ochiq).
+    """
+    from app.main import _docs_url, _openapi_url
+
+    assert (_docs_url is None) == (_openapi_url is None)

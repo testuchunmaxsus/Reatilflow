@@ -10,6 +10,7 @@ B1 modullari (T1-T8) router sifatida shu yerga ulanadi.
 """
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -95,8 +96,27 @@ async def lifespan(app: FastAPI):
 # ─── FastAPI ilova ───────────────────────────────────────────────────────────
 
 # Production da docs endpointlarini yopish (xavfsizlik)
-_docs_url = None if settings.app_env == "production" else "/docs"
-_redoc_url = None if settings.app_env == "production" else "/redoc"
+
+
+def _compute_openapi_docs_urls(app_env: str) -> tuple[str | None, str | None, str | None]:
+    """
+    docs_url/redoc_url/openapi_url ni app_env asosida hisoblaydi.
+
+    Production'da uchalasi ham None — /docs, /redoc VA /openapi.json (#48:
+    to'liq API sxemasi) autentifikatsiyasiz oshkor bo'lmasin. Boshqa
+    muhitlarda (development/staging) barchasi ochiq qoladi.
+
+    Alohida funksiya sifatida chiqarilgan — birlik testlarda app_env ni
+    qayta yuklamasdan (module reload) tekshirish uchun.
+    """
+    is_prod = app_env == "production"
+    docs_url = None if is_prod else "/docs"
+    redoc_url = None if is_prod else "/redoc"
+    openapi_url = None if is_prod else "/openapi.json"
+    return docs_url, redoc_url, openapi_url
+
+
+_docs_url, _redoc_url, _openapi_url = _compute_openapi_docs_urls(settings.app_env)
 
 app = FastAPI(
     title="RETAIL API",
@@ -108,7 +128,7 @@ app = FastAPI(
     version="0.1.0",
     docs_url=_docs_url,
     redoc_url=_redoc_url,
-    openapi_url="/openapi.json",
+    openapi_url=_openapi_url,
     lifespan=lifespan,
 )
 
@@ -334,13 +354,31 @@ async def readiness() -> JSONResponse:
     response_description="Prometheus text format metrikalar",
     include_in_schema=False,
 )
-async def metrics_endpoint():
+async def metrics_endpoint(request: Request):
     """
     Prometheus scrape endpointi.
 
     Qaytaradi: prometheus_client text exposition format.
     Metrics middleware bu yo'lni kuzatmaydi (cheksiz rekursiya oldini olish).
+
+    #48 himoya: production'da (is_hardened_env)
+      - METRICS_TOKEN o'rnatilmagan bo'lsa — endpoint butunlay yashiriladi (404,
+        fosh qilinmaydi);
+      - METRICS_TOKEN o'rnatilgan bo'lsa — `Authorization: Bearer <token>`
+        header token bilan mos kelishi shart (mos kelmasa 404). Token URL
+        parametri orqali QABUL QILINMAYDI — sir URL/loglarga chiqmasin.
+    Non-production muhitlarda endpoint ochiq qoladi (dev/Prometheus qulayligi).
     """
+    if settings.is_hardened_env:
+        expected_token = settings.metrics_token
+        if not expected_token:
+            raise HTTPException(status_code=404)
+        auth_header = request.headers.get("authorization", "")
+        scheme, _, token = auth_header.partition(" ")
+        if scheme.lower() != "bearer" or not token or not secrets.compare_digest(
+            token, expected_token
+        ):
+            raise HTTPException(status_code=404)
     return metrics_response()
 
 
