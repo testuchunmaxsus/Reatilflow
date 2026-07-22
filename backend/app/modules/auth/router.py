@@ -25,7 +25,7 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_db
+from app.core.db import _set_rls_var, get_db
 from app.core.errors import AppError, AuthAppError
 from app.core.jwt import TokenError, TokenExpiredError, decode_token
 from app.core.redis import get_redis
@@ -113,6 +113,12 @@ async def get_current_user(
         enterprise = ent_result.scalar_one_or_none()
         if enterprise is not None and enterprise.status == "suspended":
             raise AppError("enterprise.suspended", status_code=status.HTTP_403_FORBIDDEN)
+
+    # ADR-013 (Variant B): RLS session o'zgaruvchisini shu tranzaksiya ichida
+    # o'rnatamiz — enterprise_id endigina ma'lum bo'ldi. RLS FORCE qilinmagan;
+    # bu defense-in-depth tayyorgarlik, ASOSIY enforcement
+    # apply_enterprise_filter() orqali (MT2/BATCH 1).
+    await _set_rls_var(db, user.enterprise_id)
 
     return user
 

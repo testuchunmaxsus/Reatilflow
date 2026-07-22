@@ -389,7 +389,12 @@ def _setup_rls_postgresql(bind) -> None:
             ))
 
         # 4. Force RLS (superuser ham RLS'ga bo'ysunadi, BYPASSRLS bundan mustasno)
-        # FORCE qilmaymiz — migratsiya/seed uchun BYPASSRLS ishlashi kerak
+        # FORCE qilmaymiz — migratsiya/seed uchun BYPASSRLS ishlashi kerak.
+        # ADR-013 (Variant B, BATCH 3B): FORCE ATAYLAB yoqilmagan — ilova
+        # jadval-egasi rol bilan ulanadi (FORCE'siz RLS'dan ozod bo'lardi baribir).
+        # Asosiy tenant enforcement ilova-qatlamida apply_enterprise_filter()
+        # orqali; app.current_enterprise_id RLS o'zgaruvchisi hozircha faqat
+        # defense-in-depth tayyorgarlik (app/core/db.py:_set_rls_var).
         # bind.execute(sa.text(f"ALTER TABLE {qt} FORCE ROW LEVEL SECURITY"))
 
 

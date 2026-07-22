@@ -11,10 +11,17 @@ TimescaleDB (GPS time-series):
   - get_timescale_db — GPS endpointlari uchun FastAPI dependency.
   ADR §3.2: GPS trekking OLTP bilan aralashmaydi.
 
-MT1: RLS session variable mexanizmi.
-  - PostgreSQL: har session ochilganda SET LOCAL app.current_enterprise_id qilinadi.
-  - SQLite (test): no-op.
-  - RLS siyosatlari (migratsiya 0020) bu o'zgaruvchiga tayanadi.
+MT1 / ADR-013 (Variant B): RLS session variable mexanizmi.
+  - O'zgaruvchi get_db() da EMAS — auth dependency'da (get_current_user,
+    app/modules/auth/router.py) user yuklanib enterprise_id ma'lum bo'lgach
+    o'rnatiladi (_set_rls_var). get_db() so'rov autentifikatsiyasidan OLDIN
+    ishlaydi — u paytda enterprise_id hali noma'lum.
+  - PostgreSQL: joriy tranzaksiyada set_config('app.current_enterprise_id', ..., true)
+    chaqiriladi (is_local=true — tranzaksiya-lokal, pool orqali sizib chiqmaydi).
+  - SQLite (test): dialekt-guard bilan no-op.
+  - RLS siyosatlari (migratsiya 0020/0021) FORCE QILINMAGAN — bu o'zgaruvchi
+    hozircha defense-in-depth tayyorgarlik; ASOSIY tenant izolyatsiya ilova-
+    qatlamida apply_enterprise_filter() orqali ta'minlanadi (BATCH 1).
 """
 
 import asyncio
@@ -168,37 +175,51 @@ AsyncSessionTimescale = async_sessionmaker(
 
 async def _set_rls_var(session: AsyncSession, enterprise_id: Any) -> None:
     """
-    PostgreSQL session'ga app.current_enterprise_id SET LOCAL qiladi.
+    Joriy tranzaksiyada PostgreSQL'ga app.current_enterprise_id o'rnatadi.
 
-    RLS (Row-Level Security) siyosatlari bu o'zgaruvchiga tayanadi.
-    SQLite'da no-op.
+    RLS (Row-Level Security) siyosatlari (migratsiya 0020/0021) bu o'zgaruvchiga
+    tayanadi, lekin ULAR FORCE QILINMAGAN (ADR-013 Variant B) — ilova jadval-egasi
+    rol bilan ulanadi va shu bois RLS'dan ozod. ASOSIY tenant enforcement ilova-
+    qatlamida apply_enterprise_filter() orqali amalga oshadi; bu funksiya
+    defense-in-depth tayyorgarligi.
+
+    `set_config(..., true)` ishlatiladi — `SET LOCAL ... = :bind` EMAS, chunki
+    asyncpg SET LOCAL kabi utility buyruqlarga bind parametr bermaydi
+    (natijada har chaqiruv PostgresSyntaxError bergan bo'lardi). set_config
+    oddiy SQL funksiya bo'lgani uchun bind parametrni to'g'ri qabul qiladi.
+    `is_local=true` — o'zgaruvchi FAQAT joriy tranzaksiya doirasida amal qiladi;
+    `false` ISHLATILMAYDI (aks holda pool orqali boshqa so'rovlarga sizib chiqadi).
+
+    Chaqirilishi kerak: mavjud tranzaksiya ICHIDA (masalan get_current_user'da,
+    user yuklab olingandan keyin) — is_local=true shuni talab qiladi.
+
+    SQLite'da (dialekt boshqacha) no-op.
 
     Args:
-        session:       AsyncSession.
-        enterprise_id: UUID yoki None (superadmin/unknown).
+        session:       AsyncSession (tranzaksiya ichida).
+        enterprise_id: UUID yoki None (superadmin/token yo'q → bo'sh string).
     """
     try:
         bind = await session.connection()
         if bind.dialect.name != "postgresql":
             return  # SQLite — no-op
 
-        if enterprise_id is not None:
-            val = str(enterprise_id)
-            await session.execute(
-                sa.text("SET LOCAL app.current_enterprise_id = :eid").bindparams(eid=val)
-            )
-        else:
-            # superadmin yoki token yo'q — bo'sh string
-            # RLS USING: current_setting('app.current_enterprise_id', true)
-            # true = error bermaslik (NULL qaytaradi) → NULL::uuid != har qanday UUID
-            # Shuning uchun superadmin uchun bypass BYPASSRLS rol orqali (migratsiyada).
-            await session.execute(
-                sa.text("SET LOCAL app.current_enterprise_id = ''")
-            )
+        # superadmin/enterprise_id yo'q — bo'sh string.
+        # RLS USING: current_setting('app.current_enterprise_id', true)
+        # true = xato bermaslik (NULL qaytaradi) → NULL::uuid hech qanday
+        # qatorga mos kelmaydi. superadmin cross-tenant kirishi BYPASSRLS
+        # rol orqali ta'minlanadi (migratsiyada), shu setter orqali emas.
+        val = str(enterprise_id) if enterprise_id is not None else ""
+        await session.execute(
+            sa.text(
+                "SELECT set_config('app.current_enterprise_id', :eid, true)"
+            ).bindparams(eid=val)
+        )
     except Exception:
-        # RLS set xatosi — log yozamiz lekin request'ni to'xtatmaymiz
-        # (test/dev muhitida session var support yo'q bo'lishi mumkin)
-        logger.debug("RLS enterprise_id set qilishda xato (no-op)", exc_info=True)
+        # RLS set xatosi — log yozamiz, lekin request'ni to'xtatmaymiz
+        # (RLS FORCE qilinmagan — bu defense-in-depth prep, muvaffaqiyatsizlik
+        # app-qatlamidagi apply_enterprise_filter enforcementga ta'sir qilmaydi).
+        logger.warning("RLS enterprise_id set qilishda xato (no-op)", exc_info=True)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -206,8 +227,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     FastAPI dependency: primary DB sessiyasi.
 
     Yozish va moliyaviy o'qishlar uchun ishlatiladi.
-    MT1: RLS session variable qo'llanilmaydi bu yerda (user ma'lumoti yo'q).
-         RLS set qilish RBAC dependency'da (MT2 ga tayinlangan).
+    RLS session variable bu yerda O'RNATILMAYDI — get_db() autentifikatsiyadan
+    OLDIN ishlaydi (user/enterprise_id hali noma'lum). O'zgaruvchi keyinroq,
+    get_current_user() (app/modules/auth/router.py) ichida, user yuklab
+    olingach _set_rls_var() orqali o'rnatiladi (xuddi shu tranzaksiyada).
     Uso'age:
         async def my_endpoint(db: AsyncSession = Depends(get_db)):
     """

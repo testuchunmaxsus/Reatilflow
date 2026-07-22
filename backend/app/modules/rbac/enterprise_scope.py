@@ -141,35 +141,20 @@ async def set_rls_enterprise_var(
     """
     PostgreSQL session'ga app.current_enterprise_id o'zgaruvchisini o'rnatadi.
 
-    RLS (Row-Level Security) siyosatlari bu o'zgaruvchiga tayanadi:
-        USING (enterprise_id = current_setting('app.current_enterprise_id', true)::uuid)
+    DIQQAT: bu funksiya endi mustaqil setter EMAS — drift bo'lmasligi uchun
+    yagona haqiqiy manba app.core.db._set_rls_var() ga delegatsiya qilinadi
+    (u yerda set_config(..., true) bind-parametr bilan ishlatiladi; SET LOCAL
+    bilan bind berish asyncpg'da PostgresSyntaxError beradi).
 
-    SQLite'da no-op (RLS yo'q).
+    Amaldagi wiring: bu funksiya emas, get_current_user()
+    (app/modules/auth/router.py) ichida _set_rls_var() to'g'ridan-to'g'ri
+    chaqiriladi. Bu funksiya faqat orqaga moslik (eski chaqiruvchilar) uchun
+    saqlanadi.
 
     Args:
         session:       AsyncSession (primary yoki replica).
         enterprise_id: Joriy korxona UUID yoki None (superadmin).
-
-    Chaqirish joyi:
-        get_db() dependency yoki middleware'da har request uchun.
     """
-    bind = await session.connection()
-    dialect_name = bind.dialect.name
+    from app.core.db import _set_rls_var
 
-    if dialect_name != "postgresql":
-        # SQLite yoki boshqa — no-op
-        return
-
-    if enterprise_id is not None:
-        await session.execute(
-            __import__("sqlalchemy").text(
-                f"SET LOCAL app.current_enterprise_id = '{enterprise_id}'"
-            )
-        )
-    else:
-        # superadmin — bo'sh qiymat (RLS BYPASSRLS rol bilan boshqariladi)
-        await session.execute(
-            __import__("sqlalchemy").text(
-                "SET LOCAL app.current_enterprise_id = ''"
-            )
-        )
+    await _set_rls_var(session, enterprise_id)
