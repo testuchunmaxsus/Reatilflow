@@ -53,6 +53,8 @@ async function send(res, filePath, code = 200) {
   res.writeHead(code, {
     "Content-Type": type,
     "Cache-Control": extname(filePath) === ".html" ? "no-cache" : "public, max-age=3600",
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Content-Type-Options": "nosniff",
   });
   res.end(buf);
 }
@@ -61,7 +63,10 @@ async function send(res, filePath, code = 200) {
 // Same-origin: landing `/api/demo-request` ga POST qiladi (CORS yo'q).
 // Token FAQAT server env'da (TELEGRAM_BOT_TOKEN / TELEGRAM_DEMO_CHAT_ID).
 function jsonRes(res, code, obj) {
-  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(code, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Strict-Transport-Security": "max-age=31536000",
+  });
   res.end(JSON.stringify(obj));
 }
 function readJson(req, limit = 65536) {
