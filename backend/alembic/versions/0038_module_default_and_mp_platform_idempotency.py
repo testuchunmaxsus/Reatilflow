@@ -84,7 +84,7 @@ def upgrade() -> None:
         # lekin ANIQ-IMZO (superset/union emas) — API orqali ataylab
         # kamaytirilgan modul-subsetlar tegilmaydi.
         op.execute(sa.text(
-            "UPDATE enterprise SET enabled_modules = :new_val "
+            "UPDATE enterprise SET enabled_modules = CAST(:new_val AS json) "
             "WHERE enabled_modules::jsonb = CAST(:legacy_val AS jsonb)"
         ).bindparams(new_val=_ALL_18_JSON, legacy_val=_LEGACY_13_JSON))
     else:
