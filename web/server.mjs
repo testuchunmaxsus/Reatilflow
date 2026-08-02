@@ -18,6 +18,14 @@ import { fileURLToPath } from "node:url";
 const DIST = join(fileURLToPath(new URL(".", import.meta.url)), "dist");
 const PORT = process.env.PORT || 3000;
 
+// Har javobga qo'shiladigan xavfsizlik sarlavhalari.
+const SECURITY_HEADERS = {
+  "Strict-Transport-Security": "max-age=31536000",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -53,8 +61,7 @@ async function send(res, filePath, code = 200) {
   res.writeHead(code, {
     "Content-Type": type,
     "Cache-Control": extname(filePath) === ".html" ? "no-cache" : "public, max-age=3600",
-    "Strict-Transport-Security": "max-age=31536000",
-    "X-Content-Type-Options": "nosniff",
+    ...SECURITY_HEADERS,
   });
   res.end(buf);
 }
@@ -65,7 +72,7 @@ async function send(res, filePath, code = 200) {
 function jsonRes(res, code, obj) {
   res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
-    "Strict-Transport-Security": "max-age=31536000",
+    ...SECURITY_HEADERS,
   });
   res.end(JSON.stringify(obj));
 }
@@ -126,12 +133,23 @@ async function handleDemo(req, res) {
 
 const server = createServer(async (req, res) => {
   try {
-    const pathname = decodeURIComponent((req.url || "/").split("?")[0]);
+    // Buzuq percent-encoding (masalan /%zz) decodeURIComponent'ni yiqitadi —
+    // uni 500 emas, oddiy 404 sifatida ko'ramiz.
+    let pathname;
+    try {
+      pathname = decodeURIComponent((req.url || "/").split("?")[0]);
+    } catch {
+      return jsonRes(res, 404, { ok: false, error: "not_found" });
+    }
 
     // Demo so'rovi (public, same-origin)
     if (pathname === "/api/demo-request") {
       if (req.method !== "POST") return jsonRes(res, 405, { ok: false, error: "method_not_allowed" });
       return await handleDemo(req, res);
+    }
+    // Boshqa /api/* yo'llar SPA HTML emas, aniq 404 JSON qaytarsin.
+    if (pathname.startsWith("/api/")) {
+      return jsonRes(res, 404, { ok: false, error: "not_found" });
     }
 
     // Root -> landing

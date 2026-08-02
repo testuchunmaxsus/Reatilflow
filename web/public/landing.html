@@ -8,6 +8,15 @@
 <meta property="og:title" content="RetailFlowAI — aqlli savdo platformasi" />
 <meta property="og:description" content="Do'kon va korxonani bog'lovchi platforma. AI tahlil. Do'kon uchun bepul." />
 <meta property="og:type" content="website" />
+<meta property="og:url" content="https://retailflowai.uz/" />
+<meta property="og:site_name" content="RetailFlowAI" />
+<meta property="og:image" content="https://retailflowai.uz/screenshots/ai-dashboard.png" />
+<meta property="og:image:width" content="1456" />
+<meta property="og:image:height" content="890" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="RetailFlowAI — aqlli savdo platformasi" />
+<meta name="twitter:description" content="Do'kon va korxonani bog'lovchi platforma. AI tahlil. Do'kon uchun bepul." />
+<meta name="twitter:image" content="https://retailflowai.uz/screenshots/ai-dashboard.png" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -661,8 +670,6 @@
 </div>
 
 <script>
-  var API_BASE = "https://reatilflowapi.up.railway.app";
-
   function openDemo(type){
     if(type){
       var el = document.querySelector('input[name="type"][value="'+type+'"]');
@@ -704,11 +711,18 @@
     var btn = document.getElementById('demoSubmit');
     btn.disabled = true; btn.textContent = "Yuborilmoqda...";
     try{
-      await fetch("/api/demo-request", {
+      var resp = await fetch("/api/demo-request", {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
-      showOk();
-    }catch(e){ showOk(); }
+      if(resp.ok){ showOk(); }
+      else {
+        err.textContent = "So'rovni yuborishda xatolik. Iltimos qayta urinib ko'ring yoki Telegram: @Ferganasoftuz.";
+        err.style.display='block';
+      }
+    }catch(e){
+      err.textContent = "Internet aloqasida muammo. Iltimos qayta urinib ko'ring yoki Telegram: @Ferganasoftuz.";
+      err.style.display='block';
+    }
     finally{ btn.disabled = false; btn.textContent = "So'rovni yuborish"; }
   }
   function flipCard(btn){ var f = btn.closest('.plan-flip'); if(f) f.classList.toggle('flipped'); }
