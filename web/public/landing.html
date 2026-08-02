@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>RetailFlowAI — Do'kon va korxona uchun aqlli savdo platformasi</title>
-<meta name="description" content="RetailFlowAI — mustaqil do'konlar va ishlab chiqaruvchi korxonalarni bitta tizimda birlashtiruvchi aqlli savdo platformasi. Savdo, ombor, yetkazish va AI tahlil. Birinchi oy tekin." />
+<meta name="description" content="RetailFlowAI — mustaqil do'konlar va ishlab chiqaruvchi korxonalarni bitta tizimda birlashtiruvchi aqlli savdo platformasi. Savdo, ombor, yetkazish va AI tahlil. Do'kon uchun bepul." />
 <meta property="og:title" content="RetailFlowAI — aqlli savdo platformasi" />
-<meta property="og:description" content="Do'kon va korxonani bog'lovchi platforma. AI tahlil. Birinchi oy tekin." />
+<meta property="og:description" content="Do'kon va korxonani bog'lovchi platforma. AI tahlil. Do'kon uchun bepul." />
 <meta property="og:type" content="website" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -175,8 +175,8 @@
   .feat p{margin:0; color:var(--muted); font-size:14px}
 
   /* ---------- Pricing ---------- */
-  .price{display:grid; grid-template-columns:repeat(2,1fr); gap:24px; max-width:840px; margin:0 auto}
-  @media(max-width:760px){.price{grid-template-columns:1fr}}
+  .price{display:grid; grid-template-columns:repeat(3,1fr); gap:20px; max-width:1080px; margin:0 auto; align-items:start}
+  @media(max-width:920px){.price{grid-template-columns:1fr; max-width:440px}}
   .plan{position:relative; background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:34px 30px; box-shadow:var(--sh-sm)}
   .plan.pop{border-color:var(--brand); box-shadow:0 30px 60px -26px rgba(37,99,235,.5)}
   .plan .tag{position:absolute; top:-13px; left:50%; transform:translateX(-50%); background:var(--brand); color:#fff;
@@ -273,7 +273,7 @@
 <section class="hero">
   <div class="wrap hero-grid">
     <div class="hero-txt">
-      <span class="eyebrow"><span class="dot"></span> Birinchi oy — <b>TEKIN</b> · Kartasiz sinab ko'ring</span>
+      <span class="eyebrow"><span class="dot"></span> Do'konlar uchun — <b>BEPUL</b> · Kartasiz boshlang</span>
       <h1>Do'kon va korxonani bog'lovchi <span class="grad">aqlli savdo</span> platformasi</h1>
       <p class="lead">RetailFlowAI mustaqil do'konlar bilan ishlab chiqaruvchi korxonalarni bitta tizimda birlashtiradi. Savdo, ombor, yetkazish va AI tahlil — barchasi bir joyda.</p>
       <div class="hero-cta">
@@ -284,7 +284,7 @@
       </div>
       <div class="hero-note">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
-        Karta talab qilinmaydi &nbsp;·&nbsp; 1 oy tekin sinov &nbsp;·&nbsp; istalgan vaqt bekor qilasiz
+        Karta talab qilinmaydi &nbsp;·&nbsp; Do'kon uchun bepul &nbsp;·&nbsp; istalgan vaqt bekor qilasiz
       </div>
     </div>
 
@@ -428,33 +428,48 @@
     <div class="head-center" data-animate>
       <div class="kicker">Narx</div>
       <h2>Oddiy va tushunarli</h2>
-      <p class="sub">Birinchi oy butunlay tekin. Karta talab qilinmaydi — avval sinab ko'ring, keyin qaror qiling.</p>
+      <p class="sub">Do'kon uchun butunlay bepul. Ko'proq imkoniyat kerak bo'lsa — arzon Do'kon Pro va Korxona tariflari. Karta talab qilinmaydi.</p>
     </div>
     <div class="price">
       <div class="plan" data-animate>
         <div class="who"><span class="ic ic-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/></svg></span> Do'kon</div>
-        <div class="amt">99 000<small> so'm/oy</small></div>
-        <span class="free">Birinchi oy — TEKIN</span>
+        <div class="amt">Bepul<small> · doimo</small></div>
+        <span class="free">Karta talab qilinmaydi</span>
         <ul>
-          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Kassa, katalog, ombor</li>
-          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Qarz-nasiya va hisobotlar</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> 1 do'kon</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Kassa (POS)</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Katalog va ombor</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Oddiy hisobotlar</li>
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Korxonalardan buyurtma</li>
-          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> AI sotuv tavsiyalari</li>
         </ul>
-        <button class="btn btn-ghost" onclick="openDemo('dokon')">Do'kon sifatida boshlash</button>
+        <button class="btn btn-ghost" onclick="openDemo('dokon')">Bepul boshlash</button>
       </div>
       <div class="plan pop" data-animate>
         <span class="tag">Eng ommabop</span>
-        <div class="who"><span class="ic ic-violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21V7l6-4 6 4v14"/><path d="M15 11h6v10"/></svg></span> Korxona</div>
-        <div class="amt">299 000<small> so'm/oy</small></div>
-        <span class="free">Birinchi oy — TEKIN</span>
+        <div class="who"><span class="ic ic-violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg></span> Do'kon Pro</div>
+        <div class="amt">99 000<small> so'm/oy</small></div>
+        <span class="free">1 oy bepul sinab ko'ring</span>
         <ul>
-          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'kon paketidagi hammasi</li>
-          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'konlar bo'yicha savdo tahlili</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'kon (bepul) — hammasi</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> AI tahlil va tavsiyalar</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Bir nechta do'kon / filial</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Yetkazish va GPS</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Kengaytirilgan hisobotlar</li>
+        </ul>
+        <button class="btn btn-primary" onclick="openDemo('dokon')">Demo so'rash</button>
+      </div>
+      <div class="plan" data-animate>
+        <div class="who"><span class="ic ic-green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21V7l6-4 6 4v14"/><path d="M15 11h6v10"/></svg></span> Korxona</div>
+        <div class="amt">299 000<small> so'm/oy</small></div>
+        <span class="free">1 oy bepul sinab ko'ring</span>
+        <ul>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'kon-tarmoq ko'rinishi</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Distribyutsiya tahlili</li>
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Yetkazish va GPS kuzatuv</li>
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Geo savdo xaritasi + AI bashorat</li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Cheksiz do'kon ulanishi</li>
         </ul>
-        <button class="btn btn-primary" onclick="openDemo('korxona')">Korxona sifatida boshlash</button>
+        <button class="btn btn-primary" onclick="openDemo('korxona')">Demo so'rash</button>
       </div>
     </div>
   </div>
@@ -464,7 +479,7 @@
 <section class="sec">
   <div class="wrap">
     <div class="cta-band" data-animate>
-      <h2>Bugun boshlang — birinchi oy tekin</h2>
+      <h2>Bugun boshlang — do'kon uchun bepul</h2>
       <p>Demo so'rang, sotuv bo'limi siz bilan tez orada bog'lanadi va tizimni bepul sozlab beradi.</p>
       <div class="hero-cta">
         <button class="btn btn-white btn-lg" onclick="openDemo()">Demo so'rash
@@ -513,7 +528,7 @@
       <div class="m-head">
         <button class="x" onclick="closeDemo()" aria-label="Yopish">×</button>
         <h3 id="demoTitle">Demo so'rash</h3>
-        <p class="m-sub">1 oy tekin. Ma'lumotni qoldiring — sotuv bo'limi siz bilan tez orada bog'lanadi.</p>
+        <p class="m-sub">Do'kon uchun bepul. Ma'lumotni qoldiring — sotuv bo'limi siz bilan tez orada bog'lanadi.</p>
       </div>
       <div class="m-body">
         <div class="seg" id="typeSeg">
