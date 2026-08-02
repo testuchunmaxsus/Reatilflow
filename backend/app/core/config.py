@@ -168,6 +168,16 @@ class Settings(BaseSettings):
     # AI boyitishni to'liq o'chirish (kalit bo'lsa ham)
     analytics_ai_enabled: bool = True
 
+    # ─── Telegram (demo so'rovi bildirishnomasi — landing forma) ────────────
+    # @BotFather'dan olingan bot tokeni (ixtiyoriy). Bo'lmasa demo so'rovi
+    # faqat logga yoziladi (yo'qolmaydi), Telegram'ga yuborilmaydi.
+    telegram_bot_token: str | None = None
+    # Demo so'rovlari yuboriladigan chat: kanal @username (bot admin bo'lishi
+    # kerak), guruh yoki shaxsiy numeric chat_id.
+    telegram_demo_chat_id: str | None = None
+    # Landing'da ko'rsatiladigan aloqa username'i (bog'lanish uchun).
+    telegram_contact_username: str = "Ferganasoftuz"
+
     # ─── PII shifrlash kalitlari (T5) ──────────────────────────────────────
     # AES-256-GCM kaliti: 64 belgili hex (openssl rand -hex 32)
     # Dev default: haqiqiy 64 belgili hex — SHA-256 fallback yo'q (HIGH xavfsizlik fix).

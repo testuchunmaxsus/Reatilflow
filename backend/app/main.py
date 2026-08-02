@@ -43,6 +43,7 @@ from app.modules.analytics.router import router as analytics_router
 from app.modules.import_data.router import router as import_router
 from app.modules.assistant.router import router as assistant_router
 from app.modules.delivery.router import router as delivery_router
+from app.modules.leads.router import router as leads_router
 from app.modules.gps.router import router as gps_router
 from app.modules.push.router import router as push_router
 from app.modules.auth.router import router as auth_router
@@ -555,3 +556,6 @@ app.include_router(
     tags=["assistant"],
     dependencies=[require_module("assistant")],
 )
+
+# Leads — landing demo so'rovi (PUBLIC: autentifikatsiyasiz, modul-gate'siz)
+app.include_router(leads_router, prefix="/public", tags=["public"])
