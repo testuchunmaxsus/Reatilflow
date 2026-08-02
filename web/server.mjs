@@ -57,9 +57,77 @@ async function send(res, filePath, code = 200) {
   res.end(buf);
 }
 
+// ─── Demo so'rovi → Telegram (landing forma) ─────────────────────────────
+// Same-origin: landing `/api/demo-request` ga POST qiladi (CORS yo'q).
+// Token FAQAT server env'da (TELEGRAM_BOT_TOKEN / TELEGRAM_DEMO_CHAT_ID).
+function jsonRes(res, code, obj) {
+  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(obj));
+}
+function readJson(req, limit = 65536) {
+  return new Promise((resolve, reject) => {
+    let data = "", size = 0;
+    req.on("data", (c) => { size += c.length; if (size > limit) { reject(new Error("too_large")); req.destroy(); } else data += c; });
+    req.on("end", () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); } });
+    req.on("error", reject);
+  });
+}
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+async function sendTelegram(text) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chat = process.env.TELEGRAM_DEMO_CHAT_ID;
+  if (!token || !chat) { console.warn("[demo] telegram_not_configured — lead faqat logda"); return false; }
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true }),
+    });
+    if (r.ok) { const j = await r.json(); if (j.ok) return true; }
+    console.error("[demo] telegram_send_failed", r.status);
+  } catch (e) { console.error("[demo] telegram_error", e && e.message); }
+  return false;
+}
+
+async function handleDemo(req, res) {
+  let body;
+  try { body = await readJson(req); } catch { return jsonRes(res, 400, { ok: false, error: "bad_json" }); }
+  if (body.website) { return jsonRes(res, 200, { ok: true, message_key: "demo.received" }); } // honeypot
+  const type = body.type === "korxona" ? "korxona" : "dokon";
+  const business = String(body.business_name || "").trim();
+  const name = String(body.name || "").trim();
+  const phone = String(body.phone || "").trim();
+  const region = String(body.region || "").trim();
+  const note = String(body.note || "").trim();
+  if (business.length < 2 || name.length < 2 || phone.length < 7) {
+    return jsonRes(res, 422, { ok: false, error: "validation" });
+  }
+  console.log(`[demo] lead type=${type} business=${business} name=${name} phone=${phone} region=${region || "-"}`);
+  const turi = type === "dokon" ? "🏪 Do'kon" : "🏭 Korxona";
+  const lines = [
+    "🆕 <b>Yangi demo so'rovi — RetailFlowAI</b>", "",
+    `<b>Turi:</b> ${turi}`,
+    `<b>Nomi:</b> ${esc(business)}`,
+    `<b>Mas'ul:</b> ${esc(name)}`,
+    `<b>Telefon:</b> ${esc(phone)}`,
+  ];
+  if (region) lines.push(`<b>Hudud:</b> ${esc(region)}`);
+  if (note) lines.push(`<b>Izoh:</b> ${esc(note)}`);
+  lines.push("", "📞 Sotuv bo'limi — bog'laning.");
+  await sendTelegram(lines.join("\n"));
+  return jsonRes(res, 200, { ok: true, message_key: "demo.received" });
+}
+
 const server = createServer(async (req, res) => {
   try {
     const pathname = decodeURIComponent((req.url || "/").split("?")[0]);
+
+    // Demo so'rovi (public, same-origin)
+    if (pathname === "/api/demo-request") {
+      if (req.method !== "POST") return jsonRes(res, 405, { ok: false, error: "method_not_allowed" });
+      return await handleDemo(req, res);
+    }
 
     // Root -> landing
     if (pathname === "/" || pathname === "") {

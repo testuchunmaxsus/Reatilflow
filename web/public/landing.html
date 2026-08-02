@@ -611,7 +611,7 @@
     var btn = document.getElementById('demoSubmit');
     btn.disabled = true; btn.textContent = "Yuborilmoqda...";
     try{
-      await fetch(API_BASE + "/public/demo-request", {
+      await fetch("/api/demo-request", {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
       showOk();
