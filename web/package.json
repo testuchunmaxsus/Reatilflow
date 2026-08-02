@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "start": "serve dist -l ${PORT:-3000}",
+    "start": "node server.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
