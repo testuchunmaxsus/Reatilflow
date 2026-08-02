@@ -203,6 +203,8 @@
   .plan-back .who{margin-bottom:4px}
   .plan li.lim{color:var(--amber); font-weight:600}
   .plan li.lim svg{color:var(--amber)}
+  .plan .forwho{color:var(--muted); font-size:13px; font-weight:600; margin-top:6px}
+  .plan .leadline{font-size:12.5px; font-weight:700; color:var(--ink-2); margin:0 0 8px}
   .flip-hint{margin-top:12px; text-align:center; font-size:12.5px; color:var(--muted); cursor:pointer; background:none; border:0; font-family:inherit; font-weight:700; padding:5px}
   .flip-hint:hover{color:var(--brand)}
   @media (prefers-reduced-motion:reduce){ .plan-inner{transition:none} }
@@ -452,13 +454,14 @@
         <div class="plan-inner">
           <div class="plan plan-face plan-front">
             <div class="who"><span class="ic ic-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/></svg></span> Do'kon</div>
+            <div class="forwho">Kichik do'kon uchun</div>
             <div class="amt">Bepul<small> · doimo</small></div>
             <span class="free">Karta talab qilinmaydi</span>
             <ul>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> 1 do'kon</li>
               <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Kassa (POS)</li>
               <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Katalog va ombor</li>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Oddiy hisobotlar</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Oddiy sotuv hisoboti</li>
+              <li class="lim"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="10.5" width="16" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg> 1 do'kon · mahsulot ko'rish cheklangan</li>
             </ul>
             <button class="btn btn-ghost" onclick="openDemo('dokon')">Bepul boshlash</button>
             <button class="flip-hint" type="button" onclick="flipCard(this)">Batafsil ⟳</button>
@@ -484,13 +487,15 @@
           <div class="plan pop plan-face plan-front">
             <span class="tag">Eng ommabop</span>
             <div class="who"><span class="ic ic-violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg></span> Do'kon Pro</div>
+            <div class="forwho">O'sayotgan do'kon uchun</div>
             <div class="amt">99 000<small> so'm/oy</small></div>
             <span class="free">1 oy bepul sinab ko'ring</span>
+            <div class="leadline">Bepuldagi hammasi, ustiga:</div>
             <ul>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'kon (bepul) — hammasi</li>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Cheksiz mahsulot ko'rish</li>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Yangi korxonalarga buyurtma</li>
               <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> AI tahlil va tavsiyalar</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Cheksiz mahsulot + korxonaga buyurtma</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Ko'p do'kon va xodim</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Yetkazish va GPS</li>
             </ul>
             <button class="btn btn-primary" onclick="openDemo('dokon')">Demo so'rash</button>
             <button class="flip-hint" type="button" onclick="flipCard(this)">Batafsil ⟳</button>
@@ -516,13 +521,14 @@
         <div class="plan-inner">
           <div class="plan plan-face plan-front">
             <div class="who"><span class="ic ic-green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21V7l6-4 6 4v14"/><path d="M15 11h6v10"/></svg></span> Korxona</div>
+            <div class="forwho">Ishlab chiqaruvchi uchun</div>
             <div class="amt">299 000<small> so'm/oy</small></div>
             <span class="free">1 oy bepul sinab ko'ring</span>
             <ul>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'kon-tarmoq ko'rinishi</li>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Distribyutsiya tahlili</li>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Yetkazish va GPS kuzatuv</li>
-              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Geo savdo xaritasi + AI</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Do'kon-tarmoq tahlili</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Mahsulot qayerda sotilishi</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Geo xarita + AI bashorat</li>
+              <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Cheksiz do'kon ulanishi</li>
             </ul>
             <button class="btn btn-primary" onclick="openDemo('korxona')">Demo so'rash</button>
             <button class="flip-hint" type="button" onclick="flipCard(this)">Batafsil ⟳</button>
