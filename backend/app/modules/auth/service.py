@@ -90,6 +90,85 @@ async def _add_to_denylist(redis: Redis, jti: str, exp: int) -> None:
         raise
 
 
+# ─── Login rate-limit (brute-force / credential-stuffing himoyasi) ────────────
+#
+# Redis INCR+EXPIRE bilan MUVAFFAQIYATSIZ urinishlarni hisoblaydi:
+#   - telefon bo'yicha: bitta hisobga parol tanlash (brute-force) oldini oladi.
+#   - IP bo'yicha:      bitta manbadan ko'p hisobga stuffing oldini oladi.
+# Limit oshsa 429 (auth.too_many_attempts). Muvaffaqiyatli login telefon
+# hisoblagichini nolga tushiradi.
+# FAIL-OPEN by design: Redis o'chsa rate-limit o'tkazib yuboriladi (login
+# ishlashda davom etadi) — denylist'dan farqli, chunki login Redis'ga bog'liq
+# bo'lib qolmasligi kerak. GPS rate-limit pattern kabi.
+
+_LOGIN_FAIL_PHONE_MAX = 5       # telefon bo'yicha ketma-ket muvaffaqiyatsiz urinish
+_LOGIN_FAIL_PHONE_WINDOW = 600  # 10 daqiqa
+_LOGIN_FAIL_IP_MAX = 30         # IP bo'yicha muvaffaqiyatsiz urinish
+_LOGIN_FAIL_IP_WINDOW = 600     # 10 daqiqa
+
+
+def _login_fail_phone_key(phone: str) -> str:
+    # blind_index — telefon ochiq matnda Redis'ga tushmaydi.
+    return f"login:fail:phone:{blind_index(phone)}"
+
+
+def _login_fail_ip_key(ip: str) -> str:
+    return f"login:fail:ip:{ip}"
+
+
+async def _enforce_login_rate_limit(
+    redis: Redis | None, phone: str, ip: str | None
+) -> None:
+    """
+    Login oldidan rate-limit tekshiradi (har qanday DB ishidan OLDIN).
+    Limit oshgan bo'lsa AppError("auth.too_many_attempts", 429) chiqaradi.
+
+    Fail-open: Redis xato/o'chib qolsa tekshiruv jim o'tkazib yuboriladi.
+    """
+    if redis is None:
+        return
+    try:
+        pc = await redis.get(_login_fail_phone_key(phone))
+        if pc is not None and int(pc) >= _LOGIN_FAIL_PHONE_MAX:
+            raise AppError("auth.too_many_attempts", status_code=429)
+        if ip:
+            ic = await redis.get(_login_fail_ip_key(ip))
+            if ic is not None and int(ic) >= _LOGIN_FAIL_IP_MAX:
+                raise AppError("auth.too_many_attempts", status_code=429)
+    except AppError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — fail-open by design
+        logger.warning("login.rate_limit.check_failed error=%r", exc)
+
+
+async def _record_login_failure(
+    redis: Redis | None, phone: str, ip: str | None
+) -> None:
+    """Muvaffaqiyatsiz urinishni telefon va IP hisoblagichiga qo'shadi (fail-open)."""
+    if redis is None:
+        return
+    try:
+        pkey = _login_fail_phone_key(phone)
+        if await redis.incr(pkey) == 1:
+            await redis.expire(pkey, _LOGIN_FAIL_PHONE_WINDOW)
+        if ip:
+            ikey = _login_fail_ip_key(ip)
+            if await redis.incr(ikey) == 1:
+                await redis.expire(ikey, _LOGIN_FAIL_IP_WINDOW)
+    except Exception as exc:  # noqa: BLE001 — fail-open by design
+        logger.warning("login.rate_limit.record_failed error=%r", exc)
+
+
+async def _reset_login_failures(redis: Redis | None, phone: str) -> None:
+    """Muvaffaqiyatli login — telefon hisoblagichini tozalaydi (fail-open)."""
+    if redis is None:
+        return
+    try:
+        await redis.delete(_login_fail_phone_key(phone))
+    except Exception as exc:  # noqa: BLE001 — fail-open by design
+        logger.warning("login.rate_limit.reset_failed error=%r", exc)
+
+
 # ─── Login ───────────────────────────────────────────────────────────────────
 
 
@@ -97,6 +176,8 @@ async def login(
     phone: str,
     password: str,
     db: AsyncSession,
+    redis: Redis | None = None,
+    ip: str | None = None,
 ) -> TokenPair:
     """
     Telefon + parol bilan kirish.
@@ -111,7 +192,11 @@ async def login(
 
     Raises:
         AuthError: Hisob topilmasa, bloklangan bo'lsa yoki parol noto'g'ri bo'lsa.
+        AppError("auth.too_many_attempts", 429): Rate-limit oshgan bo'lsa.
     """
+    # Brute-force / credential-stuffing himoyasi — har qanday DB ishidan OLDIN.
+    await _enforce_login_rate_limit(redis, phone, ip)
+
     # Foydalanuvchini telefon bo'yicha topish.
     # phone EncryptedString (shifrlangan) — to'g'ridan-to'g'ri taqqoslab bo'lmaydi.
     # Blind-index orqali: blind_index(phone) == phone_bi (HMAC UNIQUE ustun).
@@ -131,6 +216,7 @@ async def login(
     password_ok = verify_password(password, stored_hash)
 
     if user is None:
+        await _record_login_failure(redis, phone, ip)
         logger.info("login.failed phone=%s reason=user_not_found", _mask_phone(phone))
         raise AuthAppError("auth.invalid_credentials", status_code=401)
 
@@ -139,6 +225,7 @@ async def login(
         raise AuthAppError("auth.inactive_user", status_code=403)
 
     if not password_ok:
+        await _record_login_failure(redis, phone, ip)
         logger.info("login.failed phone=%s reason=wrong_password", _mask_phone(phone))
         raise AuthAppError("auth.invalid_credentials", status_code=401)
 
@@ -157,6 +244,8 @@ async def login(
             )
             raise AppError("enterprise.suspended", status_code=403)
 
+    # Muvaffaqiyat — telefon muvaffaqiyatsizlik hisoblagichini tozalash.
+    await _reset_login_failures(redis, phone)
     logger.info("login.success phone=%s user_id=%s", _mask_phone(phone), user.id)
     return _generate_token_pair(user)
 

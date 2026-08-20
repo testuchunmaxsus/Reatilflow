@@ -26,6 +26,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Telefon yoki parol noto'g'ri",
         "ru": "Неверный номер телефона или пароль",
     },
+    "auth.too_many_attempts": {
+        "uz": "Kirish urinishlari juda ko'p. Biroz kutib, qayta urinib ko'ring.",
+        "ru": "Слишком много попыток входа. Подождите немного и попробуйте снова.",
+    },
     "auth.inactive_user": {
         "uz": "Hisob bloklangan",
         "ru": "Аккаунт заблокирован",

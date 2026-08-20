@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -46,6 +46,21 @@ router = APIRouter(tags=["auth"])
 
 # HTTPBearer — Authorization: Bearer <token> headerini o'qiydi
 _bearer = HTTPBearer(auto_error=False)
+
+
+def _client_ip(request: Request) -> str | None:
+    """
+    Klient IP manzili (login rate-limit uchun).
+
+    Railway/nginx proxy ortida haqiqiy IP `X-Forwarded-For`da bo'ladi —
+    birinchi (eng chap) IP klientniki. Header bo'lmasa peer IP ishlatiladi.
+    """
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else None
 
 
 # ─── get_current_user dependency ─────────────────────────────────────────────
@@ -143,10 +158,18 @@ async def get_current_user(
 )
 async def auth_login(
     body: LoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> TokenPair:
     """Telefon + parol bilan kirish, token juft qaytaradi."""
-    return await login(phone=body.phone, password=body.password, db=db)
+    return await login(
+        phone=body.phone,
+        password=body.password,
+        db=db,
+        redis=redis,
+        ip=_client_ip(request),
+    )
 
 
 @router.post(

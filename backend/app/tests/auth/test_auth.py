@@ -474,3 +474,89 @@ async def test_logout_with_access_token_returns_400(
         json={"refresh_token": access_token},  # access token berildi — xato
     )
     assert logout_resp.status_code == 400
+
+
+# ─── Login rate-limit (brute-force himoyasi) testlari ─────────────────────────
+
+@pytest.mark.asyncio
+async def test_login_rate_limited_after_max_failures(
+    auth_client: AsyncClient, test_user: AppUser
+) -> None:
+    """
+    Telefon bo'yicha _LOGIN_FAIL_PHONE_MAX ta muvaffaqiyatsiz urinishdan keyin
+    keyingi urinish 429 (auth.too_many_attempts) — TO'G'RI parol bilan ham.
+    """
+    from app.modules.auth.service import _LOGIN_FAIL_PHONE_MAX
+
+    for _ in range(_LOGIN_FAIL_PHONE_MAX):
+        r = await auth_client.post(
+            "/auth/login",
+            json={"phone": TEST_PHONE, "password": "WrongPassword!"},
+        )
+        assert r.status_code == 401
+
+    # Limit oshdi — endi to'g'ri parol ham 429 (pre-check credential'dan oldin)
+    blocked = await auth_client.post(
+        "/auth/login",
+        json={"phone": TEST_PHONE, "password": TEST_PASSWORD},
+    )
+    assert blocked.status_code == 429
+    assert blocked.json()["message_key"] == "auth.too_many_attempts"
+
+
+@pytest.mark.asyncio
+async def test_login_rate_limit_resets_on_success(
+    auth_client: AsyncClient, test_user: AppUser
+) -> None:
+    """Muvaffaqiyatli login telefon hisoblagichini nolga tushiradi."""
+    from app.modules.auth.service import _LOGIN_FAIL_PHONE_MAX
+
+    # Chegaradan pastda muvaffaqiyatsiz urinishlar
+    for _ in range(_LOGIN_FAIL_PHONE_MAX - 1):
+        r = await auth_client.post(
+            "/auth/login",
+            json={"phone": TEST_PHONE, "password": "WrongPassword!"},
+        )
+        assert r.status_code == 401
+
+    # Muvaffaqiyatli login — hisoblagich tozalanadi
+    ok = await auth_client.post(
+        "/auth/login",
+        json={"phone": TEST_PHONE, "password": TEST_PASSWORD},
+    )
+    assert ok.status_code == 200
+
+    # Reset bo'lgani uchun yana MAX-1 ta muvaffaqiyatsiz — hali 429 EMAS
+    for _ in range(_LOGIN_FAIL_PHONE_MAX - 1):
+        r = await auth_client.post(
+            "/auth/login",
+            json={"phone": TEST_PHONE, "password": "WrongPassword!"},
+        )
+        assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_login_rate_limit_is_per_phone(
+    auth_client: AsyncClient, test_user: AppUser, inactive_user: AppUser
+) -> None:
+    """Bir telefon bloklansa ham, boshqa telefon ta'sirlanmaydi (per-phone)."""
+    from app.modules.auth.service import _LOGIN_FAIL_PHONE_MAX
+
+    # TEST_PHONE ni bloklash chegarasiga yetkazish
+    for _ in range(_LOGIN_FAIL_PHONE_MAX):
+        await auth_client.post(
+            "/auth/login",
+            json={"phone": TEST_PHONE, "password": "WrongPassword!"},
+        )
+    blocked = await auth_client.post(
+        "/auth/login",
+        json={"phone": TEST_PHONE, "password": TEST_PASSWORD},
+    )
+    assert blocked.status_code == 429
+
+    # Boshqa telefon (inactive_user) — 429 EMAS, o'z holati (403)
+    other = await auth_client.post(
+        "/auth/login",
+        json={"phone": inactive_user.phone, "password": TEST_PASSWORD},
+    )
+    assert other.status_code == 403
